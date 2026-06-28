@@ -6,6 +6,9 @@ import { findButtonByText } from './util';
 //   • Oracle Recruiting Cloud / Redwood (*.oraclecloud.com/hcmUI) — ADF/Redwood SPA.
 // Both are multi-step. Generated ids → rely on the generic detector + heuristic on
 // labels; the value here is correct ATS identification + wizard navigation.
+const NEXT_RE = /continue|next|save and continue/i;
+const SUBMIT_RE = /^submit( application)?$/i;
+
 export const oracle: SiteAdapter = {
   id: 'oracle',
 
@@ -21,12 +24,12 @@ export const oracle: SiteAdapter = {
     return true;
   },
   isReviewStep(doc) {
-    return !!findButtonByText(doc, /^submit( application)?$/i);
+    return !findButtonByText(doc, NEXT_RE) && !!findButtonByText(doc, SUBMIT_RE);
   },
   findNextButton(doc) {
-    return findButtonByText(doc, /continue|next|save and continue/i);
+    return findButtonByText(doc, NEXT_RE);
   },
   findSubmitButton(doc) {
-    return findButtonByText(doc, /^submit( application)?$/i);
+    return findButtonByText(doc, SUBMIT_RE);
   },
 };

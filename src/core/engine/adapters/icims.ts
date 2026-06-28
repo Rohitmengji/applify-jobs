@@ -20,13 +20,19 @@ const NAME_MAP: Record<string, ProfileKey> = {
 
 const normName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
+const NEXT_RE = /continue|next|save & continue|save and continue/i;
+const SUBMIT_RE = /^submit( application)?$/i;
+
 export const icims: SiteAdapter = {
   id: 'icims',
 
+  // Match the document that actually CONTAINS the application form (the iCIMS iframe,
+  // host *.icims.com) — never the parent employer page that merely embeds
+  // #icims_content_iframe (that frame has no fields). Finding #13.
   matches(url, doc) {
     return (
       /(^|\.)icims\.com$/.test(url.hostname) ||
-      !!doc.querySelector('#icims_content_iframe, [id^="icims"]')
+      !!doc.querySelector('form[action*="icims"], #icims_pageLoadDataField')
     );
   },
 
@@ -46,13 +52,15 @@ export const icims: SiteAdapter = {
   isMultiStep() {
     return true;
   },
+  // Review only when there's no Next/Continue left AND a Submit is present — not merely
+  // because a (possibly hidden/persistent) Submit exists somewhere (finding #3).
   isReviewStep(doc) {
-    return !!findButtonByText(doc, /^submit( application)?$/i);
+    return !findButtonByText(doc, NEXT_RE) && !!findButtonByText(doc, SUBMIT_RE);
   },
   findNextButton(doc) {
-    return findButtonByText(doc, /continue|next|save & continue|save and continue/i);
+    return findButtonByText(doc, NEXT_RE);
   },
   findSubmitButton(doc) {
-    return findButtonByText(doc, /^submit( application)?$/i);
+    return findButtonByText(doc, SUBMIT_RE);
   },
 };

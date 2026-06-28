@@ -18,6 +18,8 @@ export function confidenceColor(c: number): string {
 }
 
 export function needsReview(f: DetectedField, threshold = 0.6): boolean {
+  // A free-text field mapped but not yet drafted still needs the user's attention (#6).
+  if (f.mappedKey === 'freeText' && !f.value) return true;
   return f.mappedKey === null || f.source === 'none' || f.confidence < threshold;
 }
 

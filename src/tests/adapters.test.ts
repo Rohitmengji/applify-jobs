@@ -126,6 +126,8 @@ describe('workday adapter', () => {
     ).toBe(true);
     expect(workday.matches(new URL('https://acme.myworkdayjobs.com/x'), document)).toBe(true);
     expect(workday.matches(new URL('https://example.com/x'), document)).toBe(false);
+    // Spoof host must NOT match (finding #7 — the bare /\.wdN\./ branch was removed).
+    expect(workday.matches(new URL('https://evil.wd1.attacker.com/x'), document)).toBe(false);
   });
   it('maps data-automation-id fields', () => {
     const fields = workday.detectFields!(document);
@@ -151,6 +153,19 @@ describe('hard multi-step adapters (iCIMS / SuccessFactors / Oracle)', () => {
     expect(fields.some((f) => f.mappedKey === 'personal.firstName')).toBe(true);
     expect(icims.isMultiStep!(document)).toBe(true);
     expect(icims.findNextButton!(document)?.textContent).toMatch(/continue/i);
+  });
+
+  it('does NOT treat a mid-flow step as review just because Submit exists (finding #3)', () => {
+    // Both Next and Submit present → not review yet.
+    document.body.innerHTML = '<button>Continue</button><button>Submit Application</button>';
+    expect(icims.isReviewStep!(document)).toBe(false);
+    // Only Submit, no Next → review.
+    document.body.innerHTML = '<button>Submit Application</button>';
+    expect(icims.isReviewStep!(document)).toBe(true);
+    // A hidden Submit does not trip review.
+    document.body.innerHTML =
+      '<button>Continue</button><button style="display:none">Submit</button>';
+    expect(icims.isReviewStep!(document)).toBe(false);
   });
 
   it('SuccessFactors matches successfactors.com and sapsf.com', () => {

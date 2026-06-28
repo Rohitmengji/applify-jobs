@@ -180,7 +180,10 @@ export async function fillOne(
   override?: (f: DetectedField, value: string) => Promise<boolean>,
 ): Promise<void> {
   if (override) {
-    const handled = await override(field, field.value ?? '').catch(() => false);
+    // Let a real override error propagate (it becomes a FIELD_FILLED ok:false) rather
+    // than masking it as a generic-path retry — and the override owns the kinds it
+    // claims, so it must throw on a genuine miss, not return false (findings #5/#12).
+    const handled = await override(field, field.value ?? '');
     if (handled) return;
   }
 

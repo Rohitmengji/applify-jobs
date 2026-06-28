@@ -9,6 +9,9 @@ import type { ProfileKey } from '../../profile.schema';
 // Multi-step wizard; we advance to review and never submit.
 //
 // These automation ids drift between tenants/versions — verify against a live page.
+// Only the unambiguous hooks are mapped here. Workday's country/state are custom
+// dropdowns whose automation-ids are ambiguous and drift; the heuristic maps them by
+// their visible labels instead (avoids the country/state inversion in finding #8).
 const DA_MAP: Record<string, ProfileKey> = {
   legalNameSection_firstName: 'personal.firstName',
   legalNameSection_lastName: 'personal.lastName',
@@ -16,9 +19,7 @@ const DA_MAP: Record<string, ProfileKey> = {
   'phone-number': 'personal.phone',
   addressSection_addressLine1: 'personal.address.line1',
   addressSection_city: 'personal.address.city',
-  addressSection_countryRegion: 'personal.address.state',
   addressSection_postalCode: 'personal.address.zip',
-  addressSection_countryDropdown: 'personal.address.country',
 };
 
 const da = (doc: Document, id: string) =>
@@ -27,8 +28,10 @@ const da = (doc: Document, id: string) =>
 export const workday: SiteAdapter = {
   id: 'workday',
 
+  // Anchored to myworkdayjobs.com (covers acme.wd1.myworkdayjobs.com etc.). The bare
+  // /\.wdN\./ branch was dropped — it matched spoof hosts like evil.wd1.attacker.com (#7).
   matches(url) {
-    return /(^|\.)myworkdayjobs\.com$/.test(url.hostname) || /\.wd\d\d?\./.test(url.hostname);
+    return /(^|\.)myworkdayjobs\.com$/.test(url.hostname);
   },
 
   detectFields(doc) {
@@ -47,13 +50,17 @@ export const workday: SiteAdapter = {
   },
 
   // Workday custom dropdowns are a button + popup of [data-automation-id*=promptOption].
+  // Throw on a genuine no-match so the generic dispatcher doesn't re-open/re-type the
+  // same dropdown (the override is responsible for select-custom here). Finding #12.
   async fillField(field: DetectedField, value: string): Promise<boolean> {
-    if (field.kind !== 'select-custom') return false;
+    if (field.kind !== 'select-custom') return false; // not ours → generic path
     const el = document.querySelector<HTMLElement>(`[data-oca-uid="${field.uid}"]`);
     if (!el) return false;
-    return setCustomDropdown(el, value, {
+    const ok = await setCustomDropdown(el, value, {
       optionSelector: '[data-automation-id*="promptOption"], [role=option]',
     });
+    if (!ok) throw new Error('no option matched');
+    return true;
   },
 
   isMultiStep() {
