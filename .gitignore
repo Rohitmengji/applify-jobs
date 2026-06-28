@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# WXT
+.wxt/
+.output/
+web-ext.config.ts
+stats.html
+*.zip
+
+# build / test artifacts
+dist/
+coverage/
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log

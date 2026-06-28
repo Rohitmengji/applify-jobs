@@ -1,0 +1,65 @@
+import type { ProfileKey } from '../profile.schema';
+
+// IMPLEMENTATION.md §11.3 — each key → list of lowercased substrings that indicate it.
+export const SYNONYMS: Partial<Record<ProfileKey, string[]>> = {
+  'personal.firstName': [
+    'first name',
+    'given name',
+    'fname',
+    'firstname',
+    'legal first',
+    'forename',
+  ],
+  'personal.lastName': ['last name', 'surname', 'lname', 'lastname', 'legal last', 'family name'],
+  'personal.middleName': ['middle name', 'middle initial', 'mname'],
+  'personal.preferredName': ['preferred name', 'nickname', 'goes by', 'preferred first'],
+  'personal.email': ['email', 'e-mail', 'email address'],
+  'personal.phone': ['phone', 'mobile', 'telephone', 'cell', 'contact number'],
+  'personal.address.line1': ['address', 'street address', 'address line 1', 'addr'],
+  'personal.address.line2': ['address line 2', 'apt', 'suite', 'unit'],
+  'personal.address.city': ['city', 'town', 'municipality'],
+  'personal.address.state': ['state', 'province', 'region'],
+  'personal.address.zip': ['zip', 'postal code', 'postcode', 'zip code'],
+  'personal.address.country': ['country'],
+  'links.linkedin': ['linkedin'],
+  'links.github': ['github', 'git hub'],
+  'links.portfolio': ['portfolio'],
+  'links.website': ['website', 'personal site', 'web site', 'url'],
+  'workAuth.authorizedToWork': [
+    'authorized to work',
+    'legally authorized',
+    'work authorization',
+    'eligible to work',
+  ],
+  'workAuth.needsSponsorship': [
+    'sponsorship',
+    'require sponsorship',
+    'visa sponsorship',
+    'now or in the future require',
+  ],
+  'workAuth.requiresVisa': ['require a visa', 'visa status'],
+  'eeo.gender': ['gender', 'sex'],
+  'eeo.race': ['race', 'ethnicity'],
+  'eeo.hispanicLatino': ['hispanic', 'latino'],
+  'eeo.veteranStatus': ['veteran', 'protected veteran', 'military'],
+  'eeo.disabilityStatus': ['disability', 'disabled'],
+  'documents.resume': ['resume', 'résumé', 'cv', 'curriculum vitae', 'upload resume'],
+  'documents.coverLetter': ['cover letter', 'covering letter'],
+  skills: ['skills', 'key skills'],
+};
+
+// autocomplete attribute values map directly and are high-confidence.
+export const AUTOCOMPLETE_MAP: Record<string, ProfileKey> = {
+  'given-name': 'personal.firstName',
+  'additional-name': 'personal.middleName',
+  'family-name': 'personal.lastName',
+  email: 'personal.email',
+  tel: 'personal.phone',
+  'address-line1': 'personal.address.line1',
+  'address-line2': 'personal.address.line2',
+  'address-level2': 'personal.address.city',
+  'address-level1': 'personal.address.state',
+  'postal-code': 'personal.address.zip',
+  'country-name': 'personal.address.country',
+  url: 'links.website',
+};

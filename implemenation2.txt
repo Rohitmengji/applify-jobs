@@ -1,0 +1,2612 @@
+This is a real problem worth solving. You're not building "another autofill extension." You're building an **AI-powered Job Application Copilot**.
+
+Current autofill solutions (browser autofill, resume parsers, LinkedIn Easy Apply) only solve **20-30%** of the problem.
+
+Your goal should be **95%+ automation**.
+
+---
+
+# Product Vision
+
+> Apply to any job in under 30 seconds regardless of ATS.
+
+Supported ATS
+
+* Workday
+* Greenhouse
+* Lever
+* Jobvite
+* SmartRecruiters
+* iCIMS
+* Oracle HCM
+* SAP SuccessFactors
+* Taleo
+* BambooHR
+* JazzHR
+* Ashby
+* Recruitee
+* Teamtailor
+* Comeet
+* Workable
+* BreezyHR
+* LinkedIn
+* Indeed
+* Career Sites
+* Custom ATS
+
+This should work on **every website**, not per ATS.
+
+---
+
+# Product Name Ideas
+
+* ApplyAI
+* OneApply
+* AutoApply
+* ApplyFlow
+* JobPilot
+* ResumePilot
+* JobCopilot
+* ApplyOnce
+
+---
+
+# The Core Idea
+
+Instead of
+
+User → fills forms
+
+Do
+
+Website → AI understands page
+
+↓
+
+AI maps fields
+
+↓
+
+AI fills
+
+↓
+
+User reviews
+
+↓
+
+Submit
+
+---
+
+# Overall Architecture
+
+```
+                    React Dashboard
+
+                          │
+
+                User Profile Manager
+
+                          │
+
+               Resume + Cover Letter
+
+                          │
+
+                 AI Mapping Engine
+
+                          │
+
+       Chrome Extension Content Script
+
+                          │
+
+        DOM Analyzer + Field Detector
+
+                          │
+
+         Form Filling Engine
+
+                          │
+
+      Validation + Error Recovery
+
+                          │
+
+              Submit Assistant
+```
+
+---
+
+# Tech Stack
+
+Frontend
+
+* Next.js
+* React
+* TypeScript
+* Tailwind
+* Zustand
+
+Backend
+
+* Node
+* NestJS
+
+Database
+
+* PostgreSQL
+
+ORM
+
+* Prisma
+
+Authentication
+
+* Clerk
+
+Storage
+
+* S3
+
+AI
+
+* OpenAI
+* Local LLM fallback later
+
+Chrome Extension
+
+Manifest V3
+
+---
+
+# Why Chrome Extension?
+
+A web app cannot access form fields on another website.
+
+Chrome Extension can.
+
+Architecture
+
+```
+Dashboard
+
+↓
+
+Stores profile
+
+↓
+
+Chrome Extension
+
+↓
+
+Reads dashboard data
+
+↓
+
+Injects into page
+
+↓
+
+Fills form
+```
+
+---
+
+# High Level Components
+
+```
+Dashboard
+
+Profile
+
+Resume
+
+Education
+
+Experience
+
+Projects
+
+Skills
+
+Certifications
+
+Portfolio
+
+Social Links
+
+Visa
+
+Relocation
+
+Salary
+
+Availability
+
+Languages
+
+References
+
+Custom Answers
+```
+
+---
+
+# Browser Extension
+
+Contains
+
+```
+Popup
+
+Background Service Worker
+
+Content Script
+
+DOM Scanner
+
+AI Agent
+
+Field Mapper
+
+Fill Engine
+
+Validation Engine
+
+Analytics
+```
+
+---
+
+# Biggest Challenge
+
+Every ATS names fields differently.
+
+Example
+
+One site
+
+```
+First Name
+```
+
+Another
+
+```
+Given Name
+```
+
+Another
+
+```
+Applicant First Name
+```
+
+Another
+
+```
+fname
+```
+
+Another
+
+```
+candidate_first_name
+```
+
+Another
+
+```
+input_34
+```
+
+Traditional extensions fail.
+
+Need AI.
+
+---
+
+# AI Field Detection
+
+Instead of
+
+```
+if(id=="firstname")
+```
+
+Use
+
+```
+AI analyzes
+
+Label
+
+Placeholder
+
+Nearby text
+
+HTML
+
+XPath
+
+Aria
+
+Autocomplete
+
+Position
+
+Context
+
+Returns
+
+"firstName"
+```
+
+---
+
+Example
+
+```
+<label>
+
+Given Name
+
+</label>
+
+↓
+
+AI
+
+↓
+
+firstName
+```
+
+---
+
+# Smart Field Mapping
+
+User Profile
+
+```
+{
+ firstName
+
+ lastName
+
+ phone
+
+ email
+
+ address
+
+ city
+
+ state
+
+ zip
+
+ linkedin
+
+ github
+
+ portfolio
+
+ visaStatus
+
+ sponsorship
+
+ relocation
+
+ currentCompany
+
+ expectedSalary
+
+ noticePeriod
+
+ ...
+}
+```
+
+AI maps every field.
+
+---
+
+# DOM Analyzer
+
+Every page
+
+```
+Find
+
+input
+
+textarea
+
+select
+
+checkbox
+
+radio
+
+combobox
+
+contenteditable
+
+shadow dom
+
+iframe
+
+react-select
+
+mui
+
+chakra
+
+ant design
+
+headless ui
+
+```
+
+Everything.
+
+---
+
+# Form Recognition
+
+Detect
+
+```
+Step 1
+
+↓
+
+Next
+
+↓
+
+Step 2
+
+↓
+
+Upload Resume
+
+↓
+
+Continue
+
+↓
+
+Review
+
+↓
+
+Submit
+```
+
+Automatically.
+
+---
+
+# State Machine
+
+```
+Idle
+
+↓
+
+Scanning
+
+↓
+
+Understanding
+
+↓
+
+Mapping
+
+↓
+
+Filling
+
+↓
+
+Validation
+
+↓
+
+Next Step
+
+↓
+
+Repeat
+
+↓
+
+Ready
+
+↓
+
+Submit
+```
+
+---
+
+# Smart Resume Upload
+
+Detect
+
+```
+Upload Resume
+
+Attach Resume
+
+Choose File
+
+```
+
+Automatically upload.
+
+---
+
+# Cover Letter
+
+Store
+
+```
+General
+
+Frontend
+
+React
+
+Next.js
+
+Senior
+
+Staff
+
+```
+
+Choose automatically.
+
+---
+
+# AI Cover Letter
+
+Can generate
+
+```
+Based on
+
+Job Description
+
+Company
+
+Resume
+
+```
+
+One click.
+
+---
+
+# Questions Database
+
+Many applications ask
+
+```
+Need sponsorship?
+
+```
+
+```
+Yes
+```
+
+---
+
+```
+Veteran?
+
+```
+
+```
+No
+```
+
+---
+
+```
+Disability?
+
+```
+
+```
+Prefer not to say
+```
+
+---
+
+Instead of asking every time
+
+Store once.
+
+---
+
+# Dynamic Questions
+
+AI recognizes
+
+```
+Are you legally authorized?
+
+```
+
+↓
+
+Maps
+
+```
+visaStatus
+```
+
+---
+
+# Validation
+
+Check
+
+Required
+
+Pattern
+
+Regex
+
+Length
+
+Before submit.
+
+---
+
+# Smart Error Recovery
+
+Example
+
+```
+Phone invalid
+
+```
+
+AI
+
+```
+Converts
+
+9876543210
+
+↓
+
++91 9876543210
+```
+
+---
+
+# OCR
+
+Sometimes upload fields
+
+Need OCR
+
+Resume parsing
+
+---
+
+# Resume Parser
+
+Extract
+
+```
+Experience
+
+Education
+
+Skills
+
+Companies
+
+Dates
+
+```
+
+Automatically.
+
+---
+
+# AI Matching
+
+Read Job Description
+
+Highlight
+
+Missing skills
+
+Keyword score
+
+ATS score
+
+---
+
+# Autofill Confidence
+
+Every field
+
+```
+Email
+
+99%
+
+Salary
+
+95%
+
+Visa
+
+100%
+
+Current Company
+
+98%
+```
+
+Low confidence asks user.
+
+---
+
+# Popup UI
+
+```
+AutoApply
+
+----------------
+
+Profile
+
+Resume
+
+Score
+
+Fill Form
+
+Generate Cover Letter
+
+Application History
+
+Settings
+
+```
+
+---
+
+# Dashboard
+
+Sections
+
+```
+Applications
+
+Analytics
+
+Saved Jobs
+
+Resume Versions
+
+Profiles
+
+Templates
+
+AI
+
+History
+
+```
+
+---
+
+# Application Tracking
+
+Save
+
+```
+Company
+
+Role
+
+Date
+
+Status
+
+Salary
+
+Location
+
+Source
+
+```
+
+---
+
+# AI Job Tracker
+
+```
+Applied
+
+Interview
+
+OA
+
+Rejected
+
+Offer
+
+Accepted
+```
+
+---
+
+# Analytics
+
+```
+Applications
+
+Interview %
+
+Offer %
+
+Response Rate
+
+```
+
+---
+
+# AI Learning
+
+Suppose
+
+AI wrongly maps
+
+```
+Given Name
+
+↓
+
+Last Name
+```
+
+User fixes
+
+AI remembers.
+
+---
+
+# Knowledge Graph
+
+Store
+
+```
+Field
+
+↓
+
+Meaning
+
+↓
+
+Confidence
+
+↓
+
+ATS
+
+↓
+
+Website
+```
+
+Improves over time.
+
+---
+
+# Browser Automation
+
+Needs
+
+```
+Mutation Observer
+
+Intersection Observer
+
+Resize Observer
+
+```
+
+Because ATS loads dynamically.
+
+---
+
+# Form Engine
+
+Support
+
+```
+React
+
+Angular
+
+Vue
+
+Svelte
+
+Solid
+
+Web Components
+```
+
+---
+
+# Difficult Inputs
+
+Need support
+
+```
+Autocomplete
+
+Date Picker
+
+Country Selector
+
+Phone Selector
+
+MUI Select
+
+React Select
+
+Combobox
+
+Search Dropdown
+
+```
+
+---
+
+# AI Engine
+
+Pipeline
+
+```
+DOM
+
+↓
+
+Clean HTML
+
+↓
+
+Chunk
+
+↓
+
+LLM
+
+↓
+
+JSON Mapping
+
+↓
+
+Fill
+
+↓
+
+Validate
+
+```
+
+---
+
+# Performance
+
+Target
+
+```
+Scan
+
+<300ms
+
+Fill
+
+<2 sec
+
+```
+
+---
+
+# Security
+
+Never store passwords.
+
+Encrypt
+
+```
+Resume
+
+Phone
+
+Email
+
+Address
+
+```
+
+AES-256.
+
+---
+
+# Folder Structure
+
+```
+apps/
+
+dashboard/
+
+extension/
+
+packages/
+
+ui/
+
+types/
+
+ai/
+
+parser/
+
+dom/
+
+form/
+
+validation/
+
+resume/
+
+analytics/
+
+shared/
+
+workers/
+
+```
+
+---
+
+# Milestones
+
+### Phase 1
+
+Dashboard
+
+Profile
+
+Resume
+
+Chrome Extension
+
+Manual Fill
+
+---
+
+### Phase 2
+
+AI Detection
+
+Universal Forms
+
+Validation
+
+---
+
+### Phase 3
+
+Application Tracker
+
+Resume Parser
+
+Analytics
+
+---
+
+### Phase 4
+
+AI Cover Letters
+
+AI Resume Optimization
+
+Job Match
+
+---
+
+### Phase 5
+
+Learning Engine
+
+Cloud Sync
+
+Multiple Profiles
+
+Teams
+
+---
+
+# Future Features
+
+* AI interview preparation
+* Job description summarizer
+* Salary prediction
+* Referral finder
+* Recruiter email finder
+* ATS compatibility score
+* Resume optimization
+* GitHub portfolio analysis
+* LinkedIn optimization
+* Auto follow-up email generation
+* AI job recommendations
+* Browser activity sync
+* Cross-device synchronization
+* Mobile companion app
+
+---
+
+# Recommended System Architecture
+
+```
+                        ┌─────────────────────────────┐
+                        │        Next.js Dashboard    │
+                        │ Profiles • History • AI     │
+                        └──────────────┬──────────────┘
+                                       │
+                              Auth + Sync API
+                                       │
+                 ┌─────────────────────┴─────────────────────┐
+                 │                                           │
+         PostgreSQL + Prisma                         AI Services
+                 │                             Field Mapping • Resume
+                 │                             Cover Letters • Learning
+                 │
+        ┌────────┴─────────┐
+        │                  │
+Chrome Extension      Object Storage
+(Manifest V3)         (Resumes/Documents)
+        │
+        ├── Background Service Worker
+        ├── Content Script
+        ├── DOM Analyzer
+        ├── Form Detection Engine
+        ├── Multi-Step Workflow Engine
+        ├── Validation Engine
+        ├── ATS Adapters
+        └── AI Mapping Client
+                     │
+                     ▼
+      Any Career Site / ATS (Workday, Greenhouse, Lever, iCIMS, Oracle, SAP, LinkedIn, Indeed, etc.)
+```
+
+## What I'd build differently from existing tools
+
+Most autofill tools rely on hardcoded selectors for each ATS, which makes them brittle whenever a site changes. I'd design this as a **Universal Form Intelligence Platform** with four independent engines:
+
+1. **DOM Intelligence Engine** – identifies all interactive controls, including Shadow DOM, iframes, virtualized lists, React portals, and custom UI components.
+2. **Semantic Field Mapping Engine** – combines HTML attributes, visible labels, accessibility metadata, surrounding context, and AI reasoning to infer each field's meaning with a confidence score.
+3. **Workflow Orchestration Engine** – understands multi-step applications, waits for asynchronous validation, detects navigation, and resumes automatically.
+4. **Learning Engine** – stores successful mappings by ATS, company, and component patterns so performance continually improves instead of relying only on the LLM.
+
+That architecture scales far better than maintaining hundreds of ATS-specific scripts.
+
+## If this were handed to a Staff Software Engineering team
+
+The deliverables would include:
+
+* Product Requirements Document (PRD)
+* UX research and competitive analysis
+* Complete design system and UI kit
+* User journeys and wireframes
+* High-fidelity Figma designs
+* Technical architecture documentation
+* Extension architecture specification
+* Backend API specification
+* Database schema
+* AI prompting strategy
+* Domain model
+* State management design
+* Security and privacy review
+* Performance budgets
+* Accessibility compliance plan
+* Testing strategy (unit, integration, E2E)
+* CI/CD pipeline
+* Monitoring and analytics
+* Release strategy
+* Roadmap and backlog
+* Developer documentation
+* API documentation
+* Contributor guide
+
+This is a product that can realistically grow into a commercial SaaS similar to existing autofill tools but with a much stronger AI-first architecture.
+
+Given your frontend experience with React, Next.js, accessibility, and ATS platforms like Jobvite and career sites, this is also a strong portfolio project because you already understand how many applicant tracking systems behave internally. The biggest engineering challenge won't be the UI—it will be building a resilient, intelligent form automation engine that works consistently across the enormous variety of application workflows.
+
+
+I think the scope can be even stronger.
+
+What you've described is a **browser automation platform for job applications**, not just a Chrome extension. The extension is simply the interface.
+
+If this were being proposed inside a company like Google, Stripe, Meta, or OpenAI, the design document would likely be 150–300 pages. Below is the level of completeness I'd expect from a Staff+ engineering team planning a production product.
+
+---
+
+# Product Vision
+
+## Mission
+
+> Reduce the average job application time from 15–30 minutes to under 30 seconds while maintaining near-human accuracy.
+
+The product should:
+
+* Work on any ATS
+* Work on any company career page
+* Support multi-step applications
+* Adapt to new websites automatically
+* Learn from user corrections
+* Feel like an AI copilot rather than a simple autofill tool
+
+---
+
+# The Real Problem
+
+Job seekers spend hours repeating identical information.
+
+Example:
+
+Resume already contains:
+
+* Name
+* Email
+* Phone
+* Experience
+* Education
+* Skills
+* LinkedIn
+* Portfolio
+
+Yet every ATS asks for them again.
+
+A single application typically involves:
+
+* 80–300 interactions
+* 5–15 minutes
+* Multiple pages
+* Repeated uploads
+* Dropdown selections
+* Date pickers
+* Custom questions
+
+Someone applying to 500 jobs can easily waste over 100 hours on repetitive data entry.
+
+Your product eliminates that waste.
+
+---
+
+# Target Users
+
+Primary
+
+* Software Engineers
+* Designers
+* Product Managers
+* QA Engineers
+* Data Scientists
+
+Secondary
+
+* Students
+* Fresh Graduates
+* Recruiters applying internally
+* Contract workers
+* Freelancers
+
+---
+
+# Supported Platforms
+
+ATS
+
+* Workday
+* Greenhouse
+* Lever
+* Jobvite
+* SmartRecruiters
+* iCIMS
+* Oracle
+* SAP SuccessFactors
+* Taleo
+* BambooHR
+* JazzHR
+* Ashby
+* Recruitee
+* Teamtailor
+* BreezyHR
+* Comeet
+* Workable
+* Pinpoint
+* Cezanne HR
+* Personio
+* Rippling
+* UKG
+* Paycom
+* ADP Recruiting
+
+Job Boards
+
+* LinkedIn
+* Indeed
+* Wellfound
+* Dice
+* Monster
+* ZipRecruiter
+* FlexJobs
+* RemoteOK
+
+Career Pages
+
+Every custom career website.
+
+---
+
+# Product Ecosystem
+
+```
+Chrome Extension
+
+↓
+
+Profile Engine
+
+↓
+
+AI Engine
+
+↓
+
+Automation Engine
+
+↓
+
+Learning Engine
+
+↓
+
+Dashboard
+
+↓
+
+Cloud Sync
+
+↓
+
+Analytics
+```
+
+---
+
+# Chrome Extension Modules
+
+```
+Popup
+
+Options Page
+
+Background Service Worker
+
+Content Script
+
+AI Engine
+
+DOM Engine
+
+Workflow Engine
+
+Storage
+
+Security
+
+Analytics
+
+Error Recovery
+
+Logging
+```
+
+---
+
+# Popup UI
+
+```
+Auto Apply
+
+──────────────
+
+Resume
+
+Profile
+
+Quick Fill
+
+Generate Cover Letter
+
+Application Tracker
+
+AI Assistant
+
+Settings
+
+Help
+```
+
+---
+
+# Dashboard
+
+Profile
+
+Experience
+
+Education
+
+Skills
+
+Projects
+
+Certifications
+
+Awards
+
+Languages
+
+Portfolio
+
+Social Links
+
+Documents
+
+Resume Versions
+
+Cover Letters
+
+Application History
+
+Saved Answers
+
+AI Suggestions
+
+Subscription
+
+Usage Analytics
+
+Settings
+
+---
+
+# User Profile Model
+
+```
+Personal
+
+First Name
+
+Middle Name
+
+Last Name
+
+Preferred Name
+
+Pronouns
+
+DOB
+
+Nationality
+
+Address
+
+Phone
+
+Email
+
+Emergency Contact
+```
+
+Professional
+
+```
+Current Company
+
+Designation
+
+Years Experience
+
+Notice Period
+
+Current Salary
+
+Expected Salary
+
+Open To Relocate
+
+Visa
+
+Work Authorization
+
+LinkedIn
+
+Portfolio
+
+Github
+
+Website
+```
+
+---
+
+# Resume Management
+
+Multiple resumes
+
+Example
+
+```
+Frontend Resume
+
+Backend Resume
+
+Full Stack Resume
+
+React Resume
+
+NextJS Resume
+
+Staff Resume
+```
+
+Automatically choose based on job.
+
+---
+
+# Cover Letter Library
+
+Templates
+
+AI Generated
+
+Company Specific
+
+Role Specific
+
+Reusable
+
+---
+
+# Automation Pipeline
+
+```
+Open Job
+
+↓
+
+Detect ATS
+
+↓
+
+Detect Form
+
+↓
+
+Analyze DOM
+
+↓
+
+Detect Fields
+
+↓
+
+Map Fields
+
+↓
+
+Fill Values
+
+↓
+
+Validate
+
+↓
+
+Next Step
+
+↓
+
+Repeat
+
+↓
+
+Submit Ready
+```
+
+---
+
+# DOM Intelligence Engine
+
+Must detect
+
+```
+input
+
+textarea
+
+select
+
+checkbox
+
+radio
+
+switch
+
+toggle
+
+file upload
+
+date picker
+
+calendar
+
+combobox
+
+autocomplete
+
+react-select
+
+mui
+
+chakra
+
+ant
+
+shadow dom
+
+iframe
+
+web component
+
+contenteditable
+
+```
+
+---
+
+# Semantic Understanding
+
+Instead of matching IDs, analyze:
+
+* Label
+* Placeholder
+* ARIA attributes
+* Nearby text
+* Parent container
+* Field order
+* Required indicators
+* Validation messages
+* Existing value
+* Form grouping
+
+Then infer:
+
+```
+fieldType: firstName
+
+confidence: 99%
+```
+
+---
+
+# AI Mapping Engine
+
+Input
+
+```
+Entire form structure
+```
+
+Output
+
+```json
+{
+  "field": "candidate.firstName",
+  "selector": "#input_45",
+  "confidence": 0.99,
+  "reason": "Label says 'Given Name'"
+}
+```
+
+---
+
+# Workflow Engine
+
+Understands:
+
+Single page
+
+↓
+
+Multi page
+
+↓
+
+Conditional pages
+
+↓
+
+Review page
+
+↓
+
+Submit
+
+It waits for async validation before moving on.
+
+---
+
+# Smart Waiting
+
+Instead of sleeping for 2 seconds:
+
+Wait for:
+
+* DOM mutations
+* Network idle
+* Validation completion
+* Spinner removal
+* React render completion
+* Enabled buttons
+
+---
+
+# Resume Upload Engine
+
+Automatically detect:
+
+* Upload Resume
+* Attach Resume
+* Browse File
+* Drag & Drop
+
+Supports:
+
+PDF
+
+DOC
+
+DOCX
+
+---
+
+# Resume Parsing
+
+Extract:
+
+Experience
+
+Education
+
+Projects
+
+Skills
+
+Dates
+
+Companies
+
+Achievements
+
+Automatically populate profile.
+
+---
+
+# AI Resume Optimizer
+
+Reads job description.
+
+Suggests:
+
+Missing keywords
+
+ATS improvements
+
+Skill gaps
+
+Resume score
+
+---
+
+# AI Cover Letter Generator
+
+Inputs:
+
+Resume
+
+Job Description
+
+Company
+
+Role
+
+Outputs:
+
+Tailored cover letter.
+
+---
+
+# Saved Answers Library
+
+Frequently asked questions:
+
+Need sponsorship?
+
+Veteran?
+
+Disability?
+
+Gender?
+
+Race?
+
+Current salary?
+
+Expected salary?
+
+Availability?
+
+Notice period?
+
+Preferred location?
+
+Remote?
+
+Travel?
+
+Store once.
+
+Reuse everywhere.
+
+---
+
+# Dynamic Question Understanding
+
+Example:
+
+"Are you legally authorized to work?"
+
+↓
+
+Map to
+
+```
+workAuthorization
+```
+
+Even if wording changes.
+
+---
+
+# Validation Engine
+
+Checks:
+
+Required
+
+Regex
+
+Min/max
+
+Email format
+
+Phone format
+
+Dates
+
+Dropdown validity
+
+Cross-field rules
+
+---
+
+# Error Recovery
+
+If validation fails:
+
+Read error message
+
+Identify issue
+
+Correct automatically if possible
+
+Otherwise ask user.
+
+---
+
+# Browser Automation
+
+Needs:
+
+MutationObserver
+
+IntersectionObserver
+
+ResizeObserver
+
+History API detection
+
+SPA navigation support
+
+---
+
+# Framework Support
+
+React
+
+Angular
+
+Vue
+
+Svelte
+
+Solid
+
+Web Components
+
+Vanilla JS
+
+---
+
+# Shadow DOM Support
+
+Many ATS hide elements.
+
+Need recursive traversal.
+
+---
+
+# Iframe Support
+
+Some applications embed forms.
+
+Need iframe injection.
+
+---
+
+# Accessibility Layer
+
+Use:
+
+ARIA
+
+role
+
+label
+
+describedby
+
+autocomplete
+
+Accessibility metadata often identifies fields more reliably than CSS selectors.
+
+---
+
+# Learning Engine
+
+Every correction improves future fills.
+
+Store:
+
+Field fingerprint
+
+DOM signature
+
+Successful mapping
+
+ATS version
+
+Confidence
+
+---
+
+# Privacy
+
+Sensitive data:
+
+Resume
+
+Phone
+
+Address
+
+Email
+
+Encrypted.
+
+Passwords are never stored.
+
+Users control all personal data.
+
+---
+
+# Offline Mode
+
+Recently used profile available without internet.
+
+---
+
+# Cloud Sync
+
+Profiles sync across devices.
+
+---
+
+# Performance Goals
+
+Scan page:
+
+<300 ms
+
+Analyze:
+
+<1 second
+
+Fill:
+
+<2 seconds
+
+Memory:
+
+Minimal
+
+CPU:
+
+Low
+
+---
+
+# Security
+
+Content Security Policy
+
+Extension sandbox
+
+Permission minimization
+
+No credential collection
+
+Encryption at rest
+
+Encryption in transit
+
+---
+
+# Permissions
+
+Only request:
+
+activeTab
+
+storage
+
+scripting
+
+tabs
+
+Avoid broad permissions unless absolutely necessary.
+
+---
+
+# Analytics
+
+Track (with user consent):
+
+Applications started
+
+Completed
+
+Time saved
+
+Success rate
+
+Common validation failures
+
+Unsupported controls
+
+---
+
+# Logging
+
+Developer mode:
+
+DOM snapshot
+
+Mapping output
+
+Errors
+
+Validation logs
+
+AI reasoning
+
+Makes debugging easier.
+
+---
+
+# Architecture
+
+```
+packages/
+
+ui
+
+shared
+
+types
+
+hooks
+
+utils
+
+ai
+
+automation
+
+parser
+
+learning
+
+analytics
+
+security
+
+storage
+
+validators
+
+workflow
+
+extension
+
+dashboard
+
+backend
+```
+
+---
+
+# Backend
+
+Authentication
+
+Profile API
+
+Resume API
+
+AI API
+
+Learning API
+
+Application History
+
+Subscriptions
+
+Telemetry
+
+---
+
+# Database
+
+Users
+
+Profiles
+
+Resumes
+
+Documents
+
+Applications
+
+Mappings
+
+Corrections
+
+Templates
+
+Cover Letters
+
+Subscriptions
+
+Audit Logs
+
+---
+
+# Testing
+
+Unit tests
+
+Integration tests
+
+E2E tests
+
+Cross-browser tests
+
+Performance tests
+
+Accessibility tests
+
+Regression tests
+
+Chaos testing for dynamic pages
+
+---
+
+# CI/CD
+
+GitHub Actions
+
+Lint
+
+Type Check
+
+Tests
+
+Extension Build
+
+Web Build
+
+Release
+
+Store Submission
+
+---
+
+# Monitoring
+
+Crash reporting
+
+Performance metrics
+
+AI latency
+
+Extension errors
+
+API health
+
+---
+
+# Future Roadmap
+
+### Phase 1
+
+* Universal autofill
+* Resume upload
+* Multi-step forms
+* Saved answers
+
+### Phase 2
+
+* AI field mapping
+* Resume parser
+* Application tracker
+* Cloud sync
+
+### Phase 3
+
+* AI cover letters
+* Resume optimization
+* Job match scoring
+* Multiple profiles
+
+### Phase 4
+
+* Auto-detect best resume
+* Recruiter outreach assistant
+* Interview preparation
+* Follow-up email generator
+
+### Phase 5
+
+* Cross-browser support (Chrome, Edge, Brave, Firefox)
+* Team accounts
+* Enterprise version
+* API for career platforms
+
+---
+
+# Features That Would Differentiate You
+
+These are the features I'd add to make the product significantly better than existing autofill tools:
+
+### 1. AI Vision Mode
+
+When a form uses non-standard controls, capture the visible UI (not just HTML) and let an AI model identify fields based on what a human sees.
+
+### 2. Multiple Candidate Profiles
+
+Maintain different profiles (Frontend, Backend, Full Stack, Student, Contractor) and switch automatically based on the job description.
+
+### 3. Job Description Intelligence
+
+Extract:
+
+* Required skills
+* Nice-to-have skills
+* Experience level
+* Visa requirements
+* Location
+* Salary hints
+
+Recommend the best resume before filling.
+
+### 4. Safe Submit Mode
+
+Never click **Submit** automatically by default. Instead:
+
+* Fill everything
+* Validate
+* Highlight uncertain fields
+* Show a summary
+* Let the user review
+* User clicks Submit
+
+This avoids accidental applications.
+
+### 5. Confidence Overlay
+
+Display confidence next to every field:
+
+* 🟢 High (95–100%)
+* 🟡 Medium (70–94%)
+* 🔴 Low (<70%)
+
+Users immediately know what to verify.
+
+### 6. Auto Save & Resume
+
+If the browser closes or the application is interrupted:
+
+* Save progress
+* Restore later
+* Continue from the last completed step
+
+### 7. ATS Fingerprinting
+
+Build a lightweight fingerprinting engine that recognizes ATS platforms by:
+
+* HTML structure
+* Script bundles
+* Meta tags
+* CSS patterns
+* Network requests
+
+Then apply ATS-specific optimizations while still supporting unknown platforms.
+
+### 8. Explain Why
+
+If the AI maps a field unexpectedly, users can inspect:
+
+* Why it chose that mapping
+* Which signals it used
+* Its confidence
+* A way to correct it
+
+This builds trust.
+
+### 9. Privacy-First AI
+
+Whenever possible:
+
+* Use deterministic local rules first
+* Only send anonymized field metadata to cloud AI if needed
+* Never transmit resumes or sensitive information without explicit consent
+
+### 10. Community Learning
+
+With user opt-in, anonymously aggregate successful field mappings across websites. Every new successful mapping improves future autofill accuracy for everyone.
+
+---
+
+## The most important design principle
+
+Don't think of this as **"a Chrome extension that fills forms."**
+
+Think of it as:
+
+> **An AI-powered browser copilot that understands any job application workflow, learns continuously, protects user privacy, and reduces hours of repetitive work into seconds.**
+
+That shift in thinking will influence every architectural decision and is what separates a useful tool from a product that people will recommend to every job seeker.
+
+
+I actually **wouldn't start coding yet**.
+
+If this were a startup or a Staff Engineer initiative, the very first deliverable would **not** be code—it would be a complete Product Design Document (PDD), Software Requirements Specification (SRS), Architecture Decision Record (ADR), UX system, API contracts, database design, extension architecture, AI architecture, and implementation roadmap.
+
+Based on everything we've discussed, this is no longer a Chrome extension. It's an **AI platform** consisting of:
+
+* Chrome Extension
+* Web Dashboard
+* AI Engine
+* Cloud Backend
+* Resume Intelligence
+* Browser Automation Engine
+* Learning Engine
+* Analytics Platform
+
+---
+
+# What I recommend instead
+
+Rather than trying to fit everything into a single chat response (which would be incomplete and exceed the response size limits), I recommend creating this as a **full engineering blueprint**, similar to what a 30-year product engineering team would hand over before development begins.
+
+It would include approximately **250–400 pages** worth of material, organized into sections like:
+
+## Volume 1 — Product & Business
+
+* Vision
+* Mission
+* Market research
+* Competitor analysis
+* Product positioning
+* Pricing strategy
+* User personas
+* User journeys
+* MVP definition
+* Feature prioritization
+
+## Volume 2 — UX/UI
+
+* Complete design system
+* Design tokens
+* Color system
+* Typography
+* Components
+* Responsive layouts
+* Extension UI
+* Dashboard UI
+* Accessibility
+* User flows
+* Wireframes
+* High-fidelity screens
+
+## Volume 3 — Technical Architecture
+
+* High-level architecture
+* Low-level architecture
+* Chrome Extension architecture
+* AI architecture
+* Backend architecture
+* Event-driven design
+* Security model
+* Data flow diagrams
+* Sequence diagrams
+* Deployment architecture
+
+## Volume 4 — Database & APIs
+
+* ER diagrams
+* Prisma schema
+* API specifications
+* Authentication
+* RBAC
+* Resume storage
+* AI endpoints
+* WebSocket events
+
+## Volume 5 — Browser Automation Engine
+
+* DOM engine
+* Form detection
+* Field mapping
+* Multi-step workflow engine
+* Validation engine
+* Shadow DOM support
+* React/Vue/Angular support
+* Error recovery
+* Retry logic
+* Confidence scoring
+
+## Volume 6 — AI System
+
+* Prompt architecture
+* Model orchestration
+* Resume parser
+* Cover letter generation
+* Job description parser
+* ATS keyword optimizer
+* Learning engine
+* Knowledge graph
+* Confidence model
+
+## Volume 7 — Project Structure
+
+* Monorepo layout
+* Folder structure
+* Coding standards
+* Naming conventions
+* Shared packages
+* Build system
+* Environment management
+* CI/CD
+
+## Volume 8 — Implementation
+
+* Sprint plan
+* Milestones
+* Git workflow
+* Testing strategy
+* Performance budgets
+* Release process
+* Chrome Web Store deployment
+* Monitoring
+* Analytics
+
+## Volume 9 — Future Vision
+
+* Firefox/Edge support
+* Mobile companion
+* Recruiter CRM
+* AI interview coach
+* Referral finder
+* Enterprise edition
+* Team collaboration
+* Marketplace
+
+---
+
+## Why I don't want to compress it
+
+Trying to put all of that into one answer would force me to omit important details like:
+
+* Complete folder structure
+* AI prompt architecture
+* State machines
+* Database schema
+* API contracts
+* Extension messaging
+* Security model
+* Testing architecture
+* Deployment pipeline
+* Design system
+* Error handling
+* Performance strategy
+
+Those are exactly the things that make the difference between a side project and a production-grade product.
+
+### My recommendation
+
+Treat this as building your own **Linear**, **Notion**, or **Figma**—a serious software product.
+
+We can build it as a **complete software engineering blueprint**, one document at a time, with each document detailed enough that another engineering team could implement it without additional clarification.
+
+That approach will produce a far higher-quality result than trying to squeeze an entire product specification into a single response.
