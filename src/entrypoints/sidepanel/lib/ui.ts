@@ -29,5 +29,26 @@ export function needsReview(f: DetectedField, threshold = 0.6): boolean {
 
 export function fieldLabel(f: DetectedField): string {
   const s = f.signals;
-  return s.label || s.ariaLabel || s.placeholder || s.name || s.id || '(unlabeled field)';
+  return (
+    s.label ||
+    s.ariaLabel ||
+    s.placeholder ||
+    s.nearbyText ||
+    humanize(s.name) ||
+    humanize(s.id) ||
+    '(unlabeled field)'
+  );
+}
+
+// Turn a name/id token into readable words; returns '' for auto-generated ids (long hex
+// runs, "--" separators, pure numbers) so we never show gibberish like "primaryQuestionnaire b493…".
+function humanize(raw: string): string {
+  if (!raw || /--|[0-9a-f]{8,}|^\d+$/i.test(raw)) return '';
+  const words = raw
+    .replace(/[_\-.]+/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (words.length < 2) return '';
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }

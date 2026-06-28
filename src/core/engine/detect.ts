@@ -12,6 +12,15 @@ const SELECTOR = [
   'select',
   '[role=combobox]',
   '[role=listbox]',
+  // Custom dropdown / combobox triggers (Workday "Select One", React-Select, etc.).
+  // classifyKind() decides which of these are real select-custom controls; the rest
+  // come back 'unknown' and are dropped below, so menu/disclosure buttons don't clutter.
+  'button[aria-haspopup]',
+  '[aria-haspopup=listbox]',
+  '[aria-haspopup=menu]',
+  '[aria-expanded][aria-controls]',
+  '[aria-expanded][aria-owns]',
+  '[role=button][aria-expanded]',
 ].join(',');
 
 // Radios share a name; collapse them into one DetectedField per group.
@@ -23,6 +32,7 @@ export function detectFields(root: ParentNode = document): DetectedField[] {
   for (const el of els) {
     if (!isVisible(el)) continue;
     const kind = classifyKind(el);
+    if (kind === 'unknown') continue; // over-captured trigger (menu/disclosure) — not a field
 
     if (kind === 'radio-group') {
       const name = el.getAttribute('name') ?? '';

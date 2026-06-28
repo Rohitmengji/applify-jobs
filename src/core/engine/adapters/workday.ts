@@ -25,6 +25,46 @@ const DA_MAP: Record<string, ProfileKey> = {
 const da = (doc: Document, id: string) =>
   doc.querySelector<HTMLElement>(`[data-automation-id="${id}"]`);
 
+// Strip Workday's dropdown placeholder echo ("… select one [required]") from a label.
+// Only fires when "select one"/"select all that apply" is present, so a real trailing
+// "required" on a genuine question isn't removed.
+function stripSelectSuffix(s: string): string {
+  const out = s.replace(/\s*(select one|select all that apply)\s*(required)?\s*$/i, '').trim();
+  return out !== s ? out : '';
+}
+
+function labelIsWeak(label: string, daId: string, id: string): boolean {
+  const l = label.trim().toLowerCase();
+  return !l || l === 'select one' || l === daId.toLowerCase() || l === id.toLowerCase();
+}
+
+const NON_LABEL = 'input,select,textarea,button,[role=combobox],[role=listbox],[role=button]';
+// Visible text of a Workday formField-* group, excluding the control's own value.
+function groupText(node: Element): string {
+  let out = '';
+  node.childNodes.forEach((c) => {
+    if (c.nodeType === Node.TEXT_NODE) out += c.textContent ?? '';
+    else if (c.nodeType === Node.ELEMENT_NODE && !(c as Element).matches(NON_LABEL)) {
+      out += ' ' + groupText(c as Element);
+    }
+  });
+  return out.replace(/\s+/g, ' ').replace(/\*+$/, '').trim();
+}
+
+function workdayLabel(el: Element): string {
+  const aria = el.getAttribute('aria-label');
+  if (aria) {
+    const stripped = stripSelectSuffix(aria) || aria.trim();
+    if (stripped && stripped.toLowerCase() !== 'select one') return stripped;
+  }
+  const group = el.closest('[data-automation-id^="formField-"]');
+  if (group) {
+    const t = groupText(group);
+    if (t) return t;
+  }
+  return '';
+}
+
 export const workday: SiteAdapter = {
   id: 'workday',
 
@@ -45,6 +85,18 @@ export const workday: SiteAdapter = {
         f.confidence = 0.97;
         f.source = 'adapter';
       }
+      // Label repair: Workday questionnaire controls often have only an aria-label of the
+      // form "<question> select one required", or the question text lives in the wrapping
+      // formField-* group. Recover the real question so the panel never shows a raw id.
+      if (el) {
+        if (labelIsWeak(f.signals.label, id, f.signals.id)) {
+          const better = workdayLabel(el);
+          if (better) f.signals.label = better;
+        } else {
+          const stripped = stripSelectSuffix(f.signals.label);
+          if (stripped) f.signals.label = stripped;
+        }
+      }
     }
     return fields;
   },
@@ -57,7 +109,8 @@ export const workday: SiteAdapter = {
     const el = document.querySelector<HTMLElement>(`[data-oca-uid="${field.uid}"]`);
     if (!el) return false;
     const ok = await setCustomDropdown(el, value, {
-      optionSelector: '[data-automation-id*="promptOption"], [role=option]',
+      optionSelector:
+        '[data-automation-id*="promptOption"], ul[role=listbox] li[role=option], [role=option]',
     });
     if (!ok) throw new Error('no option matched');
     return true;

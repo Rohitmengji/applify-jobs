@@ -20,6 +20,14 @@ describe('classifyKind', () => {
     d.setAttribute('role', 'combobox');
     expect(classifyKind(d)).toBe('select-custom');
   });
+  it('classifies an aria-haspopup button (Workday "Select One") as select-custom', () => {
+    const b = document.createElement('button');
+    b.setAttribute('aria-haspopup', 'listbox');
+    expect(classifyKind(b)).toBe('select-custom');
+  });
+  it('does NOT classify a plain button as a field', () => {
+    expect(classifyKind(document.createElement('button'))).toBe('unknown');
+  });
 });
 
 describe('getLabelText', () => {
@@ -38,6 +46,29 @@ describe('getLabelText', () => {
   it('strips a trailing required asterisk', () => {
     document.body.innerHTML = '<label for="x">First Name *</label><input id="x" />';
     expect(getLabelText(document.getElementById('x')!)).toBe('First Name');
+  });
+  it('reads aria-label', () => {
+    document.body.innerHTML =
+      '<button id="b" aria-haspopup="listbox" aria-label="Country">Select One</button>';
+    expect(getLabelText(document.getElementById('b')!)).toBe('Country');
+  });
+  it('aria-labelledby skips a value ref inside the control itself', () => {
+    // Workday pattern: the trigger references both the question label and its own value span.
+    document.body.innerHTML =
+      '<label id="q">Authorized to work?</label>' +
+      '<button id="b" aria-labelledby="q v"><span id="v">Select One</span></button>';
+    expect(getLabelText(document.getElementById('b')!)).toBe('Authorized to work?');
+  });
+  it('climbs the field-group wrapper to find the label (no for/aria)', () => {
+    document.body.innerHTML =
+      '<div data-automation-id="formField-q"><div class="wd-label">Why us?</div>' +
+      '<textarea id="t"></textarea></div>';
+    expect(getLabelText(document.getElementById('t')!)).toBe('Why us?');
+  });
+  it('does not steal a sibling field’s label (multi-control region)', () => {
+    document.body.innerHTML = '<div><label>A</label><input id="a" /><input id="b" /></div>';
+    // #b has no own label; the group has 2 controls → climb stops, returns '' (not "A").
+    expect(getLabelText(document.getElementById('b')!)).toBe('');
   });
 });
 
