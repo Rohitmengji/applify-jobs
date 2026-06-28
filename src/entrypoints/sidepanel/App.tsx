@@ -5,7 +5,7 @@ import type { ProfileKey } from '@/core/profile.schema';
 import { getProfile } from '@/core/storage/profileStore';
 import { getFile } from '@/core/storage/blobStore';
 import { valueForKey } from '@/core/engine/values';
-import { sendToTab, sendToBackground, fileToB64, activeTabId } from './lib/messaging';
+import { sendToFrame, sendToBackground, frameIds, fileToB64, activeTabId } from './lib/messaging';
 import { StatusBar } from './components/StatusBar';
 import { ReviewTable } from './components/ReviewTable';
 import { FillButton } from './components/FillButton';
@@ -22,12 +22,11 @@ export function App() {
   const [status, setStatus] = useState<WizardStatus | null>(null);
   const [threshold, setThreshold] = useState(0.6);
 
-  // The tab this panel is bound to — used to ignore broadcasts from other tabs (#5).
-  const tabIdRef = useRef<number | null>(null);
+  const tabIdRef = useRef<number | null>(null); // tab this panel is bound to (#5)
+  const adapterFrameRef = useRef(0); // frame that owns the multi-step adapter
 
-  // Ask the LLM to map any fields the deterministic layers left unmapped, then resolve
-  // their values from the profile (§11.4/§11.5, finding #6). Degrades to a no-op when
-  // LLM assist is off or no API key is set (background returns []).
+  // Ask the LLM to map fields the deterministic layers left unmapped, then resolve their
+  // values from the profile (§11.4/§11.5, finding #6). No-op without LLM assist/API key.
   const enrichWithLLM = useCallback(async (current: DetectedField[]): Promise<DetectedField[]> => {
     const profile = await getProfile();
     if (!profile.settings.llmEnabled) return current;
@@ -45,32 +44,56 @@ export function App() {
       const m = byUid.get(f.uid);
       if (!m || !m.key) return f;
       const key = m.key as ProfileKey;
-      // freeText stays valueless (drafted on demand); structured keys resolve now.
       const value = key === 'freeText' ? f.value : (valueForKey(profile, key, f) ?? f.value);
       return { ...f, mappedKey: key, source: 'llm' as FillSource, confidence: m.confidence, value };
     });
   }, []);
 
+  // Detect across every frame of the tab (iframe ATSes), tagging each field with its
+  // frameId so fills route back to the right frame. Single-frame pages = just frame 0.
   const detect = useCallback(async () => {
     setBusy(true);
     setNotice(null);
     try {
-      tabIdRef.current = await activeTabId();
-      const ping = await sendToTab({ type: 'PING' });
+      const tabId = await activeTabId();
+      tabIdRef.current = tabId;
+      const ping = await sendToFrame(tabId, 0, { type: 'PING' }).catch(() => null);
       if (ping?.type !== 'PONG') throw new Error('no content script');
 
       const profile = await getProfile();
       setThreshold(profile.settings.confidenceThreshold);
 
-      const res = await sendToTab({ type: 'DETECT' });
-      if (res.type === 'DETECTED') {
-        setAdapterId(res.adapterId);
-        setMultiStep(res.multiStep);
-        setFilledMap({});
-        setFields(res.fields);
-        const enriched = await enrichWithLLM(res.fields);
-        if (enriched !== res.fields) setFields(enriched);
+      const ids = await frameIds(tabId);
+      const perFrame = await Promise.all(
+        ids.map(async (fid) => {
+          const r = await sendToFrame(tabId, fid, { type: 'DETECT' }).catch(() => null);
+          return r && r.type === 'DETECTED'
+            ? { fid, fields: r.fields, adapterId: r.adapterId, multiStep: r.multiStep }
+            : null;
+        }),
+      );
+
+      const merged: DetectedField[] = [];
+      let foundAdapter: string | null = null;
+      let foundMultiStep = false;
+      let adapterFrame = 0;
+      for (const fr of perFrame) {
+        if (!fr) continue;
+        for (const f of fr.fields) merged.push({ ...f, frameId: fr.fid });
+        if (fr.adapterId && !foundAdapter) {
+          foundAdapter = fr.adapterId;
+          foundMultiStep = fr.multiStep;
+          adapterFrame = fr.fid;
+        }
       }
+
+      adapterFrameRef.current = adapterFrame;
+      setFilledMap({});
+      setAdapterId(foundAdapter);
+      setMultiStep(foundMultiStep);
+      setFields(merged);
+      const enriched = await enrichWithLLM(merged);
+      if (enriched !== merged) setFields(enriched);
     } catch {
       setNotice(
         'Open a job application page, then re-detect. (This panel can’t read browser pages.)',
@@ -92,18 +115,23 @@ export function App() {
   // Live updates broadcast by the content script during fill / wizard runs.
   useEffect(() => {
     const handler = (msg: FromContent, sender: chrome.runtime.MessageSender) => {
-      // Only react to broadcasts from the tab this panel is bound to (#5).
-      if (tabIdRef.current != null && sender.tab?.id !== tabIdRef.current) return;
+      if (tabIdRef.current != null && sender.tab?.id !== tabIdRef.current) return; // other tab (#5)
+      const fid = sender.frameId ?? 0;
       if (msg.type === 'FIELD_FILLED') {
         setFilledMap((m) => ({ ...m, [msg.uid]: { ok: msg.ok, error: msg.error } }));
       } else if (msg.type === 'DETECTED') {
-        // Merge by uid, preserving the user's manual edits (#4).
+        // Replace this frame's fields, keep other frames'; preserve manual edits (#4).
         setFields((prev) => {
           const manual = new Map(prev.filter((f) => f.source === 'manual').map((f) => [f.uid, f]));
-          return msg.fields.map((f) => manual.get(f.uid) ?? f);
+          const others = prev.filter((f) => (f.frameId ?? 0) !== fid);
+          const incoming = msg.fields.map((f) => ({ ...(manual.get(f.uid) ?? f), frameId: fid }));
+          return [...others, ...incoming];
         });
-        setAdapterId(msg.adapterId);
-        setMultiStep(msg.multiStep);
+        if (msg.adapterId) {
+          setAdapterId(msg.adapterId);
+          setMultiStep(msg.multiStep);
+          adapterFrameRef.current = fid;
+        }
       } else if (msg.type === 'STATUS') {
         setStatus(msg.status);
       }
@@ -135,7 +163,6 @@ export function App() {
         question,
       });
       if (res.type === 'LLM_DRAFT_RESULT' && res.answer) {
-        // Tag provenance so the badge reads "saved" (answer bank) or "AI" (§17, §20, #12).
         applyResolved(field.uid, res.answer, res.source === 'answerBank' ? 'answerBank' : 'llm');
       }
     },
@@ -145,16 +172,17 @@ export function App() {
   const fillAll = useCallback(async () => {
     setBusy(true);
     try {
+      const tabId = tabIdRef.current ?? (await activeTabId());
       const profile = await getProfile();
 
-      // 1) résumé first.
+      // 1) résumé first, routed to the frame that owns the file field.
       const resumeField = fields.find((f) => f.mappedKey === 'documents.resume');
       let attachedResume = false;
       if (resumeField && profile.documents.resumeBlobId) {
         const file = await getFile(profile.documents.resumeBlobId);
         if (file) {
           const b64 = await fileToB64(file);
-          await sendToTab({
+          await sendToFrame(tabId, resumeField.frameId ?? 0, {
             type: 'FILL_FILE',
             uid: resumeField.uid,
             filename: file.name,
@@ -165,15 +193,21 @@ export function App() {
         }
       }
 
-      // Many ATSes parse the résumé to prefill, then overwrite our values. Give that a
-      // beat to settle before filling the rest, so our values win (§25, finding #18).
+      // Let a résumé-parse prefill settle before filling the rest, so our values win (§25, #18).
       if (attachedResume) await new Promise((r) => setTimeout(r, 1200));
 
-      // 2) everything else with a resolved value.
-      const resolved: ResolvedFill[] = fields
-        .filter((f) => f.value != null && f.mappedKey !== 'documents.resume')
-        .map((f) => ({ uid: f.uid, value: f.value as string }));
-      await sendToTab({ type: 'FILL', fields: resolved });
+      // 2) everything else, grouped per frame.
+      const byFrame = new Map<number, ResolvedFill[]>();
+      for (const f of fields) {
+        if (f.value == null || f.mappedKey === 'documents.resume') continue;
+        const fid = f.frameId ?? 0;
+        const list = byFrame.get(fid) ?? [];
+        list.push({ uid: f.uid, value: f.value });
+        byFrame.set(fid, list);
+      }
+      for (const [fid, list] of byFrame) {
+        await sendToFrame(tabId, fid, { type: 'FILL', fields: list });
+      }
     } finally {
       setBusy(false);
     }
@@ -182,7 +216,8 @@ export function App() {
   const runStep = useCallback(async () => {
     setBusy(true);
     try {
-      await sendToTab({ type: 'WIZARD_NEXT' });
+      const tabId = tabIdRef.current ?? (await activeTabId());
+      await sendToFrame(tabId, adapterFrameRef.current, { type: 'WIZARD_NEXT' });
     } catch {
       /* page navigated / port closed — status arrives via broadcast */
     } finally {
@@ -193,7 +228,8 @@ export function App() {
   const runToReview = useCallback(async () => {
     setBusy(true);
     try {
-      await sendToTab({ type: 'WIZARD_RUN' });
+      const tabId = tabIdRef.current ?? (await activeTabId());
+      await sendToFrame(tabId, adapterFrameRef.current, { type: 'WIZARD_RUN' });
     } catch {
       /* run proceeds via STATUS broadcasts even if the ack channel closes */
     } finally {

@@ -16,6 +16,7 @@ export default defineConfig({
       'sidePanel', // the review surface
       'scripting', // programmatic injection if needed
       'activeTab', // act on the current tab on a user gesture
+      'webNavigation', // enumerate frames so we can detect/fill inside iframes (iCIMS, §25)
     ],
     // Broad to start; tighten before store submission (enumerate ATS domains
     // or switch to activeTab + scripting.executeScript on click). See §21.

@@ -9,6 +9,9 @@ import { jazzhr } from '@/core/engine/adapters/jazzhr';
 import { smartrecruiters } from '@/core/engine/adapters/smartrecruiters';
 import { ashby } from '@/core/engine/adapters/ashby';
 import { workday } from '@/core/engine/adapters/workday';
+import { icims } from '@/core/engine/adapters/icims';
+import { successfactors } from '@/core/engine/adapters/successfactors';
+import { oracle } from '@/core/engine/adapters/oracle';
 import { matchAdapter } from '@/core/engine/adapters';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -133,6 +136,42 @@ describe('workday adapter', () => {
     expect(workday.isMultiStep!(document)).toBe(true);
     expect(workday.isReviewStep!(document)).toBe(false);
     expect(workday.findNextButton!(document)).toBeTruthy();
+  });
+});
+
+describe('hard multi-step adapters (iCIMS / SuccessFactors / Oracle)', () => {
+  it('iCIMS matches its host and maps name fields', () => {
+    document.body.innerHTML =
+      '<form><label for="f">First Name</label><input id="f" name="firstname" />' +
+      '<button>Continue</button></form>';
+    expect(icims.matches(new URL('https://careers-acme.icims.com/jobs/1/apply'), document)).toBe(
+      true,
+    );
+    const fields = icims.detectFields!(document);
+    expect(fields.some((f) => f.mappedKey === 'personal.firstName')).toBe(true);
+    expect(icims.isMultiStep!(document)).toBe(true);
+    expect(icims.findNextButton!(document)?.textContent).toMatch(/continue/i);
+  });
+
+  it('SuccessFactors matches successfactors.com and sapsf.com', () => {
+    document.body.innerHTML = '<button>Next</button>';
+    expect(successfactors.matches(new URL('https://career5.successfactors.com/x'), document)).toBe(
+      true,
+    );
+    expect(
+      successfactors.matches(new URL('https://performancemanager.sapsf.com/x'), document),
+    ).toBe(true);
+    expect(successfactors.isMultiStep!(document)).toBe(true);
+    expect(successfactors.findNextButton!(document)).toBeTruthy();
+  });
+
+  it('Oracle matches Taleo and Oracle Cloud', () => {
+    document.body.innerHTML = '<button>Save and Continue</button>';
+    expect(oracle.matches(new URL('https://acme.taleo.net/careersection/x'), document)).toBe(true);
+    expect(oracle.matches(new URL('https://acme.fa.us2.oraclecloud.com/hcmUI/x'), document)).toBe(
+      true,
+    );
+    expect(oracle.findNextButton!(document)?.textContent).toMatch(/continue/i);
   });
 });
 

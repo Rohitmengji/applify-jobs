@@ -11,6 +11,27 @@ export async function sendToTab<R = FromContent>(msg: ToContent): Promise<R> {
   return chrome.tabs.sendMessage(await activeTabId(), msg) as Promise<R>;
 }
 
+// Send to one specific frame of a tab (frameId 0 = top frame).
+export async function sendToFrame<R = FromContent>(
+  tabId: number,
+  frameId: number,
+  msg: ToContent,
+): Promise<R> {
+  return chrome.tabs.sendMessage(tabId, msg, { frameId }) as Promise<R>;
+}
+
+// Enumerate the frame ids of a tab so we can detect/fill inside iframes (§25).
+// Falls back to just the top frame if webNavigation is unavailable.
+export async function frameIds(tabId: number): Promise<number[]> {
+  try {
+    const frames = await chrome.webNavigation.getAllFrames({ tabId });
+    const ids = (frames ?? []).map((f) => f.frameId);
+    return ids.length ? ids : [0];
+  } catch {
+    return [0];
+  }
+}
+
 export async function sendToBackground<R = FromBackground>(msg: ToBackground): Promise<R> {
   return chrome.runtime.sendMessage(msg) as Promise<R>;
 }

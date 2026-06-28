@@ -6,16 +6,15 @@ import { runWizard, waitForDomSettle } from '@/core/engine/wizard';
 import type { ToContent, FromContent, ResolvedFill } from '@/core/messages';
 import type { DetectedField } from '@/core/types';
 
-// IMPLEMENTATION.md §15 — runs inside the job page: detect, fill, drive the wizard.
-//
-// allFrames is FALSE for now. Greenhouse-hosted (job-boards) and Lever forms live in
-// the top frame, so this is correct and predictable for M2. iframe-embedded ATSes
-// (iCIMS, embedded Greenhouse) need allFrames:true PLUS frame-merge routing — that
-// lands in M5 (§25 "Iframes"). Enabling allFrames before the merge logic would let an
-// empty top frame answer DETECT first on iframe sites.
+// IMPLEMENTATION.md §15/§25 — runs inside the job page (and every iframe): detect,
+// fill, drive the wizard. Each frame handles DETECT/FILL for ITS OWN document and
+// returns its fields via sendResponse. The side panel enumerates frames
+// (webNavigation.getAllFrames) and routes DETECT/FILL to each frameId explicitly, so
+// iframe-embedded ATSes (iCIMS, embedded Greenhouse) are covered without any
+// broadcast/merge race. The single-frame case is just "one frame, id 0".
 export default defineContentScript({
   matches: ['https://*/*'], // broad in dev; narrow before publishing (§7/§21)
-  allFrames: false,
+  allFrames: true,
   runAt: 'document_idle',
 
   main() {
