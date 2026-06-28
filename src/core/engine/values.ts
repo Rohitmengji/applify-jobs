@@ -1,5 +1,6 @@
 import type { Profile, ProfileKey } from '../profile.schema';
 import type { DetectedField } from '../types';
+import { countryInText, sameCountry } from './countries';
 
 // IMPLEMENTATION.md §11.5 / §25 — resolve the string value to fill for a mapped key.
 // Returns null when the value should be supplied another way (files via FILL_FILE,
@@ -16,6 +17,35 @@ function getPath(obj: unknown, path: string): unknown {
 function mapBool(b: boolean, field: DetectedField): string {
   if (field.kind === 'checkbox') return b ? 'yes' : 'no';
   return b ? 'Yes' : 'No';
+}
+
+// Context-aware work authorization. When the question names a country (e.g. "authorized
+// to work in the United States?"), derive the answer from the countries you're authorized
+// in (defaulting to your home country). Otherwise fall back to the static toggle.
+function deriveWorkAuth(
+  profile: Profile,
+  field: DetectedField,
+  kind: 'authorized' | 'sponsorship' | 'visa',
+): string {
+  const text = [field.signals.label, field.signals.nearbyText, field.signals.ariaLabel].join(' ');
+  const jobCountry = countryInText(text);
+  let value: boolean;
+  if (jobCountry) {
+    const allowed = profile.workAuth.authorizedCountries.length
+      ? profile.workAuth.authorizedCountries
+      : [profile.personal.address.country];
+    const authorized = allowed.some((c) => sameCountry(c, jobCountry));
+    // Sponsorship / visa are needed precisely when you're NOT authorized there.
+    value = kind === 'authorized' ? authorized : !authorized;
+  } else {
+    value =
+      kind === 'authorized'
+        ? profile.workAuth.authorizedToWork
+        : kind === 'sponsorship'
+          ? profile.workAuth.needsSponsorship
+          : profile.workAuth.requiresVisa;
+  }
+  return mapBool(value, field);
 }
 
 export function valueForKey(
@@ -42,11 +72,11 @@ export function valueForKey(
       return null;
 
     case 'workAuth.authorizedToWork':
-      return mapBool(profile.workAuth.authorizedToWork, field);
+      return deriveWorkAuth(profile, field, 'authorized');
     case 'workAuth.needsSponsorship':
-      return mapBool(profile.workAuth.needsSponsorship, field);
+      return deriveWorkAuth(profile, field, 'sponsorship');
     case 'workAuth.requiresVisa':
-      return mapBool(profile.workAuth.requiresVisa, field);
+      return deriveWorkAuth(profile, field, 'visa');
 
     default: {
       // Lever-style single "Full name" input (name="name"): compose first + last.

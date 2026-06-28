@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState, type ComponentType } from 'react';
 import { ProfileSchema, type Profile } from '@/core/profile.schema';
 import { getProfile, saveProfile } from '@/core/storage/profileStore';
+import { getFile } from '@/core/storage/blobStore';
+import { parseResumeText, applyParsedResume, mergeExtractedResume } from '@/core/parser/resume';
 import { Button, type SectionProps } from './components/ui';
 import { PersonalSection } from './sections/PersonalSection';
 import { LinksSection } from './sections/LinksSection';
@@ -31,6 +33,7 @@ export function App() {
   const [active, setActive] = useState('personal');
   const [errors, setErrors] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
+  const [info, setInfo] = useState('');
 
   useEffect(() => {
     void getProfile().then(setDraft);
@@ -86,6 +89,54 @@ export function App() {
     }
   }, []);
 
+  // Import Experience/Education/Skills (+ contact) from the uploaded résumé.
+  const importFromResume = useCallback(async () => {
+    const id = draft?.documents.resumeBlobId;
+    if (!id) {
+      setErrors(['Upload a résumé in the Documents tab first.']);
+      return;
+    }
+    setErrors([]);
+    setInfo('Reading résumé…');
+    const file = await getFile(id);
+    if (!file) {
+      setErrors(['Could not read the stored résumé — re-upload it in Documents.']);
+      setInfo('');
+      return;
+    }
+    let text = '';
+    const looksPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (looksPdf) {
+      const { extractPdfText } = await import('@/core/parser/pdf');
+      text = await extractPdfText(file).catch(() => '');
+    } else {
+      text = await file.text().catch(() => '');
+    }
+    if (!text.trim()) {
+      setErrors(['No text could be extracted (the résumé may be a scanned image).']);
+      setInfo('');
+      return;
+    }
+    // Basic deterministic pass (contact/links/skills).
+    setDraft((d) => (d ? applyParsedResume(d, parseResumeText(text)) : d));
+    // AI pass (experience/education) when AI assist + key are configured.
+    setInfo('Extracting experience & education with AI…');
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'LLM_EXTRACT_RESUME', text });
+      if (res?.type === 'LLM_EXTRACT_RESULT' && res.data) {
+        setDraft((d) => (d ? mergeExtractedResume(d, res.data) : d));
+        setInfo('Imported from résumé — review the sections, then Save profile ✓');
+      } else {
+        setInfo(
+          'Imported contact/skills. (Enable AI assist + key in Settings for experience & education.)',
+        );
+      }
+    } catch {
+      setInfo('Imported contact/skills. (AI extraction unavailable — check Settings.)');
+    }
+    setSaved(false);
+  }, [draft]);
+
   if (!draft) return <div className="p-8 text-gray-500">Loading…</div>;
 
   const ActiveSection = TABS.find((t) => t.id === active)?.C ?? PersonalSection;
@@ -134,7 +185,11 @@ export function App() {
               onChange={(e) => importJson(e.target.files?.[0])}
             />
           </label>
+          <Button variant="ghost" onClick={importFromResume}>
+            Import from résumé
+          </Button>
           {saved && <span className="text-sm text-green-600">Saved ✓</span>}
+          {info && <span className="text-sm text-indigo-600">{info}</span>}
         </div>
       </main>
     </div>

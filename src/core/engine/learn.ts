@@ -35,17 +35,28 @@ function hasLabel(fingerprint: string): boolean {
   return (fingerprint.split('|')[1] ?? '').length > 1;
 }
 
-// Apply learned entries to fields. Learned reflects explicit user feedback, so it
-// overrides heuristic/llm/none — but NOT a tuned adapter mapping, nor the user's
-// current-session manual edit.
+export const GLOBAL_SCOPE = 'global';
+
+// Learned entries are stored under a scope key so the same question can have a
+// per-ATS answer (e.g. Greenhouse vs Workday) plus a cross-ATS global fallback.
+export function scopeKey(adapterId: string | null | undefined, fingerprint: string): string {
+  return `${adapterId || GLOBAL_SCOPE}::${fingerprint}`;
+}
+
+// Apply learned entries to fields. Prefer an answer learned on THIS ATS, then the
+// global one. Learned reflects explicit user feedback, so it overrides heuristic/llm/
+// none — but NOT a tuned adapter mapping, nor the user's current-session manual edit.
 export function applyLearned(
   fields: DetectedField[],
   learned: LearnedMap,
   profile: Profile,
+  adapterId: string | null = null,
 ): DetectedField[] {
   for (const f of fields) {
     if (f.source === 'adapter' || f.source === 'manual') continue;
-    const entry = learned[fieldFingerprint(f)];
+    const fp = fieldFingerprint(f);
+    const entry =
+      (adapterId ? learned[scopeKey(adapterId, fp)] : undefined) ?? learned[scopeKey(null, fp)];
     if (!entry) continue;
     if (entry.key) {
       const v = valueForKey(profile, entry.key, f);
