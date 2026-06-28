@@ -6,8 +6,6 @@ import { cssEscape } from './css';
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const norm = (s: string) => s.toLowerCase().trim();
-
 // §12.1 — the React value trap. `input.value = "x"` sets the DOM property but does
 // NOT notify React, so the value silently reverts on submit. Call the native setter
 // and dispatch real events. USE VERBATIM.
@@ -24,15 +22,40 @@ export function setReactInputValue(
   el.dispatchEvent(new Event('blur', { bubbles: true })); // some validators run on blur
 }
 
+// Minimum length before we allow substring (not exact) matching. Short tokens like
+// "No"/"US" must match exactly, or they'd collide with "Norway"/"Customer Service".
+const MIN_SUBSTR = 3;
+
+// Exact-first option matching with a guarded substring fallback. Returns null for a
+// blank target so a cleared/absent value never silently selects the first option.
+function pickOption<T>(
+  options: T[],
+  text: (o: T) => string,
+  value: (o: T) => string,
+  target: string,
+): T | null {
+  const t = target.toLowerCase().trim();
+  if (!t) return null;
+  const exact = options.find(
+    (o) => text(o).toLowerCase().trim() === t || value(o).toLowerCase().trim() === t,
+  );
+  if (exact) return exact;
+  if (t.length < MIN_SUBSTR) return null; // short tokens: exact-only
+  return (
+    options.find((o) => {
+      const ot = text(o).toLowerCase().trim();
+      return ot.length >= MIN_SUBSTR && (ot.includes(t) || t.includes(ot));
+    }) ?? null
+  );
+}
+
 // §12.2 — native <select>
 export function setNativeSelect(el: HTMLSelectElement, value: string): boolean {
-  const target = norm(value);
-  const match = Array.from(el.options).find(
-    (o) =>
-      norm(o.text) === target ||
-      norm(o.value) === target ||
-      norm(o.text).includes(target) ||
-      target.includes(norm(o.text)),
+  const match = pickOption(
+    Array.from(el.options),
+    (o) => o.text,
+    (o) => o.value,
+    value,
   );
   if (!match) return false;
   el.value = match.value;
@@ -47,6 +70,9 @@ export async function setCustomDropdown(
   value: string,
   opts: { optionSelector?: string; typeToFilter?: boolean } = {},
 ): Promise<boolean> {
+  const target = value.toLowerCase().trim();
+  if (!target) return false; // blank value: never auto-pick the first visible option
+
   const optionSelector = opts.optionSelector ?? '[role=option], [class*=option], li[id*=option]';
   trigger.click(); // open
   trigger.focus();
@@ -62,13 +88,15 @@ export async function setCustomDropdown(
     }
   }
 
-  const target = value.toLowerCase().trim();
   const options = Array.from(document.querySelectorAll<HTMLElement>(optionSelector)).filter(
     (o) => o.offsetParent !== null,
   ); // visible only
+  const optText = (o: HTMLElement) => (o.textContent ?? '').toLowerCase().trim();
   const hit =
-    options.find((o) => o.textContent!.toLowerCase().trim() === target) ??
-    options.find((o) => o.textContent!.toLowerCase().includes(target));
+    options.find((o) => optText(o) === target) ??
+    (target.length >= MIN_SUBSTR
+      ? options.find((o) => optText(o).length >= MIN_SUBSTR && optText(o).includes(target))
+      : undefined);
   if (!hit) {
     trigger.click(); // close, report miss
     return false;
@@ -84,21 +112,30 @@ export function setCheckbox(el: HTMLInputElement, checked: boolean): void {
 }
 
 export function setRadioGroup(name: string, value: string): boolean {
-  const radios = document.querySelectorAll<HTMLInputElement>(
-    `input[type=radio][name="${cssEscape(name)}"]`,
-  );
   const target = value.toLowerCase().trim();
-  for (const r of radios) {
+  if (!target) return false;
+  const radios = Array.from(
+    document.querySelectorAll<HTMLInputElement>(`input[type=radio][name="${cssEscape(name)}"]`),
+  );
+  const entries = radios.map((r) => {
     const lbl = r.id
       ? document.querySelector(`label[for="${cssEscape(r.id)}"]`)
       : r.closest('label');
-    const text = (lbl?.textContent ?? r.value).toLowerCase().trim();
-    if (text === target || text.includes(target) || r.value.toLowerCase() === target) {
-      r.click();
-      return true;
-    }
-  }
-  return false;
+    return {
+      r,
+      text: (lbl?.textContent ?? r.value).toLowerCase().trim(),
+      val: r.value.toLowerCase(),
+    };
+  });
+  // Exact label/value first; only then a length-guarded substring (so "No" ≠ "Not sure").
+  const hit =
+    entries.find((e) => e.text === target || e.val === target) ??
+    (target.length >= MIN_SUBSTR
+      ? entries.find((e) => e.text.length >= MIN_SUBSTR && e.text.includes(target))
+      : undefined);
+  if (!hit) return false;
+  hit.r.click();
+  return true;
 }
 
 // §12.5 — file upload via DataTransfer (a file input can't be given a path).

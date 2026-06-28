@@ -26,7 +26,10 @@ export async function resolveAll(): Promise<{
     // adapter may have pre-mapped during detection; respect a confident mapping
     if (!f.mappedKey || f.confidence < threshold) {
       const m = matchField(f);
-      if (m.confidence >= (f.confidence ?? 0)) {
+      // Only adopt a heuristic result when it actually mapped to a key — a null match
+      // must leave the field as source:'none' so it's flagged "needs review", not
+      // mislabeled as a (failed) heuristic mapping.
+      if (m.key && m.confidence >= (f.confidence ?? 0)) {
         f.mappedKey = m.key;
         f.confidence = m.confidence;
         f.source = 'heuristic';

@@ -31,9 +31,16 @@ export default defineBackground(() => {
         }
         case 'LLM_MAP_FIELDS': {
           const profile = await getProfile();
-          const mappings = profile.settings.llmEnabled
-            ? await mapFieldsWithLLM(msg.unresolved, profile)
-            : [];
+          let mappings: { uid: string; key: string | null; confidence: number }[] = [];
+          if (profile.settings.llmEnabled) {
+            // Guard the network call so a failure (no key, non-2xx, offline) resolves
+            // the channel with an empty result instead of hanging the side panel (#21).
+            try {
+              mappings = await mapFieldsWithLLM(msg.unresolved, profile);
+            } catch (e) {
+              console.warn('LLM field mapping failed', e);
+            }
+          }
           sendResponse({ type: 'LLM_MAP_RESULT', mappings } satisfies FromBackground);
           break;
         }
@@ -42,14 +49,21 @@ export default defineBackground(() => {
           // Resolution order (§20): answer bank → LLM draft → leave blank.
           const saved = findAnswer(msg.question, profile.answerBank);
           let answer = saved?.answer ?? '';
+          let source: 'answerBank' | 'llm' | 'none' = saved ? 'answerBank' : 'none';
           if (!answer && profile.settings.llmEnabled) {
             try {
               answer = await draftAnswerWithLLM(msg.question, profile);
+              if (answer) source = 'llm';
             } catch (e) {
               console.warn('LLM draft failed', e);
             }
           }
-          sendResponse({ type: 'LLM_DRAFT_RESULT', uid: msg.uid, answer } satisfies FromBackground);
+          sendResponse({
+            type: 'LLM_DRAFT_RESULT',
+            uid: msg.uid,
+            answer,
+            source,
+          } satisfies FromBackground);
           break;
         }
       }

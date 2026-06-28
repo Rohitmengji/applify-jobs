@@ -1,15 +1,28 @@
-import type { Profile } from '../profile.schema';
-import { mappingSystemPrompt, draftSystemPrompt } from './prompts';
+import type { Profile, ProfileKey } from '../profile.schema';
+import { mappingSystemPrompt, draftSystemPrompt, PROFILE_KEYS } from './prompts';
 
 // IMPLEMENTATION.md §19 — called ONLY from the background worker, so API keys never
 // enter a web page. Supports a direct Anthropic key or a serverless proxy via base URL.
 
 const MODEL = 'claude-sonnet-4-6';
+const VALID_KEYS = new Set<string>(PROFILE_KEYS);
+
+// Only https origins are accepted as the LLM endpoint, so the user's API key is never
+// shipped over http or to a malformed / credential-bearing URL (finding #7).
+function safeBase(raw: string): string {
+  try {
+    const u = new URL(raw || 'https://api.anthropic.com');
+    if (u.protocol !== 'https:') throw new Error('not https');
+    return (u.origin + u.pathname).replace(/\/$/, '');
+  } catch {
+    throw new Error('Invalid LLM base URL — use an https:// origin');
+  }
+}
 
 async function getKeyAndBase(): Promise<{ key: string; base: string }> {
   const { llmApiKey = '', llmBaseUrl = 'https://api.anthropic.com' } =
     await chrome.storage.local.get(['llmApiKey', 'llmBaseUrl']);
-  return { key: llmApiKey, base: llmBaseUrl };
+  return { key: llmApiKey, base: safeBase(llmBaseUrl) };
 }
 
 async function callClaude(system: string, user: string, maxTokens = 1024): Promise<string> {
@@ -41,10 +54,19 @@ export async function mapFieldsWithLLM(
   _profile: Profile,
 ): Promise<{ uid: string; key: string | null; confidence: number }[]> {
   if (!unresolved.length) return [];
+  // Field signals are scraped from an untrusted page; the prompt fences them and the
+  // model is told to ignore embedded instructions. We still validate the result here:
+  // any key the model returns that isn't a real ProfileKey is coerced to null (#15).
   const text = await callClaude(mappingSystemPrompt(), JSON.stringify(unresolved));
   const clean = text.replace(/```json|```/g, '').trim();
   try {
-    return JSON.parse(clean);
+    const parsed = JSON.parse(clean) as { uid: string; key: string | null; confidence: number }[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((m) => ({
+      uid: String(m.uid),
+      key: m.key && VALID_KEYS.has(m.key) ? (m.key as ProfileKey) : null,
+      confidence: typeof m.confidence === 'number' ? m.confidence : 0,
+    }));
   } catch {
     return [];
   }

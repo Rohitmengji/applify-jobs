@@ -24,7 +24,9 @@ export const SYNONYMS: Partial<Record<ProfileKey, string[]>> = {
   'links.linkedin': ['linkedin'],
   'links.github': ['github', 'git hub'],
   'links.portfolio': ['portfolio'],
-  'links.website': ['website', 'personal site', 'web site', 'url'],
+  // NOTE: bare 'url' removed — it over-matched fields like Lever's urls[LinkedIn].
+  // The autocomplete attribute 'url' still maps to website via AUTOCOMPLETE_MAP.
+  'links.website': ['website', 'personal site', 'web site', 'personal website'],
   'workAuth.authorizedToWork': [
     'authorized to work',
     'legally authorized',

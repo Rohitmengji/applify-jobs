@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { DetectedField, WizardStatus } from '@/core/types';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { DetectedField, FillSource, WizardStatus } from '@/core/types';
 import type { FromContent, FromBackground, ResolvedFill } from '@/core/messages';
+import type { ProfileKey } from '@/core/profile.schema';
 import { getProfile } from '@/core/storage/profileStore';
 import { getFile } from '@/core/storage/blobStore';
-import { sendToTab, sendToBackground, fileToB64 } from './lib/messaging';
+import { valueForKey } from '@/core/engine/values';
+import { sendToTab, sendToBackground, fileToB64, activeTabId } from './lib/messaging';
 import { StatusBar } from './components/StatusBar';
 import { ReviewTable } from './components/ReviewTable';
 import { FillButton } from './components/FillButton';
@@ -18,19 +20,56 @@ export function App() {
   const [filledMap, setFilledMap] = useState<FilledMap>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [status, setStatus] = useState<WizardStatus | null>(null);
+  const [threshold, setThreshold] = useState(0.6);
+
+  // The tab this panel is bound to — used to ignore broadcasts from other tabs (#5).
+  const tabIdRef = useRef<number | null>(null);
+
+  // Ask the LLM to map any fields the deterministic layers left unmapped, then resolve
+  // their values from the profile (§11.4/§11.5, finding #6). Degrades to a no-op when
+  // LLM assist is off or no API key is set (background returns []).
+  const enrichWithLLM = useCallback(async (current: DetectedField[]): Promise<DetectedField[]> => {
+    const profile = await getProfile();
+    if (!profile.settings.llmEnabled) return current;
+    const unmapped = current.filter((f) => f.mappedKey === null && f.kind !== 'file');
+    if (unmapped.length === 0) return current;
+
+    const res = await sendToBackground<FromBackground>({
+      type: 'LLM_MAP_FIELDS',
+      unresolved: unmapped.map((f) => ({ uid: f.uid, signals: f.signals })),
+    });
+    if (res.type !== 'LLM_MAP_RESULT' || res.mappings.length === 0) return current;
+
+    const byUid = new Map(res.mappings.map((m) => [m.uid, m]));
+    return current.map((f) => {
+      const m = byUid.get(f.uid);
+      if (!m || !m.key) return f;
+      const key = m.key as ProfileKey;
+      // freeText stays valueless (drafted on demand); structured keys resolve now.
+      const value = key === 'freeText' ? f.value : (valueForKey(profile, key, f) ?? f.value);
+      return { ...f, mappedKey: key, source: 'llm' as FillSource, confidence: m.confidence, value };
+    });
+  }, []);
 
   const detect = useCallback(async () => {
     setBusy(true);
     setNotice(null);
     try {
+      tabIdRef.current = await activeTabId();
       const ping = await sendToTab({ type: 'PING' });
       if (ping?.type !== 'PONG') throw new Error('no content script');
+
+      const profile = await getProfile();
+      setThreshold(profile.settings.confidenceThreshold);
+
       const res = await sendToTab({ type: 'DETECT' });
       if (res.type === 'DETECTED') {
-        setFields(res.fields);
         setAdapterId(res.adapterId);
         setMultiStep(res.multiStep);
         setFilledMap({});
+        setFields(res.fields);
+        const enriched = await enrichWithLLM(res.fields);
+        if (enriched !== res.fields) setFields(enriched);
       }
     } catch {
       setNotice(
@@ -40,20 +79,29 @@ export function App() {
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [enrichWithLLM]);
 
-  // Initial detection on open.
+  // Detect once on open. Guard against React StrictMode's double-invoke (#20).
+  const didMount = useRef(false);
   useEffect(() => {
+    if (didMount.current) return;
+    didMount.current = true;
     void detect();
   }, [detect]);
 
   // Live updates broadcast by the content script during fill / wizard runs.
   useEffect(() => {
-    const handler = (msg: FromContent) => {
+    const handler = (msg: FromContent, sender: chrome.runtime.MessageSender) => {
+      // Only react to broadcasts from the tab this panel is bound to (#5).
+      if (tabIdRef.current != null && sender.tab?.id !== tabIdRef.current) return;
       if (msg.type === 'FIELD_FILLED') {
         setFilledMap((m) => ({ ...m, [msg.uid]: { ok: msg.ok, error: msg.error } }));
       } else if (msg.type === 'DETECTED') {
-        setFields(msg.fields);
+        // Merge by uid, preserving the user's manual edits (#4).
+        setFields((prev) => {
+          const manual = new Map(prev.filter((f) => f.source === 'manual').map((f) => [f.uid, f]));
+          return msg.fields.map((f) => manual.get(f.uid) ?? f);
+        });
         setAdapterId(msg.adapterId);
         setMultiStep(msg.multiStep);
       } else if (msg.type === 'STATUS') {
@@ -64,11 +112,17 @@ export function App() {
     return () => chrome.runtime.onMessage.removeListener(handler);
   }, []);
 
-  const onChange = useCallback((uid: string, value: string) => {
-    setFields((fs) =>
-      fs.map((f) => (f.uid === uid ? { ...f, value, source: 'manual', confidence: 1 } : f)),
-    );
-  }, []);
+  const applyResolved = useCallback(
+    (uid: string, value: string, source: FillSource, confidence = 1) => {
+      setFields((fs) => fs.map((f) => (f.uid === uid ? { ...f, value, source, confidence } : f)));
+    },
+    [],
+  );
+
+  const onChange = useCallback(
+    (uid: string, value: string) => applyResolved(uid, value, 'manual', 1),
+    [applyResolved],
+  );
 
   const onDraft = useCallback(
     async (field: DetectedField) => {
@@ -80,9 +134,12 @@ export function App() {
         uid: field.uid,
         question,
       });
-      if (res.type === 'LLM_DRAFT_RESULT' && res.answer) onChange(field.uid, res.answer);
+      if (res.type === 'LLM_DRAFT_RESULT' && res.answer) {
+        // Tag provenance so the badge reads "saved" (answer bank) or "AI" (§17, §20, #12).
+        applyResolved(field.uid, res.answer, res.source === 'answerBank' ? 'answerBank' : 'llm');
+      }
     },
-    [onChange],
+    [applyResolved],
   );
 
   const fillAll = useCallback(async () => {
@@ -90,8 +147,9 @@ export function App() {
     try {
       const profile = await getProfile();
 
-      // 1) résumé first (so a parse-prefill settles before we fill, §25).
+      // 1) résumé first.
       const resumeField = fields.find((f) => f.mappedKey === 'documents.resume');
+      let attachedResume = false;
       if (resumeField && profile.documents.resumeBlobId) {
         const file = await getFile(profile.documents.resumeBlobId);
         if (file) {
@@ -103,8 +161,13 @@ export function App() {
             mime: file.type,
             b64,
           });
+          attachedResume = true;
         }
       }
+
+      // Many ATSes parse the résumé to prefill, then overwrite our values. Give that a
+      // beat to settle before filling the rest, so our values win (§25, finding #18).
+      if (attachedResume) await new Promise((r) => setTimeout(r, 1200));
 
       // 2) everything else with a resolved value.
       const resolved: ResolvedFill[] = fields
@@ -120,6 +183,8 @@ export function App() {
     setBusy(true);
     try {
       await sendToTab({ type: 'WIZARD_NEXT' });
+    } catch {
+      /* page navigated / port closed — status arrives via broadcast */
     } finally {
       setBusy(false);
     }
@@ -129,6 +194,8 @@ export function App() {
     setBusy(true);
     try {
       await sendToTab({ type: 'WIZARD_RUN' });
+    } catch {
+      /* run proceeds via STATUS broadcasts even if the ack channel closes */
     } finally {
       setBusy(false);
     }
@@ -150,7 +217,13 @@ export function App() {
       {notice ? (
         <div className="flex-1 p-6 text-center text-xs text-gray-500">{notice}</div>
       ) : (
-        <ReviewTable fields={fields} filledMap={filledMap} onChange={onChange} onDraft={onDraft} />
+        <ReviewTable
+          fields={fields}
+          filledMap={filledMap}
+          threshold={threshold}
+          onChange={onChange}
+          onDraft={onDraft}
+        />
       )}
 
       <FillButton

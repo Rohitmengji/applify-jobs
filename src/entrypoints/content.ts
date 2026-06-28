@@ -89,13 +89,19 @@ export default defineContentScript({
               next.click();
               await waitForDomSettle();
             }
+            // Broadcast the NEW step's fields so the side panel's listener updates state
+            // (the sendResponse reply alone isn't consumed by the panel). Finding #3.
             const r = await resolveAll();
             lastFields = r.fields;
-            sendResponse({
+            broadcast({
               type: 'DETECTED',
               fields: r.fields,
               adapterId: r.adapterId,
               multiStep: r.multiStep,
+            });
+            sendResponse({
+              type: 'STATUS',
+              status: { phase: 'ready', step: 0 },
             } satisfies FromContent);
             break;
           }
@@ -109,8 +115,18 @@ export default defineContentScript({
               } satisfies FromContent);
               break;
             }
-            await runWizard(adapter, (status) => broadcast({ type: 'STATUS', status }), fillStep);
-            sendResponse({ type: 'STATUS', status: { phase: 'idle' } } satisfies FromContent);
+            // Acknowledge immediately, then drive the (possibly minutes-long, multi-step)
+            // run via STATUS/DETECTED broadcasts. Holding the message port open across
+            // steps risks "port closed" if the page navigates mid-run (finding #10).
+            sendResponse({
+              type: 'STATUS',
+              status: { phase: 'filling', step: 0 },
+            } satisfies FromContent);
+            void runWizard(
+              adapter,
+              (status) => broadcast({ type: 'STATUS', status }),
+              fillStep,
+            ).then(() => broadcast({ type: 'STATUS', status: { phase: 'idle' } }));
             break;
           }
         }

@@ -34,7 +34,7 @@ export type FromBackground =
       type: 'LLM_MAP_RESULT';
       mappings: { uid: string; key: string | null; confidence: number }[];
     }
-  | { type: 'LLM_DRAFT_RESULT'; uid: string; answer: string }
+  | { type: 'LLM_DRAFT_RESULT'; uid: string; answer: string; source: 'answerBank' | 'llm' | 'none' }
   | { type: 'PROFILE'; profile: unknown };
 
 // Typed helpers -----------------------------------------------------------

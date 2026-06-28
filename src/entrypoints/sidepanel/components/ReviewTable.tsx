@@ -5,11 +5,12 @@ import { needsReview } from '../lib/ui';
 interface Props {
   fields: DetectedField[];
   filledMap: Record<string, { ok: boolean; error?: string }>;
+  threshold: number;
   onChange: (uid: string, value: string) => void;
   onDraft: (field: DetectedField) => void;
 }
 
-export function ReviewTable({ fields, filledMap, onChange, onDraft }: Props) {
+export function ReviewTable({ fields, filledMap, threshold, onChange, onDraft }: Props) {
   if (fields.length === 0) {
     return (
       <div className="flex-1 p-6 text-center text-xs text-gray-500">
@@ -18,9 +19,11 @@ export function ReviewTable({ fields, filledMap, onChange, onDraft }: Props) {
     );
   }
 
-  // Needs-review rows float to the top.
-  const sorted = [...fields].sort((a, b) => Number(needsReview(b)) - Number(needsReview(a)));
-  const reviewCount = fields.filter((f) => needsReview(f)).length;
+  // Needs-review rows float to the top (using the user's configured threshold, #19).
+  const sorted = [...fields].sort(
+    (a, b) => Number(needsReview(b, threshold)) - Number(needsReview(a, threshold)),
+  );
+  const reviewCount = fields.filter((f) => needsReview(f, threshold)).length;
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -34,6 +37,7 @@ export function ReviewTable({ fields, filledMap, onChange, onDraft }: Props) {
           <FieldRow
             key={f.uid}
             field={f}
+            threshold={threshold}
             filled={filledMap[f.uid]?.ok}
             error={filledMap[f.uid]?.error}
             onChange={onChange}

@@ -3,6 +3,7 @@ import { SOURCE_BADGE, confidenceColor, needsReview, fieldLabel } from '../lib/u
 
 interface Props {
   field: DetectedField;
+  threshold?: number;
   filled?: boolean;
   error?: string;
   onChange: (uid: string, value: string) => void;
@@ -11,11 +12,15 @@ interface Props {
 
 const TRUTHY = ['yes', 'true', '1', 'on'];
 
-export function FieldRow({ field, filled, error, onChange, onDraft }: Props) {
+export function FieldRow({ field, threshold, filled, error, onChange, onDraft }: Props) {
   const s = field.signals;
   const badge = SOURCE_BADGE[field.source];
-  const review = needsReview(field);
-  const isFreeText = field.mappedKey === 'freeText';
+  const review = needsReview(field, threshold);
+  // Free-text: explicitly mapped to freeText, OR an unmapped textarea/text field that
+  // an open question would land in. Either way, offer "Draft with AI" (§17/§20, #13).
+  const isFreeText =
+    field.mappedKey === 'freeText' ||
+    (field.mappedKey === null && (field.kind === 'textarea' || field.kind === 'text'));
 
   return (
     <li className={`flex flex-col gap-1 border-b px-3 py-2 ${review ? 'bg-amber-50' : ''}`}>
@@ -93,13 +98,17 @@ function ValueEditor({
     field.kind === 'select-custom' ||
     field.kind === 'radio-group';
   if (isChoice && opts && opts.length > 0) {
+    // If the resolved value isn't an exact option (common: fuzzy native-select fills),
+    // surface it as a selectable entry instead of silently showing blank (#11).
+    const unmatched = v !== '' && !opts.includes(v);
     return (
       <select
-        value={opts.includes(v) ? v : ''}
+        value={unmatched ? v : opts.includes(v) ? v : ''}
         onChange={(e) => set(e.target.value)}
         className="w-full rounded border px-2 py-1 text-xs"
       >
         <option value="">— select —</option>
+        {unmatched && <option value={v}>{v} (no exact match)</option>}
         {opts.map((o, i) => (
           <option key={`${o}-${i}`} value={o}>
             {o}
