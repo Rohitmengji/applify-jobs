@@ -6,9 +6,10 @@ import { Section, TextArea, Button, type SectionProps } from '../components/ui';
 
 export function DocumentsSection({ draft, setDraft }: SectionProps) {
   const docs = draft.documents;
+  const [resumeText, setResumeText] = useState('');
+  const [pdfMsg, setPdfMsg] = useState('');
 
-  const onPick = (kind: 'resume' | 'coverLetter') => async (file: File | undefined) => {
-    if (!file) return;
+  const storeDoc = async (kind: 'resume' | 'coverLetter', file: File) => {
     const id = await putBlob(file);
     setDraft((d) => ({
       ...d,
@@ -17,6 +18,33 @@ export function DocumentsSection({ draft, setDraft }: SectionProps) {
           ? { ...d.documents, resumeBlobId: id, resumeFilename: file.name }
           : { ...d.documents, coverLetterBlobId: id, coverLetterFilename: file.name },
     }));
+  };
+
+  // Résumé upload: store the blob, and if it's a PDF, extract its text and seed the
+  // profile (basic pass) + prefill the box so the user can also run the AI pass (§M8).
+  const onResume = async (file: File | undefined) => {
+    if (!file) return;
+    await storeDoc('resume', file);
+    const looksPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!looksPdf) return;
+    setPdfMsg('Reading PDF…');
+    try {
+      // Lazy-load pdf.js (heavy) only when a PDF is actually uploaded — code-split out
+      // of the main options bundle.
+      const { extractPdfText } = await import('@/core/parser/pdf');
+      const text = await extractPdfText(file);
+      if (text) {
+        setResumeText(text);
+        setDraft((d) => applyParsedResume(d, parseResumeText(text)));
+        setPdfMsg(
+          'PDF text extracted — basic fields filled. Use "Extract with AI" for experience & education.',
+        );
+      } else {
+        setPdfMsg('No selectable text found (the PDF may be a scan/image).');
+      }
+    } catch {
+      setPdfMsg('Could not read this PDF.');
+    }
   };
 
   const removeResume = async () => {
@@ -42,17 +70,20 @@ export function DocumentsSection({ draft, setDraft }: SectionProps) {
       <DocSlot
         title="Résumé"
         filename={docs.resumeFilename}
-        onPick={onPick('resume')}
+        onPick={onResume}
         onRemove={removeResume}
       />
+      {pdfMsg && <p className="text-xs text-indigo-600">{pdfMsg}</p>}
       <DocSlot
         title="Cover letter"
         filename={docs.coverLetterFilename}
-        onPick={onPick('coverLetter')}
+        onPick={(f) => f && void storeDoc('coverLetter', f)}
         onRemove={removeCover}
       />
 
       <ResumeTextImport
+        value={resumeText}
+        onChange={setResumeText}
         onApply={(text) => setDraft((d) => applyParsedResume(d, parseResumeText(text)))}
         onApplyAI={async (text) => {
           const res = (await chrome.runtime.sendMessage({
@@ -68,17 +99,20 @@ export function DocumentsSection({ draft, setDraft }: SectionProps) {
   );
 }
 
-// §M8 — paste résumé text to seed the profile. The deterministic pass fills contact
-// fields/links/skills; the optional AI pass adds experience & education (validated).
-// Both are non-destructive; the user reviews everything before saving.
+// §M8 — seed the profile from résumé text (auto-filled when you upload a PDF, or pasted).
+// The basic pass fills contact fields/links/skills; the AI pass adds experience &
+// education (validated). Both are non-destructive; the user reviews before saving.
 function ResumeTextImport({
+  value,
+  onChange,
   onApply,
   onApplyAI,
 }: {
+  value: string;
+  onChange: (v: string) => void;
   onApply: (text: string) => void;
   onApplyAI: (text: string) => Promise<void>;
 }) {
-  const [text, setText] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -86,16 +120,17 @@ function ResumeTextImport({
     <div className="rounded-lg border border-dashed border-gray-300 p-4">
       <h3 className="mb-1 text-sm font-semibold text-gray-700">Auto-fill from résumé text</h3>
       <p className="mb-2 text-xs text-gray-400">
-        Paste your résumé text and fill empty fields — nothing is overwritten. The basic pass
-        extracts contact details, links, and known skills; the AI pass also adds experience &amp;
-        education (needs AI assist enabled in Settings). PDF parsing is a future addition.
+        Upload a PDF résumé above (text is extracted automatically) or paste text here, then fill
+        empty fields — nothing is overwritten. The basic pass extracts contact details, links, and
+        known skills; the AI pass also adds experience &amp; education (needs AI assist in
+        Settings).
       </p>
-      <TextArea value={text} onChange={setText} rows={5} placeholder="Paste résumé text here…" />
+      <TextArea value={value} onChange={onChange} rows={5} placeholder="Paste résumé text here…" />
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <Button
           onClick={() => {
-            if (!text.trim()) return;
-            onApply(text);
+            if (!value.trim()) return;
+            onApply(value);
             setMsg('Basic fields applied — review the sections ✓');
           }}
         >
@@ -105,11 +140,11 @@ function ResumeTextImport({
           variant="ghost"
           disabled={busy}
           onClick={async () => {
-            if (!text.trim()) return;
+            if (!value.trim()) return;
             setBusy(true);
             setMsg('Extracting with AI…');
             try {
-              await onApplyAI(text);
+              await onApplyAI(value);
               setMsg('AI extraction applied — review Experience & Education ✓');
             } catch {
               setMsg('AI extraction failed — check your API key/settings.');
