@@ -72,4 +72,34 @@ describe('matchField', () => {
   it('returns null when nothing matches', () => {
     expect(matchField(field({ label: 'Favorite ice cream flavor' })).key).toBeNull();
   });
+
+  // M6 acceptance proxy: a realistic generic (no-adapter) career form. The spec target
+  // is ≥70% of standard fields mapped correctly with no adapter.
+  it('maps ≥80% of a realistic generic career form correctly', () => {
+    const cases: [string, string][] = [
+      ['First Name', 'personal.firstName'],
+      ['Last Name', 'personal.lastName'],
+      ['Email Address', 'personal.email'],
+      ['Mobile Number', 'personal.phone'],
+      ['Street Address', 'personal.address.line1'],
+      ['City', 'personal.address.city'],
+      ['State/Province', 'personal.address.state'],
+      ['ZIP Code', 'personal.address.zip'],
+      ['Country', 'personal.address.country'],
+      ['LinkedIn URL', 'links.linkedin'],
+      ['GitHub', 'links.github'],
+      ['Portfolio', 'links.portfolio'],
+      ['Are you legally authorized to work in the US?', 'workAuth.authorizedToWork'],
+      ['Will you now or in the future require sponsorship?', 'workAuth.needsSponsorship'],
+      ['Resume/CV', 'documents.resume'],
+    ];
+    const correct = cases.filter(([label, key]) => matchField(field({ label })).key === key).length;
+    expect(correct / cases.length).toBeGreaterThanOrEqual(0.8);
+    // And no case should map to a *wrong* non-null key.
+    const wrong = cases.filter(([label, key]) => {
+      const got = matchField(field({ label })).key;
+      return got !== null && got !== key;
+    });
+    expect(wrong).toEqual([]);
+  });
 });
