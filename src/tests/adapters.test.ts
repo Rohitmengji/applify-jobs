@@ -139,6 +139,16 @@ describe('workday adapter', () => {
     expect(workday.isReviewStep!(document)).toBe(false);
     expect(workday.findNextButton!(document)).toBeTruthy();
   });
+  it('detects custom "Select One" dropdowns and repairs their labels', () => {
+    const fields = workday.detectFields!(document);
+    const custom = fields.filter((f) => f.kind === 'select-custom');
+    expect(custom.length).toBeGreaterThanOrEqual(2); // the two aria-haspopup dropdowns
+    const labels = fields.map((f) => f.signals.label);
+    expect(labels).toContain('Are you legally authorized to work in this country?');
+    expect(labels).toContain('Will you now or in the future require sponsorship?'); // suffix stripped
+    expect(labels).toContain('Why do you want to work here?'); // field-group climb
+    expect(labels).not.toContain('Select One'); // never the placeholder/raw id
+  });
 });
 
 describe('hard multi-step adapters (iCIMS / SuccessFactors / Oracle)', () => {
