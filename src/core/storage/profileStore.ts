@@ -5,25 +5,30 @@ import { ProfileSchema, type Profile } from '../profile.schema';
 
 const KEY = 'profile';
 
-export const EMPTY: Profile = ProfileSchema.parse({
+// A blank starting profile. NOTE: this is a typed literal, NOT ProfileSchema.parse(...) —
+// the schema requires firstName/lastName .min(1) and a valid email, which a brand-new
+// empty profile legitimately doesn't have yet. Those constraints are enforced at SAVE
+// time (saveProfile parses); the default just needs to be a valid Profile shape with the
+// defaulted values filled in. (The spec's §9 snippet parses this and would throw at runtime.)
+export const EMPTY: Profile = {
   schemaVersion: 1,
   personal: {
     firstName: '',
     lastName: '',
-    email: 'x@x.com',
+    email: '',
     phone: '',
     address: { country: 'United States' },
   },
   links: {},
-  workAuth: {},
+  workAuth: { authorizedToWork: true, needsSponsorship: false, requiresVisa: false },
   eeo: {},
   experience: [],
   education: [],
   skills: [],
   documents: {},
   answerBank: [],
-  settings: {},
-});
+  settings: { llmEnabled: true, autoAdvanceWizard: true, confidenceThreshold: 0.6 },
+};
 
 export async function getProfile(): Promise<Profile> {
   const raw = await chrome.storage.local.get(KEY);
