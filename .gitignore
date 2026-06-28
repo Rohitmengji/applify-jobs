@@ -24,3 +24,6 @@ coverage/
 .vscode/*
 !.vscode/extensions.json
 *.log
+
+# local-only agent orientation guide (kept out of the repo per request)
+CLAUDE.md
