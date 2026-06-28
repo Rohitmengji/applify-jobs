@@ -29,7 +29,14 @@ export interface FieldSignals {
   options?: string[]; // for selects / radio groups / custom dropdowns
 }
 
-export type FillSource = 'adapter' | 'heuristic' | 'answerBank' | 'llm' | 'manual' | 'none';
+export type FillSource =
+  | 'adapter'
+  | 'heuristic'
+  | 'answerBank'
+  | 'llm'
+  | 'manual'
+  | 'learned'
+  | 'none';
 
 export interface DetectedField {
   uid: string; // stable id assigned at detection (data-oca-uid on the el)
