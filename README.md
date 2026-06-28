@@ -76,7 +76,7 @@ Milestones (see `IMPLEMENTATION.md` §22):
 | **M8**    | Résumé parsing (PDF + text + AI) + learning engine · backend/dashboard/sync | 🟡 partial |
 
 All 10 ATS adapters are registered. Engine, fill primitives, matcher, and adapter
-detection are unit-tested (68 tests). Per `IMPLEMENTATION.md` §23, **live-page behavior**
+detection are unit-tested (74 tests). Per `IMPLEMENTATION.md` §23, **live-page behavior**
 (React reversion, real custom dropdowns, multi-step navigation, iframe forms) still needs
 manual verification — track it in [`src/tests/manual-checklist.md`](src/tests/manual-checklist.md).
 The build went through two rounds of adversarial multi-dimension review (34 findings
