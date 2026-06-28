@@ -8,6 +8,7 @@ import { workable } from '@/core/engine/adapters/workable';
 import { jazzhr } from '@/core/engine/adapters/jazzhr';
 import { smartrecruiters } from '@/core/engine/adapters/smartrecruiters';
 import { ashby } from '@/core/engine/adapters/ashby';
+import { workday } from '@/core/engine/adapters/workday';
 import { matchAdapter } from '@/core/engine/adapters';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -109,6 +110,29 @@ describe('ashby adapter', () => {
   it('matches by host and by container class (relies on the generic detector)', () => {
     expect(ashby.matches(new URL('https://jobs.ashbyhq.com/acme/x'), document)).toBe(true);
     expect(ashby.detectFields).toBeUndefined();
+  });
+});
+
+describe('workday adapter', () => {
+  beforeEach(() => {
+    document.body.innerHTML = fixture('workday.html');
+  });
+  it('matches workday hosts (subdomain + wdN)', () => {
+    expect(
+      workday.matches(new URL('https://acme.wd1.myworkdayjobs.com/en-US/acme/job/1'), document),
+    ).toBe(true);
+    expect(workday.matches(new URL('https://acme.myworkdayjobs.com/x'), document)).toBe(true);
+    expect(workday.matches(new URL('https://example.com/x'), document)).toBe(false);
+  });
+  it('maps data-automation-id fields', () => {
+    const fields = workday.detectFields!(document);
+    expect(fields.some((f) => f.mappedKey === 'personal.firstName')).toBe(true);
+    expect(fields.some((f) => f.mappedKey === 'personal.email')).toBe(true);
+  });
+  it('is multi-step, finds Next, and is not yet at review', () => {
+    expect(workday.isMultiStep!(document)).toBe(true);
+    expect(workday.isReviewStep!(document)).toBe(false);
+    expect(workday.findNextButton!(document)).toBeTruthy();
   });
 });
 
