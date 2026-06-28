@@ -3,6 +3,7 @@ import {
   fieldFingerprint,
   applyLearned,
   learnableEntries,
+  scopeKey,
   type LearnedMap,
 } from '@/core/engine/learn';
 import { ProfileSchema, type Profile } from '@/core/profile.schema';
@@ -68,7 +69,12 @@ describe('applyLearned', () => {
   it('fills an unmapped field from a learned profile-key entry (value re-resolved from profile)', () => {
     const f = fld('Mobile');
     const learned: LearnedMap = {
-      [fieldFingerprint(f)]: { key: 'personal.phone', value: '', uses: 1, updatedAt: 0 },
+      [scopeKey(null, fieldFingerprint(f))]: {
+        key: 'personal.phone',
+        value: '',
+        uses: 1,
+        updatedAt: 0,
+      },
     };
     applyLearned([f], learned, profile);
     expect(f.mappedKey).toBe('personal.phone');
@@ -79,7 +85,12 @@ describe('applyLearned', () => {
   it('fills a custom field from a learned literal value', () => {
     const f = fld('How did you hear about us?', { kind: 'text' });
     const learned: LearnedMap = {
-      [fieldFingerprint(f)]: { key: null, value: 'LinkedIn', uses: 2, updatedAt: 0 },
+      [scopeKey(null, fieldFingerprint(f))]: {
+        key: null,
+        value: 'LinkedIn',
+        uses: 2,
+        updatedAt: 0,
+      },
     };
     applyLearned([f], learned, profile);
     expect(f.value).toBe('LinkedIn');
@@ -100,12 +111,38 @@ describe('applyLearned', () => {
     });
     const manual = fld('Mobile', { source: 'manual', value: 'typed', confidence: 1 });
     const learned: LearnedMap = {
-      [fieldFingerprint(heur)]: { key: 'personal.phone', value: '', uses: 1, updatedAt: 0 },
+      [scopeKey(null, fieldFingerprint(heur))]: {
+        key: 'personal.phone',
+        value: '',
+        uses: 1,
+        updatedAt: 0,
+      },
     };
     applyLearned([heur, adapter, manual], learned, profile);
     expect(heur.source).toBe('learned'); // heuristic overridden
     expect(adapter.source).toBe('adapter'); // adapter untouched
     expect(manual.value).toBe('typed'); // manual untouched
+  });
+
+  it('prefers an ATS-scoped answer over the global one, and falls back to global', () => {
+    const f = () => fld('How did you hear about us?', { kind: 'text' });
+    const fp = fieldFingerprint(f());
+    const learned: LearnedMap = {
+      [scopeKey('greenhouse', fp)]: {
+        key: null,
+        value: 'A Greenhouse recruiter',
+        uses: 1,
+        updatedAt: 0,
+      },
+      [scopeKey(null, fp)]: { key: null, value: 'LinkedIn', uses: 1, updatedAt: 0 },
+    };
+    const onGh = f();
+    applyLearned([onGh], learned, profile, 'greenhouse');
+    expect(onGh.value).toBe('A Greenhouse recruiter'); // scoped wins
+
+    const onWd = f();
+    applyLearned([onWd], learned, profile, 'workday');
+    expect(onWd.value).toBe('LinkedIn'); // no workday entry → global fallback
   });
 });
 

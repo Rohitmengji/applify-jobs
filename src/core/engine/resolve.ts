@@ -48,7 +48,8 @@ export async function resolveAll(): Promise<{
 
   // 3) learned overrides: the user's remembered corrections/answers fill the gaps the
   // heuristic missed (and override wrong heuristic mappings), without touching adapters.
-  applyLearned(fields, learned, profile);
+  // Prefer answers learned on this ATS, then the global fallback.
+  applyLearned(fields, learned, profile, adapter?.id ?? null);
 
   return {
     fields,

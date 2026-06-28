@@ -250,12 +250,13 @@ export function App() {
       }
 
       // Learning engine: remember how the user resolved custom/corrected fields so the
-      // next form with that field auto-fills (source 'learned') without re-asking.
-      await recordLearned(learnableEntries(fields));
+      // next form with that field auto-fills (source 'learned') without re-asking —
+      // scoped to this ATS, with a global fallback.
+      await recordLearned(learnableEntries(fields), adapterId);
     } finally {
       setBusy(false);
     }
-  }, [fields]);
+  }, [fields, adapterId]);
 
   const runStep = useCallback(async () => {
     setBusy(true);

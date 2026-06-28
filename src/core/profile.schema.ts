@@ -61,6 +61,9 @@ export const ProfileSchema = z.object({
     authorizedToWork: z.boolean().default(true),
     needsSponsorship: z.boolean().default(false),
     requiresVisa: z.boolean().default(false),
+    // Countries you can work in WITHOUT sponsorship. When a work-auth question names a
+    // country, the answer is derived from this (defaults to your home country if empty).
+    authorizedCountries: z.array(z.string()).default([]),
   }),
   // EEO/voluntary disclosures — all optional, default to "decline to self-identify".
   eeo: z

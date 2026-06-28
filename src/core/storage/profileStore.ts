@@ -20,7 +20,12 @@ export const EMPTY: Profile = {
     address: { country: 'United States' },
   },
   links: {},
-  workAuth: { authorizedToWork: true, needsSponsorship: false, requiresVisa: false },
+  workAuth: {
+    authorizedToWork: true,
+    needsSponsorship: false,
+    requiresVisa: false,
+    authorizedCountries: [],
+  },
   eeo: {},
   experience: [],
   education: [],

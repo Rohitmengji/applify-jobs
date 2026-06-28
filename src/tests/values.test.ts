@@ -98,3 +98,76 @@ describe('valueForKey', () => {
     expect(valueForKey(profile, 'personal.middleName', fld('personal.middleName'))).toBeNull();
   });
 });
+
+describe('valueForKey — context-aware work authorization', () => {
+  const fldL = (label: string, mappedKey: ProfileKey): DetectedField => {
+    const f = fld(mappedKey, 'radio-group');
+    return { ...f, signals: { ...f.signals, label } };
+  };
+
+  // profile home country is United Kingdom; authorizedCountries is empty → defaults to UK.
+  it('derives from the country named in the question (home country)', () => {
+    expect(
+      valueForKey(
+        profile,
+        'workAuth.authorizedToWork',
+        fldL('Are you authorized to work in the United Kingdom?', 'workAuth.authorizedToWork'),
+      ),
+    ).toBe('Yes');
+    expect(
+      valueForKey(
+        profile,
+        'workAuth.authorizedToWork',
+        fldL('Authorized to work in the United States?', 'workAuth.authorizedToWork'),
+      ),
+    ).toBe('No');
+  });
+
+  it('flips sponsorship/visa for a foreign country', () => {
+    expect(
+      valueForKey(
+        profile,
+        'workAuth.needsSponsorship',
+        fldL('Do you require sponsorship to work in the US?', 'workAuth.needsSponsorship'),
+      ),
+    ).toBe('Yes');
+    expect(
+      valueForKey(
+        profile,
+        'workAuth.needsSponsorship',
+        fldL('Do you require sponsorship in the United Kingdom?', 'workAuth.needsSponsorship'),
+      ),
+    ).toBe('No');
+  });
+
+  it('respects an explicit authorizedCountries list', () => {
+    const p = {
+      ...profile,
+      workAuth: { ...profile.workAuth, authorizedCountries: ['United States', 'India'] },
+    };
+    expect(
+      valueForKey(
+        p,
+        'workAuth.authorizedToWork',
+        fldL('Authorized to work in the United States?', 'workAuth.authorizedToWork'),
+      ),
+    ).toBe('Yes');
+    expect(
+      valueForKey(
+        p,
+        'workAuth.needsSponsorship',
+        fldL('Require sponsorship in the US?', 'workAuth.needsSponsorship'),
+      ),
+    ).toBe('No');
+  });
+
+  it('falls back to the static toggle when no country is named', () => {
+    expect(
+      valueForKey(
+        profile,
+        'workAuth.authorizedToWork',
+        fldL('Are you legally authorized to work?', 'workAuth.authorizedToWork'),
+      ),
+    ).toBe('Yes');
+  });
+});
