@@ -28,14 +28,21 @@ export default defineContentScript({
       });
     };
 
+    // The matched adapter's per-field fill override (if any), for tricky custom controls.
+    const adapterOverride = () => {
+      const a = matchAdapter(new URL(location.href), document);
+      return a?.fillField ? (f: DetectedField, v: string) => a.fillField!(f, v) : undefined;
+    };
+
     // Fills the currently-rendered step: re-detect, report to the side panel, fill.
     const fillStep = async () => {
       const { fields, adapterId, multiStep } = await resolveAll();
       lastFields = fields;
       broadcast({ type: 'DETECTED', fields, adapterId, multiStep });
+      const override = adapterOverride();
       for (const f of fields.filter((x) => x.value != null)) {
         try {
-          await fillOne(f, pendingFile ?? undefined);
+          await fillOne(f, pendingFile ?? undefined, override);
           broadcast({ type: 'FIELD_FILLED', uid: f.uid, ok: true });
         } catch (e) {
           broadcast({ type: 'FIELD_FILLED', uid: f.uid, ok: false, error: String(e) });
@@ -76,7 +83,7 @@ export default defineContentScript({
           }
 
           case 'FILL': {
-            await fillMany(msg.fields, lastFields, pendingFile, broadcast);
+            await fillMany(msg.fields, lastFields, pendingFile, broadcast, adapterOverride());
             sendResponse({ type: 'STATUS', status: { phase: 'idle' } } satisfies FromContent);
             break;
           }
@@ -141,13 +148,14 @@ async function fillMany(
   fields: DetectedField[],
   file: File | null,
   broadcast: (m: FromContent) => void,
+  override?: (f: DetectedField, value: string) => Promise<boolean>,
 ): Promise<void> {
   for (const r of resolved) {
     const f = fields.find((x) => x.uid === r.uid);
     if (!f) continue;
     f.value = r.value;
     try {
-      await fillOne(f, file ?? undefined);
+      await fillOne(f, file ?? undefined, override);
       broadcast({ type: 'FIELD_FILLED', uid: r.uid, ok: true });
     } catch (e) {
       broadcast({ type: 'FIELD_FILLED', uid: r.uid, ok: false, error: String(e) });

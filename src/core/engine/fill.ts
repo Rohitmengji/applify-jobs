@@ -171,8 +171,19 @@ export function setDate(el: HTMLInputElement, isoOrYmd: string): void {
   setReactInputValue(el, isoOrYmd);
 }
 
-// §12.7 — the dispatcher
-export async function fillOne(field: DetectedField, file?: File): Promise<void> {
+// §12.7 — the dispatcher. An optional adapter `override` (SiteAdapter.fillField) gets
+// first crack at tricky custom controls; returning true means it handled the field and
+// the generic path is skipped. Throwing/returning false falls through to the default.
+export async function fillOne(
+  field: DetectedField,
+  file?: File,
+  override?: (f: DetectedField, value: string) => Promise<boolean>,
+): Promise<void> {
+  if (override) {
+    const handled = await override(field, field.value ?? '').catch(() => false);
+    if (handled) return;
+  }
+
   const el = document.querySelector<HTMLElement>(`[data-oca-uid="${field.uid}"]`);
   if (!el) throw new Error('element gone (re-render?)');
 
