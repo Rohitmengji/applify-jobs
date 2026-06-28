@@ -1,5 +1,10 @@
 import type { Profile, ProfileKey } from '../profile.schema';
-import { mappingSystemPrompt, draftSystemPrompt, PROFILE_KEYS } from './prompts';
+import {
+  mappingSystemPrompt,
+  draftSystemPrompt,
+  resumeExtractSystemPrompt,
+  PROFILE_KEYS,
+} from './prompts';
 
 // IMPLEMENTATION.md §19 — called ONLY from the background worker, so API keys never
 // enter a web page. Supports a direct Anthropic key or a serverless proxy via base URL.
@@ -69,6 +74,19 @@ export async function mapFieldsWithLLM(
     }));
   } catch {
     return [];
+  }
+}
+
+// Returns the raw parsed JSON (or null). Shape is validated at merge time
+// (mergeExtractedResume) so a malformed/partial response can never corrupt the profile.
+export async function extractResumeWithLLM(text: string): Promise<unknown> {
+  if (!text.trim()) return null;
+  const out = await callClaude(resumeExtractSystemPrompt(), text, 2048);
+  const clean = out.replace(/```json|```/g, '').trim();
+  try {
+    return JSON.parse(clean);
+  } catch {
+    return null;
   }
 }
 

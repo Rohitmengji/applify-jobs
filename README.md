@@ -63,17 +63,17 @@ Your profile and résumé never leave the browser except: (a) résumé bytes go 
 
 Milestones (see `IMPLEMENTATION.md` §22):
 
-| Milestone | Scope                                                                 | Status    |
-| --------- | --------------------------------------------------------------------- | --------- |
-| **M0**    | WXT/React/TS/Tailwind scaffold                                        | ✅ done   |
-| **M1**    | Profile schema + storage + full options editor (import/export)        | ✅ done   |
-| **M2**    | Field engine + fill primitives + Greenhouse/Lever + side-panel review | ✅ done   |
-| **M3**    | Custom dropdowns + Workable, Ashby, SmartRecruiters, JazzHR           | ✅ done   |
-| **M4**    | Multi-step wizard + Workday                                           | ✅ done   |
-| **M5**    | iframe routing + iCIMS, SuccessFactors, Oracle                        | ✅ done   |
-| **M6**    | Heuristic hardening (synonym coverage)                                | ✅ done   |
-| **M7**    | LLM field-mapping fallback + answer bank + AI drafting                | ✅ done   |
-| **M8**    | Optional backend / résumé parsing / cross-device sync                 | ⬜ future |
+| Milestone | Scope                                                                 | Status     |
+| --------- | --------------------------------------------------------------------- | ---------- |
+| **M0**    | WXT/React/TS/Tailwind scaffold                                        | ✅ done    |
+| **M1**    | Profile schema + storage + full options editor (import/export)        | ✅ done    |
+| **M2**    | Field engine + fill primitives + Greenhouse/Lever + side-panel review | ✅ done    |
+| **M3**    | Custom dropdowns + Workable, Ashby, SmartRecruiters, JazzHR           | ✅ done    |
+| **M4**    | Multi-step wizard + Workday                                           | ✅ done    |
+| **M5**    | iframe routing + iCIMS, SuccessFactors, Oracle                        | ✅ done    |
+| **M6**    | Heuristic hardening (synonym coverage)                                | ✅ done    |
+| **M7**    | LLM field-mapping fallback + answer bank + AI drafting                | ✅ done    |
+| **M8**    | Résumé parsing (text + AI) done · backend/dashboard/PDF/sync          | 🟡 partial |
 
 All 10 ATS adapters are registered. Engine, fill primitives, matcher, and adapter
 detection are unit-tested (59 tests). Per `IMPLEMENTATION.md` §23, **live-page behavior**

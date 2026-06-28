@@ -27,6 +27,7 @@ export type FromContent =
 export type ToBackground =
   | { type: 'LLM_MAP_FIELDS'; unresolved: { uid: string; signals: unknown }[] }
   | { type: 'LLM_DRAFT_ANSWER'; uid: string; question: string }
+  | { type: 'LLM_EXTRACT_RESUME'; text: string }
   | { type: 'GET_PROFILE' };
 
 export type FromBackground =
@@ -35,6 +36,7 @@ export type FromBackground =
       mappings: { uid: string; key: string | null; confidence: number }[];
     }
   | { type: 'LLM_DRAFT_RESULT'; uid: string; answer: string; source: 'answerBank' | 'llm' | 'none' }
+  | { type: 'LLM_EXTRACT_RESULT'; data: unknown } // raw JSON; validated at merge time
   | { type: 'PROFILE'; profile: unknown };
 
 // Typed helpers -----------------------------------------------------------

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseResumeText, applyParsedResume } from '@/core/parser/resume';
+import { parseResumeText, applyParsedResume, mergeExtractedResume } from '@/core/parser/resume';
 import { EMPTY } from '@/core/storage/profileStore';
 
 const SAMPLE = `Ada Lovelace
@@ -65,5 +65,40 @@ describe('applyParsedResume', () => {
     // Non-destructive: a pre-set value is preserved.
     const withName = { ...EMPTY, personal: { ...EMPTY.personal, firstName: 'Augusta' } };
     expect(applyParsedResume(withName, parsed).personal.firstName).toBe('Augusta');
+  });
+});
+
+describe('mergeExtractedResume (AI structured extraction)', () => {
+  it('adds valid experience and education rows with generated ids', () => {
+    const out = mergeExtractedResume(EMPTY, {
+      experience: [{ title: 'Engineer', company: 'Acme', startDate: '2020', endDate: '2023' }],
+      education: [{ school: 'MIT', degree: 'BS', field: 'CS', startDate: '2016' }],
+      skills: ['rust', 'go'],
+    });
+    expect(out.experience).toHaveLength(1);
+    expect(out.experience[0].company).toBe('Acme');
+    expect(out.experience[0].id).toMatch(/[0-9a-f-]{36}/);
+    expect(out.education[0].school).toBe('MIT');
+    expect(out.skills).toEqual(expect.arrayContaining(['rust', 'go']));
+  });
+
+  it('drops rows that fail schema validation (e.g. a non-ISO date)', () => {
+    const out = mergeExtractedResume(EMPTY, {
+      experience: [{ title: 'X', company: 'Y', startDate: 'Jan 2020' }], // bad date format
+    });
+    expect(out.experience).toHaveLength(0);
+  });
+
+  it('dedupes by company+title and never throws on junk input', () => {
+    const once = mergeExtractedResume(EMPTY, {
+      experience: [{ title: 'Engineer', company: 'Acme', startDate: '2020' }],
+    });
+    const twice = mergeExtractedResume(once, {
+      experience: [{ title: 'Engineer', company: 'Acme', startDate: '2021' }],
+    });
+    expect(twice.experience).toHaveLength(1);
+    expect(mergeExtractedResume(EMPTY, null)).toEqual(EMPTY);
+    expect(mergeExtractedResume(EMPTY, 'garbage')).toEqual(EMPTY);
+    expect(mergeExtractedResume(EMPTY, { experience: 'not-an-array' }).experience).toEqual([]);
   });
 });

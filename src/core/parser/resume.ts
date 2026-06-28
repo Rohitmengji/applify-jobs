@@ -1,4 +1,4 @@
-import type { Profile } from '../profile.schema';
+import { ExperienceSchema, EducationSchema, type Profile } from '../profile.schema';
 
 // IMPLEMENTATION.md §M8 — seed the profile from résumé text. This is the deterministic
 // layer (regex/keyword extraction over plain text) — fully testable and dependency-free.
@@ -154,4 +154,55 @@ export function applyParsedResume(profile: Profile, parsed: ParsedResume): Profi
     },
     skills: Array.from(new Set([...profile.skills, ...parsed.skills])),
   };
+}
+
+// Merge the LLM's structured extraction (§M8 "AI résumé parser") into the profile.
+// Every row is validated against the schema (with a generated id + defaults); invalid
+// rows — e.g. a startDate that isn't YYYY/YYYY-MM — are dropped, so a malformed model
+// response can never corrupt the profile. New rows are appended (deduped); nothing is
+// overwritten. `data` is the raw, untrusted JSON the model returned.
+export function mergeExtractedResume(profile: Profile, data: unknown): Profile {
+  if (!data || typeof data !== 'object') return profile;
+  const d = data as Record<string, unknown>;
+
+  const experience = [...profile.experience];
+  if (Array.isArray(d.experience)) {
+    for (const row of d.experience) {
+      if (!row || typeof row !== 'object') continue;
+      const parsed = ExperienceSchema.safeParse({
+        id: crypto.randomUUID(),
+        current: false,
+        description: '',
+        ...(row as object),
+      });
+      if (
+        parsed.success &&
+        !experience.some((e) => e.company === parsed.data.company && e.title === parsed.data.title)
+      ) {
+        experience.push(parsed.data);
+      }
+    }
+  }
+
+  const education = [...profile.education];
+  if (Array.isArray(d.education)) {
+    for (const row of d.education) {
+      if (!row || typeof row !== 'object') continue;
+      const parsed = EducationSchema.safeParse({ id: crypto.randomUUID(), ...(row as object) });
+      if (
+        parsed.success &&
+        !education.some((e) => e.school === parsed.data.school && e.degree === parsed.data.degree)
+      ) {
+        education.push(parsed.data);
+      }
+    }
+  }
+
+  const skills = Array.isArray(d.skills)
+    ? Array.from(
+        new Set([...profile.skills, ...d.skills.filter((s): s is string => typeof s === 'string')]),
+      )
+    : profile.skills;
+
+  return { ...profile, experience, education, skills };
 }

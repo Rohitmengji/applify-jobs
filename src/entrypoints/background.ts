@@ -1,6 +1,6 @@
 import { defineBackground } from 'wxt/utils/define-background';
 import { getProfile } from '@/core/storage/profileStore';
-import { mapFieldsWithLLM, draftAnswerWithLLM } from '@/core/llm/client';
+import { mapFieldsWithLLM, draftAnswerWithLLM, extractResumeWithLLM } from '@/core/llm/client';
 import { findAnswer } from '@/core/llm/answerBank';
 import type { ToBackground, FromBackground } from '@/core/messages';
 
@@ -11,6 +11,7 @@ const HANDLED = new Set<ToBackground['type']>([
   'GET_PROFILE',
   'LLM_MAP_FIELDS',
   'LLM_DRAFT_ANSWER',
+  'LLM_EXTRACT_RESUME',
 ]);
 
 export default defineBackground(() => {
@@ -64,6 +65,19 @@ export default defineBackground(() => {
             answer,
             source,
           } satisfies FromBackground);
+          break;
+        }
+        case 'LLM_EXTRACT_RESUME': {
+          const profile = await getProfile();
+          let data: unknown = null;
+          if (profile.settings.llmEnabled) {
+            try {
+              data = await extractResumeWithLLM(msg.text);
+            } catch (e) {
+              console.warn('LLM résumé extraction failed', e);
+            }
+          }
+          sendResponse({ type: 'LLM_EXTRACT_RESULT', data } satisfies FromBackground);
           break;
         }
       }
