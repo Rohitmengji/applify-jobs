@@ -2,6 +2,8 @@ import { detectFields } from './detect';
 import { matchField } from './heuristic';
 import { matchAdapter } from './adapters';
 import { getProfile } from '../storage/profileStore';
+import { getLearned } from '../storage/learnStore';
+import { applyLearned } from './learn';
 import { valueForKey } from './values';
 import type { DetectedField } from '../types';
 
@@ -15,6 +17,7 @@ export async function resolveAll(): Promise<{
   multiStep: boolean;
 }> {
   const profile = await getProfile();
+  const learned = await getLearned();
   const adapter = matchAdapter(new URL(location.href), document);
   const threshold = profile.settings.confidenceThreshold ?? 0.6;
 
@@ -42,6 +45,10 @@ export async function resolveAll(): Promise<{
       if (v != null) f.value = v;
     }
   }
+
+  // 3) learned overrides: the user's remembered corrections/answers fill the gaps the
+  // heuristic missed (and override wrong heuristic mappings), without touching adapters.
+  applyLearned(fields, learned, profile);
 
   return {
     fields,

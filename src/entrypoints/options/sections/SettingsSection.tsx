@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Profile } from '@/core/profile.schema';
-import { Section, Field, TextInput, Toggle, type SectionProps } from '../components/ui';
+import { clearLearned, countLearned } from '@/core/storage/learnStore';
+import { Section, Field, TextInput, Toggle, Button, type SectionProps } from '../components/ui';
 
 export function SettingsSection({ draft, setDraft }: SectionProps) {
   const s = draft.settings;
@@ -24,6 +25,12 @@ export function SettingsSection({ draft, setDraft }: SectionProps) {
     setBaseUrl(b);
     void chrome.storage.local.set({ llmBaseUrl: b });
   };
+
+  // Learning engine: how many field corrections/answers the extension has remembered.
+  const [learnedCount, setLearnedCount] = useState(0);
+  useEffect(() => {
+    void countLearned().then(setLearnedCount);
+  }, []);
 
   return (
     <Section title="Settings" description="Engine behavior and optional AI assist.">
@@ -75,6 +82,24 @@ export function SettingsSection({ draft, setDraft }: SectionProps) {
           placeholder="https://api.anthropic.com"
         />
       </Field>
+
+      <h3 className="pt-2 text-sm font-semibold text-gray-700">Learning engine</h3>
+      <p className="text-xs text-gray-400">
+        When you fill or correct a field the engine didn’t know, it remembers it (by the field’s
+        label + type) and auto-fills that field on future forms. Stored locally only.
+      </p>
+      <div className="flex items-center gap-3">
+        <span className="text-sm text-gray-600">{learnedCount} fields remembered</span>
+        <Button
+          variant="danger"
+          onClick={async () => {
+            await clearLearned();
+            setLearnedCount(0);
+          }}
+        >
+          Forget learned fields
+        </Button>
+      </div>
     </Section>
   );
 }

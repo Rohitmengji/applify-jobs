@@ -6,6 +6,7 @@ export const SOURCE_BADGE: Record<FillSource, { label: string; cls: string }> = 
   heuristic: { label: 'heuristic', cls: 'bg-blue-100 text-blue-800' },
   answerBank: { label: 'saved', cls: 'bg-teal-100 text-teal-800' },
   llm: { label: 'AI', cls: 'bg-purple-100 text-purple-800' },
+  learned: { label: 'learned', cls: 'bg-fuchsia-100 text-fuchsia-800' },
   manual: { label: 'you', cls: 'bg-amber-100 text-amber-800' },
   none: { label: '—', cls: 'bg-gray-100 text-gray-500' },
 };
@@ -18,6 +19,9 @@ export function confidenceColor(c: number): string {
 }
 
 export function needsReview(f: DetectedField, threshold = 0.6): boolean {
+  // User-derived values are trusted: their current edit (manual) or a remembered
+  // correction/answer (learned).
+  if (f.source === 'manual' || f.source === 'learned') return false;
   // A free-text field mapped but not yet drafted still needs the user's attention (#6).
   if (f.mappedKey === 'freeText' && !f.value) return true;
   return f.mappedKey === null || f.source === 'none' || f.confidence < threshold;

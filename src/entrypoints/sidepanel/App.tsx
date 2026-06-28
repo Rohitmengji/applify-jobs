@@ -4,6 +4,8 @@ import type { FromContent, FromBackground, ResolvedFill } from '@/core/messages'
 import type { ProfileKey } from '@/core/profile.schema';
 import { getProfile } from '@/core/storage/profileStore';
 import { getFile } from '@/core/storage/blobStore';
+import { recordLearned } from '@/core/storage/learnStore';
+import { learnableEntries } from '@/core/engine/learn';
 import { valueForKey } from '@/core/engine/values';
 import { sendToFrame, sendToBackground, frameIds, fileToB64, activeTabId } from './lib/messaging';
 import { StatusBar } from './components/StatusBar';
@@ -246,6 +248,10 @@ export function App() {
       for (const [fid, list] of byFrame) {
         await sendToFrame(tabId, fid, { type: 'FILL', fields: list });
       }
+
+      // Learning engine: remember how the user resolved custom/corrected fields so the
+      // next form with that field auto-fills (source 'learned') without re-asking.
+      await recordLearned(learnableEntries(fields));
     } finally {
       setBusy(false);
     }
