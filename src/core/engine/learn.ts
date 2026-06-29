@@ -31,6 +31,34 @@ export function fieldFingerprint(field: DetectedField): string {
   return `${field.kind}|${label}`;
 }
 
+/**
+ * Generate multiple fingerprints for a field — increases match probability.
+ * The primary fingerprint uses the best label; secondary uses alternative signals.
+ */
+export function fieldFingerprints(field: DetectedField): string[] {
+  const s = field.signals;
+  const fps: string[] = [];
+  const kind = field.kind;
+
+  // Primary: best label
+  const primary = norm(s.label || s.ariaLabel || s.placeholder || s.name || s.id);
+  if (primary.length > 1) fps.push(`${kind}|${primary}`);
+
+  // Secondary: other signals that might differ across sites
+  if (s.label && s.ariaLabel && norm(s.ariaLabel) !== primary) {
+    fps.push(`${kind}|${norm(s.ariaLabel)}`);
+  }
+  if (s.placeholder && norm(s.placeholder) !== primary && norm(s.placeholder).length > 3) {
+    fps.push(`${kind}|${norm(s.placeholder)}`);
+  }
+  // Nearby text as a last resort (often contains the question on custom forms)
+  if (s.nearbyText && norm(s.nearbyText) !== primary && norm(s.nearbyText).length > 5) {
+    fps.push(`${kind}|${norm(s.nearbyText).slice(0, 60)}`);
+  }
+
+  return fps;
+}
+
 function hasLabel(fingerprint: string): boolean {
   return (fingerprint.split('|')[1] ?? '').length > 1;
 }
@@ -74,31 +102,36 @@ export function applyLearned(
 
   for (const f of fields) {
     if (f.source === 'adapter' || f.source === 'manual') continue;
-    const fp = fieldFingerprint(f);
 
-    // 1) Exact match (fast path)
-    let entry =
-      (adapterId ? learned[scopeKey(adapterId, fp)] : undefined) ?? learned[scopeKey(null, fp)];
+    // Try all fingerprints (primary + secondary) for exact match
+    const fps = fieldFingerprints(f);
+    let entry: LearnedEntry | undefined;
+
+    for (const fp of fps) {
+      entry = (adapterId ? learned[scopeKey(adapterId, fp)] : undefined) ?? learned[scopeKey(null, fp)];
+      if (entry) break;
+    }
 
     // 2) Fuzzy match — search all stored fingerprints for a similar label
     if (!entry) {
-      const fpLabel = fp.split('|')[1] ?? '';
-      const fpKind = fp.split('|')[0] ?? '';
+      const fpLabel = fps[0]?.split('|')[1] ?? '';
+      const fpKind = fps[0]?.split('|')[0] ?? '';
       if (fpLabel.length > 3) {
         const fpTokens = tokenize(fpLabel);
         let bestScore = 0;
         let bestEntry: LearnedEntry | undefined;
 
         for (const key of allKeys) {
-          // Only match same kind (text|... matches text|..., radio-group|... matches radio-group|...)
           const storedFp = key.split('::')[1] ?? '';
           const storedKind = storedFp.split('|')[0] ?? '';
           const storedLabel = storedFp.split('|')[1] ?? '';
           if (storedKind !== fpKind || storedLabel.length <= 3) continue;
 
           const score = jaccardSimilarity(fpTokens, tokenize(storedLabel));
-          if (score > bestScore && score >= 0.45) {
-            bestScore = score;
+          // Boost score for entries with more uses (battle-tested answers)
+          const usageBoost = Math.min((learned[key]?.uses ?? 1) * 0.02, 0.1);
+          if (score + usageBoost > bestScore && score >= 0.4) {
+            bestScore = score + usageBoost;
             bestEntry = learned[key];
           }
         }
@@ -111,13 +144,15 @@ export function applyLearned(
     if (entry.key) {
       const v = valueForKey(profile, entry.key, f);
       f.mappedKey = entry.key;
-      f.confidence = 0.97;
+      f.confidence = Math.min(0.97, 0.85 + (entry.uses * 0.02)); // confidence grows with uses
       f.source = 'learned';
+      f.reason = `Learned (used ${entry.uses}x)`;
       if (v != null) f.value = v;
     } else if (entry.value) {
       f.value = entry.value;
-      f.confidence = 0.97;
+      f.confidence = Math.min(0.97, 0.85 + (entry.uses * 0.02));
       f.source = 'learned';
+      f.reason = `Learned answer (used ${entry.uses}x)`;
     }
   }
   return fields;
@@ -133,10 +168,15 @@ export function learnableEntries(
   const out: { fingerprint: string; key: ProfileKey | null; value: string }[] = [];
   for (const f of fields) {
     if (f.value == null) continue;
-    const fingerprint = fieldFingerprint(f);
-    if (!hasLabel(fingerprint)) continue; // need a real label to be reusable
     const key = f.mappedKey && f.mappedKey !== 'freeText' ? f.mappedKey : null;
-    out.push({ fingerprint, key, value: f.value });
+
+    // Record ALL fingerprints for this field (primary + secondary) so future matching
+    // can find it via any signal — label, ariaLabel, placeholder, or nearbyText.
+    const fps = fieldFingerprints(f);
+    for (const fingerprint of fps) {
+      if (!hasLabel(fingerprint)) continue;
+      out.push({ fingerprint, key, value: f.value });
+    }
   }
   return out;
 }
