@@ -11,9 +11,10 @@ interface Props {
   answerBank: SavedAnswer[];
   onChange: (uid: string, value: string) => void;
   onDraft: (field: DetectedField) => void;
+  onSaveAnswer?: (question: string, answer: string) => void;
 }
 
-export function ReviewTable({ fields, filledMap, threshold, answerBank, onChange, onDraft }: Props) {
+export function ReviewTable({ fields, filledMap, threshold, answerBank, onChange, onDraft, onSaveAnswer }: Props) {
   if (fields.length === 0) {
     return (
       <div className="flex-1 p-6 text-center text-xs text-gray-500">
@@ -52,6 +53,7 @@ export function ReviewTable({ fields, filledMap, threshold, answerBank, onChange
               suggestions={suggestions}
               onChange={onChange}
               onDraft={onDraft}
+              onSaveAnswer={onSaveAnswer}
             />
           );
         })}

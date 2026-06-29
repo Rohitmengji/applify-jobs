@@ -455,6 +455,82 @@ export function App() {
     }
   }, []);
 
+  // "Draft All Answers" — one click drafts AI answers for ALL empty free-text fields
+  // Save an AI-drafted answer to the answer bank so it's reused next time
+  const saveToAnswerBank = useCallback(async (question: string, answer: string) => {
+    if (!question || !answer) return;
+    const profile = await getProfile();
+    const already = profile.answerBank.some(
+      (a) => a.questionPattern.toLowerCase() === question.toLowerCase(),
+    );
+    if (already) return; // don't duplicate
+    const entry = {
+      id: crypto.randomUUID(),
+      questionPattern: question,
+      answer,
+      tags: [],
+    };
+    const updated = { ...profile, answerBank: [...profile.answerBank, entry] };
+    const { saveProfile } = await import('@/core/storage/profileStore');
+    await saveProfile(updated);
+    setAnswerBank(updated.answerBank);
+  }, []);
+
+  const draftAllAnswers = useCallback(async () => {
+    setBusy(true);
+    try {
+      const freeTextFields = fields.filter((f) => {
+        if (f.value) return false; // already has a value
+        if (f.kind !== 'textarea' && f.kind !== 'text') return false;
+        const lbl = (f.signals.label || f.signals.ariaLabel || f.signals.placeholder || '').toLowerCase();
+        // Skip fields that are clearly structured (name, email, etc.)
+        if (f.mappedKey && f.mappedKey !== 'freeText' && f.mappedKey !== 'documents.coverLetter') return false;
+        // Need a meaningful label to draft from
+        return lbl.length > 5;
+      });
+
+      if (freeTextFields.length === 0) return;
+
+      // Draft all in parallel for speed
+      const promises = freeTextFields.map(async (field) => {
+        const question = field.signals.label || field.signals.ariaLabel || field.signals.placeholder || '';
+        // Check if it's a cover letter field
+        const isCL = /cover letter|motivation letter|why .* (this|the) (role|position|company)/i.test(question);
+
+        if (isCL) {
+          const tabId = tabIdRef.current ?? (await activeTabId());
+          const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
+          const res = await sendToBackground<FromBackground>({
+            type: 'LLM_COVER_LETTER',
+            company: info?.type === 'PAGE_INFO' ? info.company : 'the company',
+            role: info?.type === 'PAGE_INFO' ? info.role : 'this role',
+            description: info?.type === 'PAGE_INFO' ? info.description : undefined,
+          });
+          if (res.type === 'LLM_COVER_LETTER_RESULT' && res.text) {
+            return { uid: field.uid, answer: res.text };
+          }
+        } else {
+          const res = await sendToBackground<FromBackground>({
+            type: 'LLM_DRAFT_ANSWER',
+            uid: field.uid,
+            question,
+          });
+          if (res.type === 'LLM_DRAFT_RESULT' && res.answer) {
+            return { uid: field.uid, answer: res.answer };
+          }
+        }
+        return null;
+      });
+
+      const results = await Promise.all(promises);
+      for (const r of results) {
+        if (r) applyResolved(r.uid, r.answer, 'llm');
+      }
+    } finally {
+      setBusy(false);
+    }
+  }, [fields, applyResolved]);
+
   return (
     <div className="flex h-full flex-col bg-gradient-to-b from-white to-gray-50/80 text-sm text-gray-900">
       <StatusBar adapterId={adapterId} count={fields.length} busy={locked} onRedetect={detect} />
@@ -483,6 +559,7 @@ export function App() {
           answerBank={answerBank}
           onChange={onChange}
           onDraft={onDraft}
+          onSaveAnswer={saveToAnswerBank}
         />
       )}
 
@@ -517,6 +594,29 @@ export function App() {
           </div>
         )}
       </div>
+
+      {/* Draft All Answers — one click generates all free-text answers */}
+      {fields.some((f) => !f.value && (f.kind === 'textarea' || f.kind === 'text') &&
+        (!f.mappedKey || f.mappedKey === 'freeText' || f.mappedKey === 'documents.coverLetter') &&
+        (f.signals.label || f.signals.ariaLabel || '').length > 5
+      ) && (
+        <div className="px-3 py-1.5">
+          <button
+            onClick={draftAllAnswers}
+            disabled={locked}
+            className="w-full rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 px-3 py-2 text-[11px] font-medium text-indigo-700 transition hover:border-indigo-300 hover:shadow-sm disabled:opacity-50"
+          >
+            {busy ? (
+              <span className="flex items-center justify-center gap-1.5">
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
+                Drafting all answers...
+              </span>
+            ) : (
+              '🚀 Draft All Answers with AI'
+            )}
+          </button>
+        </div>
+      )}
 
       <FillButton
         busy={locked}

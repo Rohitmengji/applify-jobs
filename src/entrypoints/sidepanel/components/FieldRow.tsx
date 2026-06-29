@@ -10,11 +10,12 @@ interface Props {
   suggestions?: SavedAnswer[];
   onChange: (uid: string, value: string) => void;
   onDraft: (field: DetectedField) => void;
+  onSaveAnswer?: (question: string, answer: string) => void;
 }
 
 const TRUTHY = ['yes', 'true', '1', 'on'];
 
-export function FieldRow({ field, threshold, filled, error, suggestions, onChange, onDraft }: Props) {
+export function FieldRow({ field, threshold, filled, error, suggestions, onChange, onDraft, onSaveAnswer }: Props) {
   const s = field.signals;
   const badge = SOURCE_BADGE[field.source];
   const review = needsReview(field, threshold);
@@ -87,6 +88,18 @@ export function FieldRow({ field, threshold, filled, error, suggestions, onChang
             </button>
           ))}
         </div>
+      )}
+      {/* Save to Answer Bank — shown when AI drafted an answer */}
+      {field.value && (field.source === 'llm' || field.source === 'manual') && isFreeText && onSaveAnswer && (
+        <button
+          onClick={() => onSaveAnswer(
+            field.signals.label || field.signals.ariaLabel || field.signals.placeholder || '',
+            field.value!,
+          )}
+          className="self-start text-[10px] text-teal-600 hover:text-teal-800 hover:underline"
+        >
+          💾 Save to Answer Bank
+        </button>
       )}
       {error && <span className="text-[11px] text-red-600">{error}</span>}
     </li>
