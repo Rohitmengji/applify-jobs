@@ -22,7 +22,14 @@ export function FieldRow({ field, threshold, filled, error, suggestions, onChang
   // an open question would land in. Either way, offer "Draft with AI" (§17/§20, #13).
   const isFreeText =
     field.mappedKey === 'freeText' ||
+    field.mappedKey === 'documents.coverLetter' ||
     (field.mappedKey === null && (field.kind === 'textarea' || field.kind === 'text'));
+
+  // Detect cover letter fields specifically for the prominent "Generate from JD" button
+  const label = (s.label || s.ariaLabel || s.placeholder || '').toLowerCase();
+  const isCoverLetter =
+    field.mappedKey === 'documents.coverLetter' ||
+    /cover letter|covering letter|motivation letter|why .* (this|the) (role|position|company|job)|tell us why|why.*join/i.test(label);
 
   return (
     <li className={`flex flex-col gap-1.5 border-b border-gray-100 px-3 py-2.5 transition-colors ${review ? 'bg-amber-50/60' : 'hover:bg-gray-50/50'}`}>
@@ -50,7 +57,15 @@ export function FieldRow({ field, threshold, filled, error, suggestions, onChang
 
       <ValueEditor field={field} onChange={onChange} />
 
-      {isFreeText && (
+      {isFreeText && isCoverLetter && !field.value && (
+        <button
+          onClick={() => onDraft(field)}
+          className="mt-1 w-full rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 px-3 py-2 text-[11px] font-medium text-purple-700 transition hover:border-purple-300 hover:shadow-sm"
+        >
+          ✨ Generate Cover Letter from Job Description
+        </button>
+      )}
+      {isFreeText && !isCoverLetter && (
         <button
           onClick={() => onDraft(field)}
           className="self-start text-[11px] text-purple-700 hover:underline"

@@ -275,6 +275,36 @@ export function App() {
       const question =
         field.signals.label || field.signals.ariaLabel || field.signals.placeholder || '';
       if (!question) return;
+
+      // Cover letter fields → generate a full cover letter from the JD
+      const isCoverLetter =
+        field.mappedKey === 'documents.coverLetter' ||
+        /cover letter|covering letter|motivation letter|why .* (this|the) (role|position|company|job)|tell us why|why.*join/i.test(question);
+
+      if (isCoverLetter) {
+        setBusy(true);
+        try {
+          const tabId = tabIdRef.current ?? (await activeTabId());
+          const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
+          const company = info?.type === 'PAGE_INFO' ? info.company : '';
+          const role = info?.type === 'PAGE_INFO' ? info.role : '';
+          const description = info?.type === 'PAGE_INFO' ? info.description : undefined;
+          const res = await sendToBackground<FromBackground>({
+            type: 'LLM_COVER_LETTER',
+            company: company || 'the company',
+            role: role || 'this role',
+            description,
+          });
+          if (res.type === 'LLM_COVER_LETTER_RESULT' && res.text) {
+            applyResolved(field.uid, res.text, 'llm');
+          }
+        } finally {
+          setBusy(false);
+        }
+        return;
+      }
+
+      // Regular free-text → draft with AI
       const res = await sendToBackground<FromBackground>({
         type: 'LLM_DRAFT_ANSWER',
         uid: field.uid,
