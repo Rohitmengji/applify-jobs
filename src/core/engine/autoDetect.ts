@@ -1,7 +1,4 @@
 import { resolveAll } from './resolve';
-import { fillOne } from './fill';
-import { matchAdapter } from './adapters';
-import { getProfile } from '../storage/profileStore';
 import type { FromContent } from '../messages';
 import type { DetectedField } from '../types';
 
@@ -16,15 +13,6 @@ import type { DetectedField } from '../types';
 const QUIET_MS = 600; // debounce: wait this long after last mutation
 const THROTTLE_MS = 1500; // min gap between successive auto-detects
 const SETTLE_AFTER_NAV_MS = 800; // wait after URL change before detecting
-
-// EEO/protected fields: NEVER auto-fill these
-const EEO_KEYS = new Set([
-  'eeo.gender',
-  'eeo.race',
-  'eeo.hispanicLatino',
-  'eeo.veteranStatus',
-  'eeo.disabilityStatus',
-]);
 
 // --- Form-relevant selectors (only trigger redetect for these) ---
 const FORM_SELECTORS = [
@@ -192,63 +180,15 @@ function onUrlChange(): void {
 const autoFilledUids = new Set<string>();
 
 /**
- * Auto-fill fields that are high-confidence and have resolved values.
- * Safety: skips EEO fields, already-filled fields, fields the user is focused on,
- * and respects the user's autoFill setting.
+ * Auto-fill is DISABLED. The user must explicitly click "Fill all" in the side panel.
+ * Auto-detection still runs (shows fields in the panel), but filling only happens on
+ * explicit user action. This prevents wrong values being filled into search boxes,
+ * unrelated fields, or low-confidence mappings.
+ *
+ * The only thing auto-detected is GDPR consent checkboxes (harmless, required to proceed).
  */
-async function autoFillFields(fields: DetectedField[]): Promise<void> {
-  const profile = await getProfile();
-
-  // Check if auto-fill is enabled (reuses autoAdvanceWizard as the toggle for now;
-  // could be a separate setting in the future)
-  if (!profile.settings.autoAdvanceWizard) return;
-
-  const threshold = profile.settings.confidenceThreshold ?? 0.6;
-
-  // Get the adapter override for custom dropdowns
-  const adapter = matchAdapter(new URL(location.href), document);
-  const override = adapter?.fillField
-    ? (f: DetectedField, v: string) => adapter.fillField!(f, v)
-    : undefined;
-
-  for (const f of fields) {
-    // Skip if already auto-filled on this page load
-    if (autoFilledUids.has(f.uid)) continue;
-
-    // Skip if no value resolved
-    if (f.value == null) continue;
-
-    // Skip low-confidence fields (user should review these)
-    if (f.confidence < threshold) continue;
-
-    // NEVER auto-fill EEO/protected fields
-    if (f.mappedKey && EEO_KEYS.has(f.mappedKey)) continue;
-
-    // Skip file fields (user must explicitly choose to upload)
-    if (f.kind === 'file') continue;
-
-    // Skip if user is currently focused on this field (don't interrupt typing)
-    const el = document.querySelector<HTMLElement>(`[data-oca-uid="${f.uid}"]`);
-    if (!el) continue;
-    if (document.activeElement === el) continue;
-
-    // Skip if the field already has a non-empty value (respect pre-fills / browser autofill)
-    if (el instanceof HTMLInputElement && el.value.trim()) continue;
-    if (el instanceof HTMLTextAreaElement && el.value.trim()) continue;
-    if (el instanceof HTMLSelectElement && el.selectedIndex > 0) continue;
-
-    // Fill!
-    try {
-      await fillOne(f, undefined, override);
-      autoFilledUids.add(f.uid);
-      broadcastRef({ type: 'FIELD_FILLED', uid: f.uid, ok: true });
-    } catch {
-      // Silently skip — field will be shown as "needs review" in the panel
-    }
-  }
-
-  // Auto-check GDPR/consent checkboxes (privacy policy, data processing consent).
-  // These are required to proceed but don't map to any profile field.
+async function autoFillFields(_fields: DetectedField[]): Promise<void> {
+  // Only auto-check consent checkboxes (privacy policy, terms) — these are safe
   autoCheckConsent();
 }
 

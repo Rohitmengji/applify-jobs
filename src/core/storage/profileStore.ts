@@ -33,7 +33,7 @@ export const EMPTY: Profile = {
   salary: { currency: 'INR', period: 'year' },
   documents: {},
   answerBank: [],
-  settings: { llmEnabled: true, autoAdvanceWizard: true, confidenceThreshold: 0.6 },
+  settings: { llmEnabled: true, autoAdvanceWizard: true, confidenceThreshold: 0.75 },
 };
 
 export async function getProfile(): Promise<Profile> {

@@ -248,8 +248,10 @@ async function fillMany(
   const filled: DetectedField[] = [];
 
   for (const r of resolved) {
+    // Skip fields that shouldn't be filled (search boxes, filters, navigation inputs)
     const f = fields.find((x) => x.uid === r.uid);
     if (!f) continue;
+    if (shouldSkipFill(f)) continue;
     f.value = r.value;
     try {
       await fillOne(f, file ?? undefined, override);
@@ -302,4 +304,36 @@ function findGenericNextButton(doc: Document): HTMLElement | null {
       return NEXT_RE.test(text) && !SUBMIT_RE.test(text);
     }) ?? null
   );
+}
+
+// Fields that should NEVER be filled — search boxes, filters, navigation inputs.
+// These get detected by the generic detector but aren't part of the application form.
+const SKIP_FILL_RE = /search|filter|keyword|find.*job|query|autocomplete.*search|nav/i;
+
+function shouldSkipFill(f: DetectedField): boolean {
+  const label = (f.signals.label || f.signals.placeholder || f.signals.ariaLabel || '').toLowerCase();
+
+  // Skip search/filter/navigation inputs
+  if (SKIP_FILL_RE.test(label)) return true;
+
+  // Skip if confidence is very low (likely a mis-mapping)
+  if (f.confidence > 0 && f.confidence < 0.5) return true;
+
+  // Skip if the element is inside a search form or navigation
+  const el = document.querySelector(`[data-oca-uid="${f.uid}"]`);
+  if (el) {
+    const form = el.closest('form');
+    if (form) {
+      const role = form.getAttribute('role') ?? '';
+      if (role === 'search') return true;
+      const action = form.getAttribute('action') ?? '';
+      if (/search|find|filter/i.test(action)) return true;
+    }
+    // Skip if inside a navigation, header, or sidebar element
+    if (el.closest('nav, header, [role=navigation], [role=search], [class*=search-bar], [class*=navbar]')) {
+      return true;
+    }
+  }
+
+  return false;
 }
