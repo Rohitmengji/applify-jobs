@@ -14,6 +14,8 @@ import { StatusBar } from './components/StatusBar';
 import { ReviewTable } from './components/ReviewTable';
 import { FillButton } from './components/FillButton';
 import { AskAI } from './components/AskAI';
+import { JobMatchCard } from './components/JobMatchCard';
+import { analyzeJobDescription, type JdAnalysis } from '@/core/engine/jdAnalysis';
 
 type FilledMap = Record<string, { ok: boolean; error?: string }>;
 type LlmPatch = { key: ProfileKey; confidence: number; value: string | null };
@@ -30,6 +32,7 @@ export function App() {
   const [threshold, setThreshold] = useState(0.6);
   const [answerBank, setAnswerBank] = useState<SavedAnswer[]>([]);
   const [coverLetter, setCoverLetter] = useState<string | null>(null);
+  const [jobMatch, setJobMatch] = useState<JdAnalysis | null>(null);
   const [isRunning, setIsRunning] = useState(false); // a wizard run is in flight (#1)
   const locked = busy || isRunning;
 
@@ -455,7 +458,23 @@ export function App() {
     }
   }, []);
 
-  // "Draft All Answers" — one click drafts AI answers for ALL empty free-text fields
+  // Analyze job match — compare profile skills vs JD requirements
+  const analyzeMatch = useCallback(async () => {
+    setBusy(true);
+    try {
+      const tabId = tabIdRef.current ?? (await activeTabId());
+      const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
+      const description = info?.type === 'PAGE_INFO' ? info.description : '';
+      if (description) {
+        const profile = await getProfile();
+        const result = analyzeJobDescription(description, profile);
+        setJobMatch(result);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   // Save an AI-drafted answer to the answer bank so it's reused next time
   const saveToAnswerBank = useCallback(async (question: string, answer: string) => {
     if (!question || !answer) return;
@@ -534,6 +553,9 @@ export function App() {
   return (
     <div className="flex h-full flex-col bg-gradient-to-b from-white to-gray-50/80 text-sm text-gray-900">
       <StatusBar adapterId={adapterId} count={fields.length} busy={locked} onRedetect={detect} />
+
+      {/* Job Match Score */}
+      <JobMatchCard analysis={jobMatch} loading={busy} onAnalyze={analyzeMatch} />
 
       {status?.phase === 'review' && (
         <div className="mx-3 mt-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-[11px] text-green-700 flex items-center gap-1.5">
