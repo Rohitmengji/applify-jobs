@@ -135,5 +135,51 @@ function autoComputeValue(
     if (current) return { value: current.title, confidence: 0.92, reason: 'Current experience title' };
   }
 
+  // "How did you hear about us" / "Source" — default answer
+  if (/how did you hear|where did you hear|source of application|referral source|how did you find/.test(label)) {
+    return { value: 'Job Board', confidence: 0.6, reason: 'Default: "How did you hear" answer' };
+  }
+
+  // "Are you willing to relocate" / "Open to relocation"
+  if (/willing to relocate|open to relocation|relocate/.test(label)) {
+    return { value: 'Yes', confidence: 0.7, reason: 'Default: willing to relocate' };
+  }
+
+  // "Earliest start date" / "When can you start" / "Availability"
+  if (/earliest start|when can you start|available.*start|start date|availability/.test(label) && field.kind === 'text') {
+    return { value: 'Immediately', confidence: 0.65, reason: 'Default: immediate availability' };
+  }
+
   return null;
+}
+
+/**
+ * Smart date formatting: detects whether the field expects DD/MM/YYYY, MM/DD/YYYY, or YYYY-MM-DD
+ * based on the placeholder, nearby text, or input pattern.
+ */
+export function formatDateForField(isoDate: string, field: DetectedField): string {
+  const placeholder = (field.signals.placeholder || '').toLowerCase();
+  const label = (field.signals.label || '').toLowerCase();
+
+  // Check placeholder patterns
+  if (/dd.mm.yyyy|dd\/mm\/yyyy/.test(placeholder)) {
+    const [y, m, d] = isoDate.split('-');
+    return `${d}/${m}/${y}`;
+  }
+  if (/mm.dd.yyyy|mm\/dd\/yyyy/.test(placeholder)) {
+    const [y, m, d] = isoDate.split('-');
+    return `${m}/${d}/${y}`;
+  }
+  if (/yyyy.mm.dd/.test(placeholder)) {
+    return isoDate; // already ISO
+  }
+
+  // Indian date format (common on Naukri, Indian career sites)
+  if (/date of birth|dob/i.test(label) && /india|naukri/i.test(document.location.hostname)) {
+    const [y, m, d] = isoDate.split('-');
+    return `${d}/${m}/${y}`;
+  }
+
+  // Default: ISO format (works with native date inputs)
+  return isoDate;
 }

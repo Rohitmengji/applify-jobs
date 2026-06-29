@@ -222,4 +222,44 @@ describe('matchAdapter registry', () => {
     document.body.innerHTML = '<form><input name="q" /></form>';
     expect(matchAdapter(new URL('https://example.com/careers'), document)).toBeNull();
   });
+
+  it('returns indeed for smartapply.indeed.com', () => {
+    document.body.innerHTML = '<form><input name="q" /></form>';
+    expect(matchAdapter(new URL('https://smartapply.indeed.com/form/x'), document)?.id).toBe('indeed');
+  });
+
+  it('returns jobvite for *.jobvite.com', () => {
+    document.body.innerHTML = '<form><input name="q" /></form>';
+    expect(matchAdapter(new URL('https://jobs.jobvite.com/acme/x'), document)?.id).toBe('jobvite');
+  });
+
+  it('returns linkedin for linkedin.com', () => {
+    document.body.innerHTML = '<form><input name="q" /></form>';
+    expect(matchAdapter(new URL('https://www.linkedin.com/jobs/view/x'), document)?.id).toBe('linkedin');
+  });
+
+  it('returns naukri for naukri.com', () => {
+    document.body.innerHTML = '<form><input name="q" /></form>';
+    expect(matchAdapter(new URL('https://www.naukri.com/apply/x'), document)?.id).toBe('naukri');
+  });
+
+  it('returns bamboohr for *.bamboohr.com', () => {
+    document.body.innerHTML = '<form><input name="q" /></form>';
+    expect(matchAdapter(new URL('https://acme.bamboohr.com/careers/x'), document)?.id).toBe('bamboohr');
+  });
+
+  it('returns zohorecruit for *.zohorecruit.com', () => {
+    document.body.innerHTML = '<form><input name="q" /></form>';
+    expect(matchAdapter(new URL('https://acme.zohorecruit.com/x'), document)?.id).toBe('zohorecruit');
+  });
+
+  it('returns wellfound for wellfound.com', () => {
+    document.body.innerHTML = '<form><input name="q" /></form>';
+    expect(matchAdapter(new URL('https://wellfound.com/company/x'), document)?.id).toBe('wellfound');
+  });
+
+  it('returns dice for dice.com', () => {
+    document.body.innerHTML = '<form><input name="q" /></form>';
+    expect(matchAdapter(new URL('https://www.dice.com/apply/x'), document)?.id).toBe('dice');
+  });
 });
