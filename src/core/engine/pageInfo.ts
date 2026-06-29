@@ -34,3 +34,42 @@ export function extractRole(doc: Document): string {
   if (parts.length >= 2) return parts[0].trim();
   return title;
 }
+
+/** Extract job description text from the page (for cover letter generation). */
+export function extractDescription(doc: Document): string {
+  // Try structured data
+  const ld = doc.querySelector('script[type="application/ld+json"]');
+  if (ld) {
+    try {
+      const data = JSON.parse(ld.textContent ?? '');
+      if (data.description) {
+        const tmp = doc.createElement('div');
+        tmp.innerHTML = data.description;
+        const text = (tmp.textContent ?? '').trim();
+        if (text.length > 100) return text.slice(0, 3000);
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Try common JD containers
+  const selectors = [
+    '[class*="job-description"]',
+    '[class*="jobDescription"]',
+    '[class*="job_description"]',
+    '[data-testid*="description"]',
+    '[id*="job-description"]',
+    '[id*="jobDescription"]',
+    '.description',
+    'article',
+    '[class*="posting-page"]',
+    '[class*="job-details"]',
+    '[class*="jd-"]',
+  ];
+  for (const sel of selectors) {
+    const el = doc.querySelector(sel);
+    if (el?.textContent && el.textContent.trim().length > 100) {
+      return el.textContent.trim().slice(0, 3000);
+    }
+  }
+  return '';
+}

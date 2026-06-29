@@ -76,12 +76,13 @@ export default defineContentScript({
             break;
 
           case 'GET_PAGE_INFO': {
-            const { extractCompany, extractRole } = await import('@/core/engine/pageInfo');
+            const { extractCompany, extractRole, extractDescription } = await import('@/core/engine/pageInfo');
             sendResponse({
               type: 'PAGE_INFO',
               company: extractCompany(document),
               role: extractRole(document),
               url: location.href,
+              description: extractDescription(document),
             } satisfies FromContent);
             break;
           }

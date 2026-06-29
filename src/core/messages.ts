@@ -23,7 +23,7 @@ export type FromContent =
   | { type: 'DETECTED'; fields: DetectedField[]; adapterId: string | null; multiStep: boolean }
   | { type: 'STATUS'; status: WizardStatus }
   | { type: 'FIELD_FILLED'; uid: string; ok: boolean; error?: string }
-  | { type: 'PAGE_INFO'; company: string; role: string; url: string }
+  | { type: 'PAGE_INFO'; company: string; role: string; url: string; description?: string }
   | { type: 'PONG' };
 
 // --- side panel  →  background (LLM work) -------------------------------

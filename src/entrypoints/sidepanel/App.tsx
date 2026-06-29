@@ -172,6 +172,42 @@ export function App() {
           }),
         );
       }
+
+      // Auto-generate cover letter for cover-letter textareas that are empty.
+      // Uses the JD from the page + profile to create a tailored letter.
+      const profile2 = await getProfile();
+      if (profile2.settings.llmEnabled) {
+        const coverLetterField = merged.find((f) => {
+          if (f.value) return false; // already has value
+          if (f.kind !== 'textarea' && f.kind !== 'text') return false;
+          const lbl = (f.signals.label || f.signals.ariaLabel || f.signals.placeholder || '').toLowerCase();
+          return /cover letter|covering letter|motivation letter|letter of motivation|why .* this (role|position|company)|why .* join|tell us why/.test(lbl);
+        });
+        if (coverLetterField) {
+          try {
+            const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
+            const company = info?.type === 'PAGE_INFO' ? info.company : '';
+            const role = info?.type === 'PAGE_INFO' ? info.role : '';
+            if (company || role) {
+              const res = await sendToBackground<FromBackground>({
+                type: 'LLM_COVER_LETTER',
+                company,
+                role,
+                description: info?.type === 'PAGE_INFO' ? info.description : undefined,
+              });
+              if (res.type === 'LLM_COVER_LETTER_RESULT' && res.text) {
+                setFields((prev) =>
+                  prev.map((f) =>
+                    f.uid === coverLetterField.uid
+                      ? { ...f, value: res.text, source: 'llm' as FillSource, confidence: 0.85, reason: 'AI-generated cover letter tailored to job' }
+                      : f,
+                  ),
+                );
+              }
+            }
+          } catch { /* non-critical — user can still click "Generate Cover Letter" manually */ }
+        }
+      }
     } catch {
       noContent();
     } finally {
@@ -365,10 +401,12 @@ export function App() {
       const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
       const company = info?.type === 'PAGE_INFO' ? info.company : 'the company';
       const role = info?.type === 'PAGE_INFO' ? info.role : 'this role';
+      const description = info?.type === 'PAGE_INFO' ? info.description : undefined;
       const res = await sendToBackground<FromBackground>({
         type: 'LLM_COVER_LETTER',
         company,
         role,
+        description,
       });
       if (res.type === 'LLM_COVER_LETTER_RESULT' && res.text) {
         setCoverLetter(res.text);
