@@ -13,6 +13,7 @@ import { sendToFrame, sendToBackground, frameIds, fileToB64, activeTabId } from 
 import { StatusBar } from './components/StatusBar';
 import { ReviewTable } from './components/ReviewTable';
 import { FillButton } from './components/FillButton';
+import { AskAI } from './components/AskAI';
 
 type FilledMap = Record<string, { ok: boolean; error?: string }>;
 type LlmPatch = { key: ProfileKey; confidence: number; value: string | null };
@@ -484,6 +485,9 @@ export function App() {
           onDraft={onDraft}
         />
       )}
+
+      {/* Ask AI — paste any question, get an answer to copy */}
+      <AskAI />
 
       {/* Cover letter section */}
       <div className="border-t border-gray-100 px-3 py-2">
