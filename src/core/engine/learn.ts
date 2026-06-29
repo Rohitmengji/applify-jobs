@@ -130,7 +130,7 @@ export function applyLearned(
           const score = jaccardSimilarity(fpTokens, tokenize(storedLabel));
           // Boost score for entries with more uses (battle-tested answers)
           const usageBoost = Math.min((learned[key]?.uses ?? 1) * 0.02, 0.1);
-          if (score + usageBoost > bestScore && score >= 0.4) {
+          if (score + usageBoost > bestScore && score >= 0.5) {
             bestScore = score + usageBoost;
             bestEntry = learned[key];
           }

@@ -111,11 +111,7 @@ function autoComputeValue(
     }
   }
 
-  // "Notice period" — common in Indian applications
-  if (/notice period/.test(label) && field.kind === 'text') {
-    // Default to "Immediate" if no specific info (user can edit)
-    return { value: 'Immediate', confidence: 0.6, reason: 'Default notice period' };
-  }
+  // "Notice period" — DO NOT auto-fill (sensitive, affects negotiation). Let learning handle it.
 
   // "Current location" / "Location"
   if (/^(current location|your location|location|city)$/.test(label) && field.kind === 'text') {
@@ -135,20 +131,13 @@ function autoComputeValue(
     if (current) return { value: current.title, confidence: 0.92, reason: 'Current experience title' };
   }
 
-  // "How did you hear about us" / "Source" — default answer
+  // "How did you hear" — LOW confidence so it shows as "needs review"
   if (/how did you hear|where did you hear|source of application|referral source|how did you find/.test(label)) {
-    return { value: 'Job Board', confidence: 0.6, reason: 'Default: "How did you hear" answer' };
+    return { value: 'Job Board', confidence: 0.4, reason: 'Default — needs review' };
   }
 
-  // "Are you willing to relocate" / "Open to relocation"
-  if (/willing to relocate|open to relocation|relocate/.test(label)) {
-    return { value: 'Yes', confidence: 0.7, reason: 'Default: willing to relocate' };
-  }
-
-  // "Earliest start date" / "When can you start" / "Availability"
-  if (/earliest start|when can you start|available.*start|start date|availability/.test(label) && field.kind === 'text') {
-    return { value: 'Immediately', confidence: 0.65, reason: 'Default: immediate availability' };
-  }
+  // "Relocate" / "Availability" / "Start date" — DO NOT auto-fill (user must decide)
+  // These will be learned after the first manual fill.
 
   return null;
 }

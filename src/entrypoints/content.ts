@@ -59,7 +59,7 @@ export default defineContentScript({
       const override = adapterOverride();
       for (const f of fields.filter((x) => x.value != null)) {
         try {
-          await fillOne(f, pendingFile ?? undefined, override);
+          await fillOne(f, f.kind === 'file' ? pendingFile ?? undefined : undefined, override);
           broadcast({ type: 'FIELD_FILLED', uid: f.uid, ok: true });
         } catch (e) {
           broadcast({ type: 'FIELD_FILLED', uid: f.uid, ok: false, error: String(e) });
@@ -143,6 +143,7 @@ export default defineContentScript({
 
           case 'FILL': {
             pauseAutoDetect(); // prevent detect→fill→detect loop
+            pendingFile = null; // clear stale file from previous FILL_FILE
             await fillMany(msg.fields, lastFields, pendingFile, broadcast, adapterOverride());
             resumeAutoDetect(true); // resume + redetect to pick up any new fields post-fill
             sendResponse({ type: 'STATUS', status: { phase: 'idle' } } satisfies FromContent);
@@ -225,8 +226,11 @@ export default defineContentScript({
               (status) => broadcast({ type: 'STATUS', status }),
               fillStep,
             ).then(() => {
-              resumeAutoDetect(true); // wizard done, resume + detect final state
+              resumeAutoDetect(true);
               broadcast({ type: 'STATUS', status: { phase: 'idle' } });
+            }).catch(() => {
+              resumeAutoDetect(true); // CRITICAL: always resume even on wizard failure
+              broadcast({ type: 'STATUS', status: { phase: 'error', message: 'wizard failed' } });
             });
             break;
           }

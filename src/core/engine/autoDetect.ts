@@ -192,21 +192,22 @@ async function autoFillFields(_fields: DetectedField[]): Promise<void> {
   autoCheckConsent();
 }
 
-const CONSENT_RE = /\b(privacy\s*policy|data\s*processing|terms\s*(and|&)\s*conditions|consent|gdpr|i\s*agree|i\s*accept|acknowledge|cookie)\b/i;
+const CONSENT_RE = /\b(privacy\s*policy|data\s*processing|terms\s*(and|&)\s*conditions|consent|gdpr|i\s*agree|i\s*accept|acknowledge)\b/i;
 
 function autoCheckConsent(): void {
+  // Only check consent boxes inside forms (not cookie banners, marketing opt-ins)
   const checkboxes = document.querySelectorAll<HTMLInputElement>(
-    'input[type="checkbox"]:not(:checked)',
+    'form input[type="checkbox"]:not(:checked)',
   );
   for (const cb of checkboxes) {
     if (autoFilledUids.has(cb.getAttribute('data-oca-uid') ?? '')) continue;
-    // Check the nearby label text
     const label = cb.id
       ? document.querySelector(`label[for="${cb.id}"]`)
       : cb.closest('label');
     const text = (label?.textContent ?? '').trim();
+    // Only consent/privacy checkboxes, NOT marketing ("cookie" removed — too broad)
     if (CONSENT_RE.test(text)) {
-      cb.click(); // check it
+      cb.click();
     }
   }
 }

@@ -94,6 +94,8 @@ function recordField(el: HTMLElement) {
 }
 
 function handleChange(e: Event) {
+  // Skip programmatic events (our own fills) — only record real user interactions
+  if (!e.isTrusted) return;
   const el = e.target as HTMLElement;
   if (!el || !shouldRecord(el)) return;
 
@@ -123,6 +125,7 @@ function handleChange(e: Event) {
 }
 
 function handleBlur(e: Event) {
+  if (!e.isTrusted) return; // skip our programmatic blur events
   const el = e.target as HTMLElement;
   if (!el || !shouldRecord(el)) return;
   // On blur, record immediately (user moved on)
