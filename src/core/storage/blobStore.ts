@@ -12,11 +12,30 @@ export interface StoredBlob {
   createdAt: number;
 }
 
+export type ApplicationStatus = 'applied' | 'in-progress' | 'interview' | 'rejected' | 'offer' | 'withdrawn';
+
+export interface TrackedApplication {
+  id: string; // uuid
+  company: string;
+  role: string;
+  url: string; // normalized (no tracking params)
+  atsType: string; // adapter id or 'generic'
+  status: ApplicationStatus;
+  appliedAt: number; // epoch ms
+  updatedAt: number;
+  notes: string;
+}
+
 class OcaDB extends Dexie {
   blobs!: Table<StoredBlob, string>;
+  applications!: Table<TrackedApplication, string>;
   constructor() {
     super('oneclick-apply');
     this.version(1).stores({ blobs: 'id, filename, createdAt' });
+    this.version(2).stores({
+      blobs: 'id, filename, createdAt',
+      applications: 'id, company, url, appliedAt, status',
+    });
   }
 }
 export const db = new OcaDB();

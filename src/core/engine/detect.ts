@@ -21,11 +21,21 @@ const SELECTOR = [
   '[aria-expanded][aria-controls]',
   '[aria-expanded][aria-owns]',
   '[role=button][aria-expanded]',
+  // Workday-specific: data-automation-id powered widgets
+  '[data-automation-id*="formField"] input',
+  '[data-automation-id*="formField"] select',
+  '[data-automation-id*="formField"] [role=combobox]',
+  '[data-automation-id*="multiselectContainer"]',
+  '[data-automation-id*="dateWidget"] input',
+  // Generic ARIA patterns for custom inputs
+  '[role=spinbutton]',
+  '[contenteditable=true][role=textbox]',
 ].join(',');
 
 // Radios share a name; collapse them into one DetectedField per group.
 export function detectFields(root: ParentNode = document): DetectedField[] {
-  const els = Array.from(root.querySelectorAll<HTMLElement>(SELECTOR));
+  // Collect elements from the root AND any shadow roots (§25: Shadow DOM traversal)
+  const els = querySelectorDeep(root, SELECTOR);
   const seenRadioNames = new Set<string>();
   const out: DetectedField[] = [];
 
@@ -86,4 +96,26 @@ function isVisible(el: HTMLElement): boolean {
     return typeof el.checkVisibility === 'function' ? el.checkVisibility() : true;
   }
   return true;
+}
+
+/**
+ * querySelectorAll that pierces shadow DOM boundaries.
+ * Walks the tree recursively, collecting matching elements from each shadow root.
+ * Falls back to standard querySelectorAll when no shadow roots exist (the common case).
+ */
+function querySelectorDeep(root: ParentNode, selector: string): HTMLElement[] {
+  const results = Array.from(root.querySelectorAll<HTMLElement>(selector));
+
+  // Walk all elements looking for shadow roots
+  const walk = (node: ParentNode) => {
+    const children = node.querySelectorAll('*');
+    for (const child of children) {
+      if (child.shadowRoot) {
+        results.push(...Array.from(child.shadowRoot.querySelectorAll<HTMLElement>(selector)));
+        walk(child.shadowRoot);
+      }
+    }
+  };
+  walk(root);
+  return results;
 }

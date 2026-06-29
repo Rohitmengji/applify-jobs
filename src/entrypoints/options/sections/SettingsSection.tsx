@@ -8,13 +8,15 @@ export function SettingsSection({ draft, setDraft }: SectionProps) {
   const setS = (patch: Partial<Profile['settings']>) =>
     setDraft((d) => ({ ...d, settings: { ...d.settings, ...patch } }));
 
-  // The LLM key + base URL live in chrome.storage.local (never in the profile, never synced).
+  // The LLM key + base URL + provider live in chrome.storage.local (never in the profile, never synced).
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
+  const [provider, setProvider] = useState<'openai' | 'anthropic' | ''>('');
   useEffect(() => {
-    void chrome.storage.local.get(['llmApiKey', 'llmBaseUrl']).then((r) => {
+    void chrome.storage.local.get(['llmApiKey', 'llmBaseUrl', 'llmProvider']).then((r) => {
       setApiKey((r.llmApiKey as string) ?? '');
       setBaseUrl((r.llmBaseUrl as string) ?? '');
+      setProvider((r.llmProvider as 'openai' | 'anthropic') ?? '');
     });
   }, []);
   const saveKey = (k: string) => {
@@ -24,6 +26,10 @@ export function SettingsSection({ draft, setDraft }: SectionProps) {
   const saveBase = (b: string) => {
     setBaseUrl(b);
     void chrome.storage.local.set({ llmBaseUrl: b });
+  };
+  const saveProvider = (p: string) => {
+    setProvider(p as 'openai' | 'anthropic' | '');
+    void chrome.storage.local.set({ llmProvider: p });
   };
 
   // Learning engine: how many field corrections/answers the extension has remembered.
@@ -65,21 +71,37 @@ export function SettingsSection({ draft, setDraft }: SectionProps) {
         Stored only in this browser (chrome.storage.local). Leave the key blank to use a proxy URL
         that holds the key server-side.
       </p>
+      <Field label="Provider">
+        <select
+          value={provider}
+          onChange={(e) => saveProvider(e.target.value)}
+          className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+        >
+          <option value="">Auto-detect from key</option>
+          <option value="openai">OpenAI (gpt-5.4-mini)</option>
+          <option value="anthropic">Anthropic (Claude)</option>
+        </select>
+      </Field>
       <Field label="API key">
         <TextInput
           type="password"
           value={apiKey}
           onChange={saveKey}
-          placeholder="sk-ant-…"
+          placeholder={provider === 'anthropic' ? 'sk-ant-…' : 'sk-…'}
           autoComplete="off"
         />
       </Field>
-      <Field label="Base URL" hint="Default: https://api.anthropic.com (or your proxy).">
+      <Field
+        label="Base URL"
+        hint={`Default: ${provider === 'anthropic' ? 'https://api.anthropic.com' : 'https://api.openai.com'} (or your proxy).`}
+      >
         <TextInput
           type="url"
           value={baseUrl}
           onChange={saveBase}
-          placeholder="https://api.anthropic.com"
+          placeholder={
+            provider === 'anthropic' ? 'https://api.anthropic.com' : 'https://api.openai.com'
+          }
         />
       </Field>
 

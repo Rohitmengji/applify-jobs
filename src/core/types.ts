@@ -48,6 +48,8 @@ export interface DetectedField {
   source: FillSource;
   filled: boolean;
   error?: string;
+  /** Why this mapping was chosen — shown on hover/click for transparency. */
+  reason?: string;
   /** Index of the frame this field was detected in (0 = top frame). */
   frameId?: number;
 }

@@ -15,11 +15,21 @@ import type { ProfileKey } from '../../profile.schema';
 const DA_MAP: Record<string, ProfileKey> = {
   legalNameSection_firstName: 'personal.firstName',
   legalNameSection_lastName: 'personal.lastName',
+  'legalNameSection_middleName': 'personal.middleName',
   email: 'personal.email',
   'phone-number': 'personal.phone',
+  'phone-device-type': 'personal.phone',
   addressSection_addressLine1: 'personal.address.line1',
+  addressSection_addressLine2: 'personal.address.line2',
   addressSection_city: 'personal.address.city',
+  addressSection_countryRegion: 'personal.address.state',
   addressSection_postalCode: 'personal.address.zip',
+  addressSection_country: 'personal.address.country',
+  linkedinQuestion: 'links.linkedin',
+  linkedInQuestion: 'links.linkedin',
+  githubQuestion: 'links.github',
+  websiteQuestion: 'links.website',
+  portfolioQuestion: 'links.portfolio',
 };
 
 const da = (doc: Document, id: string) =>
@@ -106,13 +116,26 @@ export const workday: SiteAdapter = {
   // same dropdown (the override is responsible for select-custom here). Finding #12.
   async fillField(field: DetectedField, value: string): Promise<boolean> {
     if (field.kind !== 'select-custom') return false; // not ours → generic path
+    if (!value.trim()) return false; // blank value = skip
     const el = document.querySelector<HTMLElement>(`[data-oca-uid="${field.uid}"]`);
     if (!el) return false;
+
+    // Workday dropdowns are async-rendered; we may need multiple attempts to open + find options
     const ok = await setCustomDropdown(el, value, {
       optionSelector:
-        '[data-automation-id*="promptOption"], ul[role=listbox] li[role=option], [role=option]',
+        '[data-automation-id*="promptOption"], ul[role=listbox] li[role=option], [role=option], [data-automation-id*="selectWidget"] li',
+      typeToFilter: true,
     });
-    if (!ok) throw new Error('no option matched');
+    if (!ok) {
+      // Try once more with a longer delay — Workday sometimes lazy-loads options
+      await new Promise((r) => setTimeout(r, 300));
+      const retry = await setCustomDropdown(el, value, {
+        optionSelector:
+          '[data-automation-id*="promptOption"], ul[role=listbox] li[role=option], [role=option], [data-automation-id*="selectWidget"] li',
+        typeToFilter: true,
+      });
+      if (!retry) throw new Error('no option matched');
+    }
     return true;
   },
 

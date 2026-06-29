@@ -1,5 +1,6 @@
 import type { DetectedField } from '../types';
 import { cssEscape } from './css';
+import { matchByAlias } from './countries';
 
 // IMPLEMENTATION.md §12 — fill primitives. These are why the extension works on
 // real sites instead of mysteriously not working. Treat them as the foundation.
@@ -16,10 +17,28 @@ export function setReactInputValue(
   const proto =
     el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
   const setter = Object.getOwnPropertyDescriptor(proto, 'value')!.set!;
+
+  // Focus first so the framework registers the field as "touched"
+  el.focus();
+  el.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+  el.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+
+  // Use the native setter to bypass React's value lock
   setter.call(el, value);
-  el.dispatchEvent(new Event('input', { bubbles: true }));
+
+  // Fire the full event sequence that real user typing produces.
+  // React 16+ listens on the native input event; some validators need change+blur.
+  el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
   el.dispatchEvent(new Event('change', { bubbles: true }));
-  el.dispatchEvent(new Event('blur', { bubbles: true })); // some validators run on blur
+  el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+  el.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+
+  // Dismiss Google Places autocomplete dropdown if present (it interferes with form fill).
+  // Places renders a .pac-container; clicking outside or pressing Escape closes it.
+  const pac = document.querySelector('.pac-container');
+  if (pac && pac instanceof HTMLElement && pac.offsetParent !== null) {
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+  }
 }
 
 // Minimum length before we allow substring (not exact) matching. Short tokens like
@@ -40,13 +59,25 @@ function pickOption<T>(
     (o) => text(o).toLowerCase().trim() === t || value(o).toLowerCase().trim() === t,
   );
   if (exact) return exact;
-  if (t.length < MIN_SUBSTR) return null; // short tokens: exact-only
-  return (
+  if (t.length < MIN_SUBSTR) {
+    // Short tokens: try alias normalization (handles "US" → "United States", "CA" → "California")
+    const aliasMatch = matchByAlias(target, options.map((o) => text(o)));
+    if (aliasMatch) return options.find((o) => text(o) === aliasMatch) ?? null;
+    return null;
+  }
+  // Substring match
+  const substr =
     options.find((o) => {
       const ot = text(o).toLowerCase().trim();
       return ot.length >= MIN_SUBSTR && (ot.includes(t) || t.includes(ot));
-    }) ?? null
-  );
+    }) ?? null;
+  if (substr) return substr;
+
+  // Final fallback: country/state alias normalization
+  const aliasMatch = matchByAlias(target, options.map((o) => text(o)));
+  if (aliasMatch) return options.find((o) => text(o) === aliasMatch) ?? null;
+
+  return null;
 }
 
 // §12.2 — native <select>
@@ -58,8 +89,13 @@ export function setNativeSelect(el: HTMLSelectElement, value: string): boolean {
     value,
   );
   if (!match) return false;
+  el.focus();
+  el.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
   el.value = match.value;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
   el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+  el.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
   return true;
 }
 
@@ -74,17 +110,25 @@ export async function setCustomDropdown(
   if (!target) return false; // blank value: never auto-pick the first visible option
 
   const optionSelector = opts.optionSelector ?? '[role=option], [class*=option], li[id*=option]';
-  trigger.click(); // open
+
+  // Open the dropdown
   trigger.focus();
-  await sleep(120);
+  trigger.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+  trigger.click();
+  trigger.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  await sleep(200);
 
   if (opts.typeToFilter !== false) {
-    const search = document.querySelector<HTMLInputElement>(
-      'input[role=combobox], input[aria-autocomplete=list], [class*=menu] input',
-    );
+    // Look for a search input inside the dropdown or the trigger itself if it's an input
+    const search =
+      trigger instanceof HTMLInputElement
+        ? trigger
+        : document.querySelector<HTMLInputElement>(
+            'input[role=combobox], input[aria-autocomplete=list], input[aria-autocomplete=both], [class*=menu] input, [role=listbox] ~ input, input[data-automation-id*="search"]',
+          );
     if (search) {
       setReactInputValue(search, value);
-      await sleep(180);
+      await sleep(300); // longer wait for async-filtered options
     }
   }
 
@@ -97,13 +141,26 @@ export async function setCustomDropdown(
     (target.length >= MIN_SUBSTR
       ? options.find((o) => optText(o).length >= MIN_SUBSTR && optText(o).includes(target))
       : undefined);
-  if (!hit) {
-    trigger.click(); // close, report miss
-    return false;
+  if (hit) {
+    hit.click();
+    await sleep(80);
+    return true;
   }
-  hit.click();
-  await sleep(80);
-  return true;
+
+  // Alias fallback: try country/state normalization (handles "US" → "United States of America")
+  const optionTexts = options.map((o) => (o.textContent ?? '').trim());
+  const aliasMatch = matchByAlias(value, optionTexts);
+  if (aliasMatch) {
+    const aliasHit = options.find((o) => (o.textContent ?? '').trim() === aliasMatch);
+    if (aliasHit) {
+      aliasHit.click();
+      await sleep(80);
+      return true;
+    }
+  }
+
+  trigger.click(); // close, report miss
+  return false;
 }
 
 // §12.4 — checkbox & radio group
@@ -171,6 +228,63 @@ export function setDate(el: HTMLInputElement, isoOrYmd: string): void {
   setReactInputValue(el, isoOrYmd);
 }
 
+// §12.6b — phone fields. Some inputs use input masks (e.g., (___) ___-____) that reject
+// a bulk value set. Try the fast path first; if it doesn't stick, type char-by-char.
+export async function setPhoneValue(el: HTMLInputElement, value: string): Promise<void> {
+  // Strip to digits + leading + for international
+  const digits = value.replace(/[^\d+]/g, '');
+  setReactInputValue(el, digits);
+  await sleep(50);
+
+  // Check if the value stuck — if the input has a mask, it may have rejected it
+  if (el.value.replace(/[^\d]/g, '').length >= digits.replace(/[^\d]/g, '').length - 1) return;
+
+  // Fallback: clear and type character by character (for masked inputs)
+  el.focus();
+  el.value = '';
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  for (const char of digits) {
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true }));
+    el.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true }));
+    el.dispatchEvent(new InputEvent('input', {
+      bubbles: true,
+      inputType: 'insertText',
+      data: char,
+    }));
+    el.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true }));
+    await sleep(20);
+  }
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+}
+
+// §12.6c — Multi-select / tag inputs (skills). Type each item, press Enter to add it,
+// repeat. Works for tag inputs, chip inputs, and comma-separated multi-selects.
+export async function setTagInput(
+  el: HTMLInputElement,
+  values: string,
+  separator = ',',
+): Promise<void> {
+  const items = values.split(separator).map((s) => s.trim()).filter(Boolean);
+  el.focus();
+  for (const item of items) {
+    setReactInputValue(el, item);
+    await sleep(100);
+    // Press Enter to confirm the tag
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+    el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+    await sleep(100);
+    // Some tag inputs need comma or tab instead of Enter
+    if (el.value === item) {
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: ',', code: 'Comma', bubbles: true }));
+      await sleep(50);
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', keyCode: 9, bubbles: true }));
+      await sleep(50);
+    }
+  }
+  el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+}
+
 // §12.7 — the dispatcher. An optional adapter `override` (SiteAdapter.fillField) gets
 // first crack at tricky custom controls; returning true means it handled the field and
 // the generic path is skipped. Throwing/returning false falls through to the default.
@@ -193,11 +307,18 @@ export async function fillOne(
   switch (field.kind) {
     case 'text':
     case 'email':
-    case 'tel':
     case 'url':
     case 'number':
     case 'textarea':
-      setReactInputValue(el as HTMLInputElement, field.value ?? '');
+      // Skills mapped to a text/textarea input → use tag input (type, Enter, repeat)
+      if (field.mappedKey === 'skills' && (field.value ?? '').includes(',')) {
+        await setTagInput(el as HTMLInputElement, field.value ?? '');
+      } else {
+        setReactInputValue(el as HTMLInputElement, field.value ?? '');
+      }
+      break;
+    case 'tel':
+      await setPhoneValue(el as HTMLInputElement, field.value ?? '');
       break;
     case 'select-native':
       if (!setNativeSelect(el as HTMLSelectElement, field.value ?? ''))
@@ -225,4 +346,28 @@ export async function fillOne(
     default:
       throw new Error(`unhandled kind ${field.kind}`);
   }
+}
+
+/**
+ * Apply a visual confidence overlay to a filled field element on the page.
+ * Green = high confidence, amber = medium, red = low.
+ * Uses box-shadow (NEVER causes layout reflow, unlike outline/border).
+ * Batched via requestAnimationFrame to avoid jank.
+ */
+export function applyConfidenceOverlay(field: DetectedField): void {
+  requestAnimationFrame(() => {
+    const el = document.querySelector<HTMLElement>(`[data-oca-uid="${field.uid}"]`);
+    if (!el) return;
+    const c = field.confidence;
+    const color = c >= 0.95 ? '#16a34a' : c >= 0.7 ? '#ca8a04' : '#dc2626';
+    el.style.boxShadow = `0 0 0 2px ${color}40, inset 0 0 0 1px ${color}`;
+    el.setAttribute('title', `OneClick Apply: ${field.source} (${Math.round(c * 100)}%)`);
+  });
+}
+
+/** Remove all confidence overlays from the page. */
+export function clearOverlays(): void {
+  document.querySelectorAll<HTMLElement>('[data-oca-uid]').forEach((el) => {
+    el.style.boxShadow = '';
+  });
 }

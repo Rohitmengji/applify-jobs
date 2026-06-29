@@ -36,9 +36,11 @@ export async function resolveAll(): Promise<{
         f.mappedKey = m.key;
         f.confidence = m.confidence;
         f.source = 'heuristic';
+        f.reason = m.reason;
       }
     } else {
       f.source = 'adapter';
+      f.reason = 'Matched by site-specific adapter';
     }
     if (f.mappedKey) {
       const v = valueForKey(profile, f.mappedKey, f);

@@ -75,20 +75,14 @@ export function applyLearned(
 
 // Which of the just-filled fields are worth remembering: the user's own edits, accepted
 // AI/answer-bank drafts, and custom/unmapped fields — i.e. the ones the deterministic
-// layers couldn't resolve on their own. (Adapter/heuristic hits don't need learning.)
+// layers couldn't resolve on their own. Also learn adapter/heuristic fills so non-adapter
+// sites with similar questions benefit from confirmed answers.
 export function learnableEntries(
   fields: DetectedField[],
 ): { fingerprint: string; key: ProfileKey | null; value: string }[] {
   const out: { fingerprint: string; key: ProfileKey | null; value: string }[] = [];
   for (const f of fields) {
     if (f.value == null) continue;
-    const worth =
-      f.source === 'manual' ||
-      f.source === 'llm' ||
-      f.source === 'answerBank' ||
-      f.mappedKey === null ||
-      f.mappedKey === 'freeText';
-    if (!worth) continue;
     const fingerprint = fieldFingerprint(f);
     if (!hasLabel(fingerprint)) continue; // need a real label to be reusable
     const key = f.mappedKey && f.mappedKey !== 'freeText' ? f.mappedKey : null;

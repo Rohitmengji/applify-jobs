@@ -14,8 +14,19 @@ import { SkillsSection } from './sections/SkillsSection';
 import { DocumentsSection } from './sections/DocumentsSection';
 import { AnswerBankSection } from './sections/AnswerBankSection';
 import { SettingsSection } from './sections/SettingsSection';
+import { ApplicationsSection } from './sections/ApplicationsSection';
+import { SalarySection } from './sections/SalarySection';
+import { AnalyticsSection } from './sections/AnalyticsSection';
+import {
+  getVariants,
+  saveVariant,
+  switchVariant,
+  deleteVariant,
+  getActiveVariantId,
+  type ProfileVariant,
+} from '@/core/storage/profileVariants';
 
-const TABS: { id: string; label: string; C: ComponentType<SectionProps> }[] = [
+const TABS: { id: string; label: string; C: ComponentType<SectionProps> | null }[] = [
   { id: 'personal', label: 'Personal', C: PersonalSection },
   { id: 'links', label: 'Links', C: LinksSection },
   { id: 'work', label: 'Work auth', C: WorkAuthSection },
@@ -23,8 +34,11 @@ const TABS: { id: string; label: string; C: ComponentType<SectionProps> }[] = [
   { id: 'experience', label: 'Experience', C: ExperienceSection },
   { id: 'education', label: 'Education', C: EducationSection },
   { id: 'skills', label: 'Skills', C: SkillsSection },
+  { id: 'salary', label: 'Salary', C: SalarySection },
   { id: 'documents', label: 'Documents', C: DocumentsSection },
   { id: 'answers', label: 'Answer bank', C: AnswerBankSection },
+  { id: 'applications', label: 'Applications', C: null }, // standalone component
+  { id: 'analytics', label: 'Analytics', C: null }, // standalone component
   { id: 'settings', label: 'Settings', C: SettingsSection },
 ];
 
@@ -34,9 +48,13 @@ export function App() {
   const [errors, setErrors] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
   const [info, setInfo] = useState('');
+  const [variants, setVariants] = useState<ProfileVariant[]>([]);
+  const [activeVariant, setActiveVariant] = useState<string | null>(null);
 
   useEffect(() => {
     void getProfile().then(setDraft);
+    void getVariants().then(setVariants);
+    void getActiveVariantId().then(setActiveVariant);
   }, []);
 
   const update = useCallback((fn: (d: Profile) => Profile) => {
@@ -126,25 +144,77 @@ export function App() {
       if (res?.type === 'LLM_EXTRACT_RESULT' && res.data) {
         setDraft((d) => (d ? mergeExtractedResume(d, res.data) : d));
         setInfo('Imported from résumé — review the sections, then Save profile ✓');
+      } else if (res?.error) {
+        setInfo(`Imported contact/skills. AI failed: ${res.error}`);
       } else {
         setInfo(
           'Imported contact/skills. (Enable AI assist + key in Settings for experience & education.)',
         );
       }
-    } catch {
-      setInfo('Imported contact/skills. (AI extraction unavailable — check Settings.)');
+    } catch (e) {
+      setInfo(`Imported contact/skills. (AI extraction failed: ${String(e)})`);
     }
     setSaved(false);
   }, [draft]);
 
   if (!draft) return <div className="p-8 text-gray-500">Loading…</div>;
 
-  const ActiveSection = TABS.find((t) => t.id === active)?.C ?? PersonalSection;
+  const activeTab = TABS.find((t) => t.id === active);
+  const ActiveSection = activeTab?.C ?? PersonalSection;
 
   return (
     <div className="mx-auto flex min-h-screen max-w-5xl gap-6 p-6">
       <nav className="w-44 shrink-0 space-y-1">
         <h1 className="mb-3 text-base font-bold text-indigo-700">OneClick Apply</h1>
+
+        {/* Profile variant switcher */}
+        <div className="mb-3 space-y-1">
+          <div className="flex items-center gap-1">
+            <select
+              value={activeVariant ?? ''}
+              onChange={async (e) => {
+                const id = e.target.value;
+                if (!id) return;
+                const p = await switchVariant(id);
+                if (p) { setDraft(p); setActiveVariant(id); setSaved(true); }
+              }}
+              className="flex-1 rounded border border-gray-200 px-1.5 py-1 text-[11px]"
+            >
+              <option value="">Default profile</option>
+              {variants.map((v) => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </select>
+            <button
+              onClick={async () => {
+                const name = prompt('Profile name (e.g. "Frontend", "Fullstack"):');
+                if (!name) return;
+                const v = await saveVariant(name.trim());
+                setVariants((prev) => [...prev, v]);
+                setActiveVariant(v.id);
+              }}
+              className="shrink-0 rounded bg-gray-100 px-1.5 py-1 text-[11px] hover:bg-gray-200"
+              title="Save current profile as a new variant"
+            >
+              +
+            </button>
+          </div>
+          {activeVariant && (
+            <button
+              onClick={async () => {
+                if (!confirm('Delete this profile variant?')) return;
+                await deleteVariant(activeVariant);
+                setVariants((prev) => prev.filter((v) => v.id !== activeVariant));
+                setActiveVariant(null);
+                setDraft(await getProfile());
+              }}
+              className="text-[10px] text-red-500 hover:underline"
+            >
+              Delete variant
+            </button>
+          )}
+        </div>
+
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -161,7 +231,13 @@ export function App() {
       </nav>
 
       <main className="flex-1 space-y-6">
-        <ActiveSection draft={draft} setDraft={update} />
+        {active === 'applications' ? (
+          <ApplicationsSection />
+        ) : active === 'analytics' ? (
+          <AnalyticsSection />
+        ) : (
+          <ActiveSection draft={draft} setDraft={update} />
+        )}
 
         {errors.length > 0 && (
           <ul className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-700">

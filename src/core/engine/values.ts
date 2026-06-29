@@ -19,6 +19,51 @@ function mapBool(b: boolean, field: DetectedField): string {
   return b ? 'Yes' : 'No';
 }
 
+// Approximate exchange rates (updated periodically; good enough for salary ranges).
+// These are intentionally conservative for applicants (slightly lower conversion).
+const RATES_TO_USD: Record<string, number> = {
+  USD: 1,
+  INR: 0.012,
+  GBP: 1.27,
+  EUR: 1.09,
+  CAD: 0.74,
+  AUD: 0.66,
+  SGD: 0.74,
+  AED: 0.27,
+  JPY: 0.0067,
+};
+
+// Detect if the field is asking for a specific currency from the label text.
+function detectCurrency(text: string): string | null {
+  const t = text.toLowerCase();
+  if (/\busd\b|\bus\s*dollars?\b|\$/.test(t)) return 'USD';
+  if (/\binr\b|\brupees?\b|\u20b9/.test(t)) return 'INR';
+  if (/\bgbp\b|\bpounds?\b|\u00a3/.test(t)) return 'GBP';
+  if (/\beur\b|\beuros?\b|\u20ac/.test(t)) return 'EUR';
+  if (/\bcad\b|\bcanadian\s*dollars?\b/.test(t)) return 'CAD';
+  if (/\baud\b|\baustralian\s*dollars?\b/.test(t)) return 'AUD';
+  return null;
+}
+
+function deriveSalary(profile: Profile, field: DetectedField): string | null {
+  const raw = profile.salary?.expected;
+  if (!raw) return null;
+  const amount = parseInt(raw.replace(/[^0-9]/g, ''), 10);
+  if (!amount || isNaN(amount)) return null;
+
+  const homeCurrency = (profile.salary?.currency ?? 'INR').toUpperCase();
+  const labelText = [field.signals.label, field.signals.nearbyText, field.signals.ariaLabel].join(' ');
+  const targetCurrency = detectCurrency(labelText) ?? 'USD';
+
+  if (homeCurrency === targetCurrency) return String(amount);
+
+  // Convert: home → USD → target
+  const homeRate = RATES_TO_USD[homeCurrency] ?? 1;
+  const targetRate = RATES_TO_USD[targetCurrency] ?? 1;
+  const converted = Math.round((amount * homeRate) / targetRate);
+  return String(converted);
+}
+
 // Context-aware work authorization. When the question names a country (e.g. "authorized
 // to work in the United States?"), derive the answer from the countries you're authorized
 // in (defaulting to your home country). Otherwise fall back to the static toggle.
@@ -78,20 +123,36 @@ export function valueForKey(
     case 'workAuth.requiresVisa':
       return deriveWorkAuth(profile, field, 'visa');
 
+    case 'salary.expected':
+      return deriveSalary(profile, field);
+
     default: {
       // Lever-style single "Full name" input (name="name"): compose first + last.
       if (key === 'personal.firstName' && field.signals.name === 'name') {
         const composed = [profile.personal.firstName, profile.personal.lastName]
           .filter(Boolean)
+          .map(capitalize)
           .join(' ');
         return composed || null;
       }
       const v = getPath(profile, key);
       if (v == null) return null;
-      if (typeof v === 'string') return v.length ? v : null;
+      if (typeof v === 'string') {
+        if (!v.length) return null;
+        // Auto-capitalize name fields (many forms require "First letter should be capital")
+        if (key.startsWith('personal.firstName') || key.startsWith('personal.lastName') ||
+            key.startsWith('personal.middleName') || key.startsWith('personal.preferredName')) {
+          return capitalize(v);
+        }
+        return v;
+      }
       if (typeof v === 'boolean') return mapBool(v, field);
       if (typeof v === 'number') return String(v);
       return null;
     }
   }
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }

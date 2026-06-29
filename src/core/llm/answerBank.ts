@@ -27,3 +27,18 @@ export function findAnswer(question: string, bank: SavedAnswer[], min = 0.5): Sa
   }
   return best && best.score >= min ? best.ans : null;
 }
+
+/** Return top N matching answers (above threshold), sorted by score desc. */
+export function findTopAnswers(
+  question: string,
+  bank: SavedAnswer[],
+  topN = 3,
+  min = 0.35,
+): SavedAnswer[] {
+  const q = tokenize(question);
+  const scored = bank
+    .map((a) => ({ ans: a, score: jaccard(q, tokenize(a.questionPattern)) }))
+    .filter((x) => x.score >= min)
+    .sort((a, b) => b.score - a.score);
+  return scored.slice(0, topN).map((x) => x.ans);
+}

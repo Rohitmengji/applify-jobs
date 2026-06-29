@@ -78,6 +78,13 @@ export const ProfileSchema = z.object({
   experience: z.array(ExperienceSchema).default([]),
   education: z.array(EducationSchema).default([]),
   skills: z.array(z.string()).default([]),
+  salary: z
+    .object({
+      expected: z.string().optional(), // e.g. "1500000" or "150000"
+      currency: z.string().default('INR'), // home currency
+      period: z.string().default('year'), // year | month | hour
+    })
+    .default({}),
   documents: z
     .object({
       resumeBlobId: z.string().optional(), // FK into Dexie blobStore
@@ -127,6 +134,7 @@ export type ProfileKey =
   | 'eeo.hispanicLatino'
   | 'eeo.veteranStatus'
   | 'eeo.disabilityStatus'
+  | 'salary.expected'
   | 'documents.resume'
   | 'documents.coverLetter'
   | 'skills'

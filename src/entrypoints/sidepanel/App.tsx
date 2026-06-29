@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DetectedField, FillSource, WizardStatus } from '@/core/types';
 import type { FromContent, FromBackground, ResolvedFill } from '@/core/messages';
-import type { ProfileKey } from '@/core/profile.schema';
+import type { ProfileKey, SavedAnswer } from '@/core/profile.schema';
 import { getProfile } from '@/core/storage/profileStore';
 import { getFile } from '@/core/storage/blobStore';
 import { recordLearned } from '@/core/storage/learnStore';
+import { logApplication, findDuplicate } from '@/core/storage/appTracker';
+import { saveFillProgress, loadFillProgress, clearFillProgress } from '@/core/storage/fillProgress';
 import { learnableEntries } from '@/core/engine/learn';
 import { valueForKey } from '@/core/engine/values';
 import { sendToFrame, sendToBackground, frameIds, fileToB64, activeTabId } from './lib/messaging';
@@ -22,8 +24,11 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [filledMap, setFilledMap] = useState<FilledMap>({});
   const [notice, setNotice] = useState<string | null>(null);
+  const [duplicate, setDuplicate] = useState<string | null>(null); // "Applied on Jun 15"
   const [status, setStatus] = useState<WizardStatus | null>(null);
   const [threshold, setThreshold] = useState(0.6);
+  const [answerBank, setAnswerBank] = useState<SavedAnswer[]>([]);
+  const [coverLetter, setCoverLetter] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false); // a wizard run is in flight (#1)
   const locked = busy || isRunning;
 
@@ -79,6 +84,7 @@ export function App() {
 
       const profile = await getProfile();
       setThreshold(profile.settings.confidenceThreshold);
+      setAnswerBank(profile.answerBank ?? []);
 
       // Detect every frame; don't gate on the top frame having a content script — the
       // form may live only inside an iframe (iCIMS). We fail only if NO frame responds (#4).
@@ -109,6 +115,42 @@ export function App() {
       setAdapterId(best?.adapterId ?? null);
       setMultiStep(best?.multiStep ?? false);
       setFields(merged);
+      setDuplicate(null);
+
+      // Restore saved fill progress (if user revisits the same page after a crash)
+      try {
+        const pageInfo = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
+        if (pageInfo?.type === 'PAGE_INFO') {
+          const saved = await loadFillProgress(pageInfo.url);
+          if (saved) {
+            const savedMap = new Map(saved.fields.map((f) => [f.uid, f]));
+            setFields((prev) =>
+              prev.map((f) => {
+                const s = savedMap.get(f.uid);
+                if (s?.value && !f.value) return { ...f, value: s.value, source: 'manual' as FillSource };
+                return f;
+              }),
+            );
+          }
+
+          // Auto-save current progress
+          void saveFillProgress(pageInfo.url, merged);
+        }
+      } catch { /* non-critical */ }
+
+      // Check for duplicate application
+      try {
+        const pageInfo = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
+        if (pageInfo?.type === 'PAGE_INFO') {
+          const dup = await findDuplicate(pageInfo.url);
+          if (dup) {
+            const daysAgo = Math.round((Date.now() - dup.appliedAt) / (1000 * 60 * 60 * 24));
+            setDuplicate(
+              `You applied to this role on ${new Date(dup.appliedAt).toLocaleDateString()} (${daysAgo} day${daysAgo === 1 ? '' : 's'} ago)`,
+            );
+          }
+        }
+      } catch { /* non-critical */ }
 
       // Apply LLM mappings as a functional per-uid patch: skip manual edits and skip uids
       // no longer present (e.g. a wizard step advanced during the round-trip) (#1/#2).
@@ -216,7 +258,11 @@ export function App() {
       const profile = await getProfile();
 
       // 1) résumé first, routed to the frame that owns the file field.
-      const resumeField = fields.find((f) => f.mappedKey === 'documents.resume');
+      // Look for explicitly mapped resume fields OR any file input (most file inputs on
+      // job applications ARE resume uploads).
+      const resumeField =
+        fields.find((f) => f.mappedKey === 'documents.resume') ??
+        fields.find((f) => f.kind === 'file'); // fallback: first file input = resume
       let attachedResume = false;
       if (resumeField && profile.documents.resumeBlobId) {
         const file = await getFile(profile.documents.resumeBlobId);
@@ -253,6 +299,20 @@ export function App() {
       // next form with that field auto-fills (source 'learned') without re-asking —
       // scoped to this ATS, with a global fallback.
       await recordLearned(learnableEntries(fields), adapterId);
+      await clearFillProgress(); // filled successfully, no need to restore
+
+      // Application tracker: log this application for history/duplicate detection.
+      try {
+        const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' });
+        if (info?.type === 'PAGE_INFO') {
+          await logApplication({
+            company: info.company,
+            role: info.role,
+            url: info.url,
+            atsType: adapterId ?? 'generic',
+          });
+        }
+      } catch { /* page info extraction failed — non-critical */ }
     } finally {
       setBusy(false);
     }
@@ -283,36 +343,115 @@ export function App() {
     }
   }, []);
 
+  // Generic "Fill & Next" — fills current step and clicks Next/Continue (works without adapter).
+  const fillAndNext = useCallback(async () => {
+    setBusy(true);
+    try {
+      const tabId = tabIdRef.current ?? (await activeTabId());
+      await sendToFrame(tabId, adapterFrameRef.current, { type: 'FILL_AND_NEXT' });
+    } catch {
+      /* page navigated or port closed */
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  // Cover letter generation
+  const genCoverLetter = useCallback(async () => {
+    setBusy(true);
+    setCoverLetter(null);
+    try {
+      const tabId = tabIdRef.current ?? (await activeTabId());
+      const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
+      const company = info?.type === 'PAGE_INFO' ? info.company : 'the company';
+      const role = info?.type === 'PAGE_INFO' ? info.role : 'this role';
+      const res = await sendToBackground<FromBackground>({
+        type: 'LLM_COVER_LETTER',
+        company,
+        role,
+      });
+      if (res.type === 'LLM_COVER_LETTER_RESULT' && res.text) {
+        setCoverLetter(res.text);
+      } else {
+        setCoverLetter(
+          (res as { error?: string }).error
+            ? `Error: ${(res as { error: string }).error}`
+            : 'Could not generate. Check AI settings.',
+        );
+      }
+    } catch {
+      setCoverLetter('Failed to generate cover letter.');
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   return (
-    <div className="flex h-full flex-col bg-white text-sm text-gray-900">
+    <div className="flex h-full flex-col bg-gradient-to-b from-white to-gray-50/80 text-sm text-gray-900">
       <StatusBar adapterId={adapterId} count={fields.length} busy={locked} onRedetect={detect} />
 
       {status?.phase === 'review' && (
-        <div className="bg-green-100 px-3 py-1 text-[11px] text-green-800">
-          Reached the review step — check the page and submit.
+        <div className="mx-3 mt-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-[11px] text-green-700 flex items-center gap-1.5">
+          <span className="text-green-500">✓</span> Reached the review step — check the page and submit.
         </div>
       )}
       {status?.phase === 'error' && (
-        <div className="bg-red-100 px-3 py-1 text-[11px] text-red-800">{status.message}</div>
+        <div className="mx-3 mt-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[11px] text-red-700">{status.message}</div>
+      )}
+      {duplicate && (
+        <div className="mx-3 mt-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-700 flex items-center gap-1.5">
+          <span>⚠️</span> {duplicate}
+        </div>
       )}
 
       {notice ? (
-        <div className="flex-1 p-6 text-center text-xs text-gray-500">{notice}</div>
+        <div className="flex-1 flex items-center justify-center p-6 text-center text-xs text-gray-400">{notice}</div>
       ) : (
         <ReviewTable
           fields={fields}
           filledMap={filledMap}
           threshold={threshold}
+          answerBank={answerBank}
           onChange={onChange}
           onDraft={onDraft}
         />
       )}
+
+      {/* Cover letter section */}
+      <div className="border-t border-gray-100 px-3 py-2">
+        <button
+          onClick={genCoverLetter}
+          disabled={locked}
+          className="w-full rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 px-3 py-2 text-[11px] font-medium text-purple-700 transition hover:border-purple-200 hover:shadow-sm disabled:opacity-50"
+        >
+          {busy ? (
+            <span className="flex items-center justify-center gap-1.5">
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-purple-200 border-t-purple-600" />
+              Generating...
+            </span>
+          ) : (
+            '✨ Generate Cover Letter'
+          )}
+        </button>
+        {coverLetter && (
+          <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 text-[11px] text-gray-700 shadow-sm">
+            <pre className="whitespace-pre-wrap font-sans leading-relaxed">{coverLetter}</pre>
+            <button
+              onClick={() => { navigator.clipboard.writeText(coverLetter); }}
+              className="mt-2 rounded-md bg-indigo-50 px-2 py-1 text-[10px] font-medium text-indigo-600 transition hover:bg-indigo-100"
+            >
+              📋 Copy to clipboard
+            </button>
+          </div>
+        )}
+      </div>
 
       <FillButton
         busy={locked}
         hasFields={fields.length > 0}
         multiStep={multiStep}
         onFill={fillAll}
+        onFillAndNext={fillAndNext}
         onNext={runStep}
         onRun={runToReview}
       />

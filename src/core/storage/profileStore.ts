@@ -30,6 +30,7 @@ export const EMPTY: Profile = {
   experience: [],
   education: [],
   skills: [],
+  salary: { currency: 'INR', period: 'year' },
   documents: {},
   answerBank: [],
   settings: { llmEnabled: true, autoAdvanceWizard: true, confidenceThreshold: 0.6 },
@@ -62,8 +63,38 @@ export function onProfileChange(cb: (p: Profile) => void): () => void {
   return () => chrome.storage.onChanged.removeListener(handler);
 }
 
-// STUB (§25): when ProfileSchema changes, bump schemaVersion and migrate old data
-// here instead of wiping it. For now, fall back to a clean profile.
-function repair(_raw: unknown): Profile {
+// §25: When ProfileSchema changes, attempt to migrate old data instead of wiping it.
+// Strategy: deep-merge the old data with EMPTY defaults, then parse. This preserves
+// any valid fields while filling in new required fields with defaults.
+function repair(raw: unknown): Profile {
+  if (!raw || typeof raw !== 'object') return EMPTY;
+  const obj = raw as Record<string, unknown>;
+
+  // Deep merge: for each top-level key in EMPTY, use the existing value if present,
+  // otherwise use the default. For nested objects, merge recursively.
+  function deepMerge(base: Record<string, unknown>, patch: Record<string, unknown>): Record<string, unknown> {
+    const result: Record<string, unknown> = { ...base };
+    for (const key of Object.keys(patch)) {
+      const bVal = base[key];
+      const pVal = patch[key];
+      if (pVal != null && typeof pVal === 'object' && !Array.isArray(pVal) &&
+          bVal != null && typeof bVal === 'object' && !Array.isArray(bVal)) {
+        result[key] = deepMerge(bVal as Record<string, unknown>, pVal as Record<string, unknown>);
+      } else if (pVal !== undefined) {
+        result[key] = pVal;
+      }
+    }
+    return result;
+  }
+
+  const merged = deepMerge(EMPTY as unknown as Record<string, unknown>, obj);
+  // Force the current schema version
+  merged.schemaVersion = 1;
+
+  const parsed = ProfileSchema.safeParse(merged);
+  if (parsed.success) return parsed.data;
+
+  // If merge still fails (e.g., a field was renamed), log and return EMPTY
+  console.warn('Profile repair failed, starting fresh:', parsed.error);
   return EMPTY;
 }

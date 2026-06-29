@@ -22,12 +22,16 @@ const norm = (s: string) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-export function matchField(field: DetectedField): { key: ProfileKey | null; confidence: number } {
+export function matchField(field: DetectedField): { key: ProfileKey | null; confidence: number; reason?: string } {
   const s = field.signals;
 
   // 1) autocomplete is authoritative when present
   if (s.autocomplete && AUTOCOMPLETE_MAP[s.autocomplete]) {
-    return { key: AUTOCOMPLETE_MAP[s.autocomplete], confidence: 0.98 };
+    return {
+      key: AUTOCOMPLETE_MAP[s.autocomplete],
+      confidence: 0.98,
+      reason: `autocomplete="${s.autocomplete}"`,
+    };
   }
 
   const haystacks: [keyof typeof WEIGHTS, string][] = [
@@ -39,19 +43,30 @@ export function matchField(field: DetectedField): { key: ProfileKey | null; conf
     ['nearbyText', norm(s.nearbyText)],
   ];
 
-  let best: { key: ProfileKey | null; confidence: number } = { key: null, confidence: 0 };
+  let best: { key: ProfileKey | null; confidence: number; reason?: string } = { key: null, confidence: 0 };
 
   for (const [key, syns] of Object.entries(SYNONYMS) as [ProfileKey, string[]][]) {
     let score = 0;
+    let matchReason = '';
     for (const [src, text] of haystacks) {
       if (!text) continue;
       for (const syn of syns) {
-        if (text === syn)
-          score = Math.max(score, WEIGHTS[src]); // exact
-        else if (text.includes(syn)) score = Math.max(score, WEIGHTS[src] * 0.9); // contains
+        let thisScore = 0;
+        if (text === syn) {
+          thisScore = WEIGHTS[src]; // exact match: full weight
+        } else if (text.includes(syn)) {
+          const ratio = syn.length / text.length;
+          if (ratio > 0.15 || syn.includes(' ')) {
+            thisScore = WEIGHTS[src] * 0.9 * Math.min(ratio * 3, 1);
+          }
+        }
+        if (thisScore > score) {
+          score = thisScore;
+          matchReason = `${src}="${text}" matched "${syn}"`;
+        }
       }
     }
-    if (score > best.confidence) best = { key, confidence: score };
+    if (score > best.confidence) best = { key, confidence: score, reason: matchReason };
   }
   return best;
 }

@@ -1,4 +1,5 @@
 import type { DetectedField } from '@/core/types';
+import type { SavedAnswer } from '@/core/profile.schema';
 import { SOURCE_BADGE, confidenceColor, needsReview, fieldLabel } from '../lib/ui';
 
 interface Props {
@@ -6,13 +7,14 @@ interface Props {
   threshold?: number;
   filled?: boolean;
   error?: string;
+  suggestions?: SavedAnswer[];
   onChange: (uid: string, value: string) => void;
   onDraft: (field: DetectedField) => void;
 }
 
 const TRUTHY = ['yes', 'true', '1', 'on'];
 
-export function FieldRow({ field, threshold, filled, error, onChange, onDraft }: Props) {
+export function FieldRow({ field, threshold, filled, error, suggestions, onChange, onDraft }: Props) {
   const s = field.signals;
   const badge = SOURCE_BADGE[field.source];
   const review = needsReview(field, threshold);
@@ -23,23 +25,24 @@ export function FieldRow({ field, threshold, filled, error, onChange, onDraft }:
     (field.mappedKey === null && (field.kind === 'textarea' || field.kind === 'text'));
 
   return (
-    <li className={`flex flex-col gap-1 border-b px-3 py-2 ${review ? 'bg-amber-50' : ''}`}>
+    <li className={`flex flex-col gap-1.5 border-b border-gray-100 px-3 py-2.5 transition-colors ${review ? 'bg-amber-50/60' : 'hover:bg-gray-50/50'}`}>
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-xs font-medium text-gray-700" title={fieldLabel(field)}>
+        <span className="truncate text-xs font-medium text-gray-800" title={fieldLabel(field)}>
           {fieldLabel(field)}
-          {s.required && <span className="text-red-500"> *</span>}
+          {s.required && <span className="ml-0.5 text-red-400">*</span>}
         </span>
-        <span className="flex shrink-0 items-center gap-1">
+        <span className="flex shrink-0 items-center gap-1.5">
           {filled && (
-            <span title="filled" className="text-green-600">
-              ✓
-            </span>
+            <span title="filled" className="text-xs text-green-500">✓</span>
           )}
           <span
-            className={`h-2 w-2 rounded-full ${confidenceColor(field.confidence)}`}
+            className={`h-2 w-2 rounded-full ${confidenceColor(field.confidence)} ring-1 ring-white`}
             title={`${Math.round(field.confidence * 100)}% confident`}
           />
-          <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${badge.cls}`}>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${badge.cls} cursor-help`}
+            title={field.reason ?? `Source: ${field.source}`}
+          >
             {badge.label}
           </span>
         </span>
@@ -54,6 +57,21 @@ export function FieldRow({ field, threshold, filled, error, onChange, onDraft }:
         >
           ✨ Draft with AI
         </button>
+      )}
+      {suggestions && suggestions.length > 0 && !field.value && (
+        <div className="mt-1 space-y-1">
+          <span className="text-[10px] text-gray-400">Saved answers:</span>
+          {suggestions.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onChange(field.uid, s.answer)}
+              className="block w-full truncate rounded bg-gray-50 px-2 py-1 text-left text-[11px] text-gray-700 hover:bg-indigo-50"
+              title={s.answer}
+            >
+              {s.answer.length > 80 ? s.answer.slice(0, 80) + '…' : s.answer}
+            </button>
+          ))}
+        </div>
       )}
       {error && <span className="text-[11px] text-red-600">{error}</span>}
     </li>

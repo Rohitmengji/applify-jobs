@@ -7,6 +7,8 @@ export type ToContent =
   | { type: 'DETECT' } // detect fields on the current page
   | { type: 'FILL'; fields: ResolvedFill[] } // fill these values
   | { type: 'FILL_FILE'; uid: string; filename: string; mime: string; b64: string }
+  | { type: 'FILL_AND_NEXT' } // fill current step + click Next (generic, no adapter needed)
+  | { type: 'GET_PAGE_INFO' } // extract company + role from the page
   | { type: 'WIZARD_NEXT' } // advance one step
   | { type: 'WIZARD_RUN' } // run to the review step
   | { type: 'PING' };
@@ -21,6 +23,7 @@ export type FromContent =
   | { type: 'DETECTED'; fields: DetectedField[]; adapterId: string | null; multiStep: boolean }
   | { type: 'STATUS'; status: WizardStatus }
   | { type: 'FIELD_FILLED'; uid: string; ok: boolean; error?: string }
+  | { type: 'PAGE_INFO'; company: string; role: string; url: string }
   | { type: 'PONG' };
 
 // --- side panel  →  background (LLM work) -------------------------------
@@ -28,6 +31,7 @@ export type ToBackground =
   | { type: 'LLM_MAP_FIELDS'; unresolved: { uid: string; signals: unknown }[] }
   | { type: 'LLM_DRAFT_ANSWER'; uid: string; question: string }
   | { type: 'LLM_EXTRACT_RESUME'; text: string }
+  | { type: 'LLM_COVER_LETTER'; company: string; role: string; description?: string }
   | { type: 'GET_PROFILE' };
 
 export type FromBackground =
@@ -36,7 +40,8 @@ export type FromBackground =
       mappings: { uid: string; key: string | null; confidence: number }[];
     }
   | { type: 'LLM_DRAFT_RESULT'; uid: string; answer: string; source: 'answerBank' | 'llm' | 'none' }
-  | { type: 'LLM_EXTRACT_RESULT'; data: unknown } // raw JSON; validated at merge time
+  | { type: 'LLM_EXTRACT_RESULT'; data: unknown; error?: string } // raw JSON; validated at merge time
+  | { type: 'LLM_COVER_LETTER_RESULT'; text: string; error?: string }
   | { type: 'PROFILE'; profile: unknown };
 
 // Typed helpers -----------------------------------------------------------

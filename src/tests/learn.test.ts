@@ -160,13 +160,22 @@ describe('learnableEntries', () => {
     expect(out.find((e) => e.value === 'Because…')?.key).toBeNull(); // freeText → literal
   });
 
-  it('skips adapter/heuristic hits, valueless fields, and unlabeled fields', () => {
+  it('skips valueless fields and unlabeled fields', () => {
     const fields = [
-      fld('First name', { source: 'adapter', mappedKey: 'personal.firstName', value: 'Ada' }),
-      fld('Phone', { source: 'heuristic', mappedKey: 'personal.phone', value: '5551234' }),
       fld('Notes', { source: 'manual', value: null }),
       fld('', { source: 'manual', value: 'x' }),
     ];
     expect(learnableEntries(fields)).toEqual([]);
+  });
+
+  it('records adapter/heuristic hits so non-adapter sites benefit', () => {
+    const fields = [
+      fld('First name', { source: 'adapter', mappedKey: 'personal.firstName', value: 'Ada' }),
+      fld('Phone', { source: 'heuristic', mappedKey: 'personal.phone', value: '5551234' }),
+    ];
+    const out = learnableEntries(fields);
+    expect(out).toHaveLength(2);
+    expect(out[0].key).toBe('personal.firstName');
+    expect(out[1].key).toBe('personal.phone');
   });
 });
