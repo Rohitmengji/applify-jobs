@@ -53,7 +53,15 @@ function deriveSalary(profile: Profile, field: DetectedField): string | null {
 
   const homeCurrency = (profile.salary?.currency ?? 'INR').toUpperCase();
   const labelText = [field.signals.label, field.signals.nearbyText, field.signals.ariaLabel].join(' ');
-  const targetCurrency = detectCurrency(labelText) ?? 'USD';
+  // Default to HOME currency (not USD) — only convert if the field explicitly asks for a different currency
+  const targetCurrency = detectCurrency(labelText) ?? homeCurrency;
+
+  // Also detect LPA (Lakhs Per Annum) — Indian format, keep INR
+  if (/\blpa\b|\blakhs?\b|\bper\s*annum\b/i.test(labelText) && homeCurrency === 'INR') {
+    // Convert to LPA format (divide by 100000)
+    const lpa = Math.round((amount / 100000) * 10) / 10;
+    return String(lpa);
+  }
 
   if (homeCurrency === targetCurrency) return String(amount);
 
