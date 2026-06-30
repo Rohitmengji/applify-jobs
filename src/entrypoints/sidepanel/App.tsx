@@ -156,25 +156,28 @@ export function App() {
         }
       } catch { /* non-critical */ }
 
-      // Apply LLM mappings as a functional per-uid patch: skip manual edits and skip uids
-      // no longer present (e.g. a wizard step advanced during the round-trip) (#1/#2).
-      const patches = await enrichWithLLM(merged);
-      if (patches.size > 0) {
-        setFields((prev) =>
-          prev.map((f) => {
-            if (f.source === 'manual') return f;
-            const p = patches.get(f.uid);
-            return p
-              ? {
-                  ...f,
-                  mappedKey: p.key,
-                  source: 'llm' as FillSource,
-                  confidence: p.confidence,
-                  value: p.value,
-                }
-              : f;
-          }),
-        );
+      // Apply LLM mappings — wrapped in try/catch so LLM failures don't wipe fields
+      try {
+        const patches = await enrichWithLLM(merged);
+        if (patches.size > 0) {
+          setFields((prev) =>
+            prev.map((f) => {
+              if (f.source === 'manual') return f;
+              const p = patches.get(f.uid);
+              return p
+                ? {
+                    ...f,
+                    mappedKey: p.key,
+                    source: 'llm' as FillSource,
+                    confidence: p.confidence,
+                    value: p.value,
+                  }
+                : f;
+            }),
+          );
+        }
+      } catch {
+        // LLM enrichment failed (no key, network error) — continue with deterministic results
       }
 
       // Auto-generate cover letter for cover-letter textareas that are empty.
@@ -510,40 +513,40 @@ export function App() {
 
       if (freeTextFields.length === 0) return;
 
-      // Draft all in parallel for speed
-      const promises = freeTextFields.map(async (field) => {
+      // Draft in batches of 3 to avoid rate-limiting
+      const draftOne = async (field: DetectedField) => {
         const question = field.signals.label || field.signals.ariaLabel || field.signals.placeholder || '';
-        // Check if it's a cover letter field
         const isCL = /cover letter|motivation letter|why .* (this|the) (role|position|company)/i.test(question);
-
-        if (isCL) {
-          const tabId = tabIdRef.current ?? (await activeTabId());
-          const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
-          const res = await sendToBackground<FromBackground>({
-            type: 'LLM_COVER_LETTER',
-            company: info?.type === 'PAGE_INFO' ? info.company : 'the company',
-            role: info?.type === 'PAGE_INFO' ? info.role : 'this role',
-            description: info?.type === 'PAGE_INFO' ? info.description : undefined,
-          });
-          if (res.type === 'LLM_COVER_LETTER_RESULT' && res.text) {
-            return { uid: field.uid, answer: res.text };
+        try {
+          if (isCL) {
+            const tabId = tabIdRef.current ?? (await activeTabId());
+            const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
+            const res = await sendToBackground<FromBackground>({
+              type: 'LLM_COVER_LETTER',
+              company: info?.type === 'PAGE_INFO' ? info.company : 'the company',
+              role: info?.type === 'PAGE_INFO' ? info.role : 'this role',
+              description: info?.type === 'PAGE_INFO' ? info.description : undefined,
+            });
+            if (res.type === 'LLM_COVER_LETTER_RESULT' && res.text) {
+              applyResolved(field.uid, res.text, 'llm');
+            }
+          } else {
+            const res = await sendToBackground<FromBackground>({
+              type: 'LLM_DRAFT_ANSWER',
+              uid: field.uid,
+              question,
+            });
+            if (res.type === 'LLM_DRAFT_RESULT' && res.answer) {
+              applyResolved(field.uid, res.answer, 'llm');
+            }
           }
-        } else {
-          const res = await sendToBackground<FromBackground>({
-            type: 'LLM_DRAFT_ANSWER',
-            uid: field.uid,
-            question,
-          });
-          if (res.type === 'LLM_DRAFT_RESULT' && res.answer) {
-            return { uid: field.uid, answer: res.answer };
-          }
-        }
-        return null;
-      });
+        } catch { /* single draft failed — continue with others */ }
+      };
 
-      const results = await Promise.all(promises);
-      for (const r of results) {
-        if (r) applyResolved(r.uid, r.answer, 'llm');
+      // Process in batches of 3 (avoids API rate limits)
+      for (let i = 0; i < freeTextFields.length; i += 3) {
+        const batch = freeTextFields.slice(i, i + 3);
+        await Promise.all(batch.map(draftOne));
       }
     } finally {
       setBusy(false);

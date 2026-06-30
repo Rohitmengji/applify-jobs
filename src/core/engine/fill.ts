@@ -159,7 +159,10 @@ export async function setCustomDropdown(
     }
   }
 
-  trigger.click(); // close, report miss
+  // Close the dropdown — try Escape first (works for most frameworks), then click
+  trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+  await sleep(50);
+  trigger.click();
   return false;
 }
 
@@ -254,6 +257,12 @@ export async function setPhoneValue(el: HTMLInputElement, value: string): Promis
     el.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true }));
     await sleep(20);
   }
+  // If char-by-char didn't populate the value (no framework handler), force-set it
+  if (!el.value.replace(/[^\d]/g, '')) {
+    const proto = HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value')!.set!;
+    setter.call(el, digits);
+  }
   el.dispatchEvent(new Event('change', { bubbles: true }));
   el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
 }
@@ -334,6 +343,7 @@ export async function fillOne(
       );
       break;
     case 'radio-group':
+      if (!field.signals.name) throw new Error('radio group has no name attribute');
       if (!setRadioGroup(field.signals.name, field.value ?? ''))
         throw new Error('no radio matched');
       break;

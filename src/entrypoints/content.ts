@@ -68,13 +68,24 @@ export default defineContentScript({
       // Don't resume here — caller (WIZARD_NEXT/RUN) resumes when appropriate
     };
 
+    // In-flight lock — prevent concurrent DETECT/FILL/WIZARD from overlapping
+    let inFlight = false;
+
     chrome.runtime.onMessage.addListener((msg: ToContent, _sender, sendResponse) => {
       (async () => {
+        // PING is always allowed (side panel health check)
+        if (msg.type === 'PING') {
+          sendResponse({ type: 'PONG' } satisfies FromContent);
+          return;
+        }
+        // Block concurrent operations (except PING and GET_PAGE_INFO)
+        if (inFlight && msg.type !== 'GET_PAGE_INFO') {
+          sendResponse({ type: 'STATUS', status: { phase: 'error', message: 'busy' } } satisfies FromContent);
+          return;
+        }
+        inFlight = true;
+        try {
         switch (msg.type) {
-          case 'PING':
-            sendResponse({ type: 'PONG' } satisfies FromContent);
-            break;
-
           case 'GET_PAGE_INFO': {
             const { extractCompany, extractRole, extractDescription } = await import('@/core/engine/pageInfo');
             sendResponse({
@@ -226,14 +237,20 @@ export default defineContentScript({
               (status) => broadcast({ type: 'STATUS', status }),
               fillStep,
             ).then(() => {
+              inFlight = false;
               resumeAutoDetect(true);
               broadcast({ type: 'STATUS', status: { phase: 'idle' } });
             }).catch(() => {
-              resumeAutoDetect(true); // CRITICAL: always resume even on wizard failure
+              inFlight = false;
+              resumeAutoDetect(true);
               broadcast({ type: 'STATUS', status: { phase: 'error', message: 'wizard failed' } });
             });
             break;
           }
+        }
+        } finally {
+          // WIZARD_RUN sets inFlight but runs async — release lock in its .then/.catch
+          if (msg.type !== 'WIZARD_RUN') inFlight = false;
         }
       })();
       return true; // keep the channel open for the async sendResponse

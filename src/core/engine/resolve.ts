@@ -133,7 +133,7 @@ function autoComputeValue(
 
   // "How did you hear" — LOW confidence so it shows as "needs review"
   if (/how did you hear|where did you hear|source of application|referral source|how did you find/.test(label)) {
-    return { value: 'Job Board', confidence: 0.4, reason: 'Default — needs review' };
+    return { value: 'Job Board', confidence: 0.4, reason: 'Default - needs review' };
   }
 
   // "Relocate" / "Availability" / "Start date" — DO NOT auto-fill (user must decide)

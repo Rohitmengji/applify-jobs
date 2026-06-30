@@ -38,6 +38,8 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let lastDetectAt = 0;
 let detecting = false;
 let paused = false;
+let origPushState: (typeof history.pushState) | null = null;
+let origReplaceState: (typeof history.replaceState) | null = null;
 let generation = 0; // monotonic counter to discard stale results
 let lastUrl = '';
 let lastFieldCount = 0;
@@ -172,8 +174,13 @@ function onUrlChange(): void {
   const url = location.href;
   if (url === lastUrl) return;
   lastUrl = url;
-  // URL changed (SPA navigation) — wait for DOM to settle, then detect
   scheduleDetect(SETTLE_AFTER_NAV_MS);
+}
+
+function onVisChange(): void {
+  if (document.visibilityState === 'visible' && !paused) {
+    scheduleDetect(QUIET_MS);
+  }
 }
 
 // Track which field UIDs we've already auto-filled on this page (don't re-fill)
@@ -234,25 +241,19 @@ export function startAutoDetect(
     attributeFilter: ['aria-expanded', 'aria-hidden', 'class', 'hidden'],
   });
 
-  // URL change detection (SPA navigations via pushState/replaceState)
-  const origPush = history.pushState.bind(history);
-  const origReplace = history.replaceState.bind(history);
+  // URL change detection — save originals for cleanup
+  origPushState = history.pushState.bind(history);
+  origReplaceState = history.replaceState.bind(history);
   history.pushState = (...args) => {
-    origPush(...args);
+    origPushState!(...args);
     onUrlChange();
   };
   history.replaceState = (...args) => {
-    origReplace(...args);
+    origReplaceState!(...args);
     onUrlChange();
   };
   window.addEventListener('popstate', onUrlChange);
-
-  // Also detect on visibility change (user switches back to this tab)
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && !paused) {
-      scheduleDetect(QUIET_MS);
-    }
-  });
+  document.addEventListener('visibilitychange', onVisChange);
 }
 
 /**
@@ -266,4 +267,12 @@ export function stopAutoDetect(): void {
     debounceTimer = null;
   }
   paused = true;
+  // Restore original history methods
+  if (origPushState) history.pushState = origPushState;
+  if (origReplaceState) history.replaceState = origReplaceState;
+  origPushState = null;
+  origReplaceState = null;
+  // Remove event listeners
+  window.removeEventListener('popstate', onUrlChange);
+  document.removeEventListener('visibilitychange', onVisChange);
 }
