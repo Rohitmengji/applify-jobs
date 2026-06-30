@@ -16,6 +16,7 @@ import { AnswerBankSection } from './sections/AnswerBankSection';
 import { SettingsSection } from './sections/SettingsSection';
 import { ApplicationsSection } from './sections/ApplicationsSection';
 import { SalarySection } from './sections/SalarySection';
+import { TrainingSection } from './sections/TrainingSection';
 import { AnalyticsSection } from './sections/AnalyticsSection';
 import {
   getVariants,
@@ -37,6 +38,7 @@ const TABS: { id: string; label: string; C: ComponentType<SectionProps> | null }
   { id: 'salary', label: 'Salary', C: SalarySection },
   { id: 'documents', label: 'Documents', C: DocumentsSection },
   { id: 'answers', label: 'Answer bank', C: AnswerBankSection },
+  { id: 'training', label: 'Training', C: TrainingSection },
   { id: 'applications', label: 'Applications', C: null }, // standalone component
   { id: 'analytics', label: 'Analytics', C: null }, // standalone component
   { id: 'settings', label: 'Settings', C: SettingsSection },
