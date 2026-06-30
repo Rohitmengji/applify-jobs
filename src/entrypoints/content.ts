@@ -3,7 +3,7 @@ import { resolveAll } from '@/core/engine/resolve';
 import { fillOne, fileFromB64, dropFileOnZone, attachFile, applyConfidenceOverlay } from '@/core/engine/fill';
 import { matchAdapter } from '@/core/engine/adapters';
 import { runWizard, waitForDomSettle } from '@/core/engine/wizard';
-import { startObserver } from '@/core/engine/observer';
+import { startObserver, pauseObserver, resumeObserver } from '@/core/engine/observer';
 import { startAutoDetect, pauseAutoDetect, resumeAutoDetect } from '@/core/engine/autoDetect';
 import type { ToContent, FromContent, ResolvedFill } from '@/core/messages';
 import type { DetectedField } from '@/core/types';
@@ -52,7 +52,8 @@ export default defineContentScript({
 
     // Fills the currently-rendered step: re-detect, report to the side panel, fill.
     const fillStep = async () => {
-      pauseAutoDetect(); // filling causes DOM mutations — don't re-trigger detect
+      pauseAutoDetect();
+      pauseObserver(); // don't record our programmatic fills as "user interactions"
       const { fields, adapterId, multiStep } = await resolveAll();
       lastFields = fields;
       broadcast({ type: 'DETECTED', fields, adapterId, multiStep });
@@ -65,7 +66,8 @@ export default defineContentScript({
           broadcast({ type: 'FIELD_FILLED', uid: f.uid, ok: false, error: String(e) });
         }
       }
-      // Don't resume here — caller (WIZARD_NEXT/RUN) resumes when appropriate
+      resumeObserver(); // re-enable learning from user interactions
+      // Don't resume autoDetect here — caller (WIZARD_NEXT/RUN) resumes when appropriate
     };
 
     // In-flight lock — prevent concurrent DETECT/FILL/WIZARD from overlapping
@@ -265,6 +267,7 @@ async function fillMany(
   broadcast: (m: FromContent) => void,
   override?: (f: DetectedField, value: string) => Promise<boolean>,
 ): Promise<void> {
+  pauseObserver(); // don't record our fills as user interactions
   let hasConditionalFill = false;
   const filled: DetectedField[] = [];
 
@@ -290,6 +293,7 @@ async function fillMany(
 
   // Apply confidence overlays in a single batch AFTER all fills (prevents per-field reflow)
   for (const f of filled) applyConfidenceOverlay(f);
+  resumeObserver(); // re-enable learning from user interactions
 
   // After filling selects/radios/checkboxes, wait for any conditional fields to appear
   // and re-detect so the side panel can show them (§25: conditional field re-detect).

@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import type { Profile } from '@/core/profile.schema';
+import { useEffect, useState } from 'react';
 import { Section, Button, type SectionProps } from '../components/ui';
 import { getProfile, saveProfile } from '@/core/storage/profileStore';
 import { recordLearned } from '@/core/storage/learnStore';
@@ -68,13 +67,13 @@ const COMMON_QUESTIONS: { id: string; question: string; hint: string; kind: stri
   { id: 'overtime', question: 'Are you willing to work overtime if required?', hint: 'Yes/No', kind: 'text' },
 ];
 
-export function TrainingSection({ draft, setDraft }: SectionProps) {
+export function TrainingSection({ draft }: SectionProps) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Load existing answers from answer bank on mount
-  useState(() => {
+  useEffect(() => {
     const existing: Record<string, string> = {};
     for (const q of COMMON_QUESTIONS) {
       const match = draft.answerBank.find(
@@ -83,7 +82,7 @@ export function TrainingSection({ draft, setDraft }: SectionProps) {
       if (match) existing[q.id] = match.answer;
     }
     setAnswers(existing);
-  });
+  }, [draft.answerBank]);
 
   const updateAnswer = (id: string, value: string) => {
     setAnswers((prev) => ({ ...prev, [id]: value }));

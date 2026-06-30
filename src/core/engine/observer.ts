@@ -14,6 +14,15 @@ const DEBOUNCE_MS = 1500; // wait for user to stop typing before recording
 const timers = new Map<HTMLElement, ReturnType<typeof setTimeout>>();
 const recorded = new WeakSet<HTMLElement>(); // don't double-record within one page load
 
+// Flag: set to true while OUR code is programmatically filling fields.
+// When true, the observer ignores events to avoid recording our own fills.
+let filling = false;
+
+/** Call before programmatic fill operations */
+export function pauseObserver(): void { filling = true; }
+/** Call after programmatic fill operations */
+export function resumeObserver(): void { filling = false; }
+
 function getAdapterId(): string | null {
   // Use hostname as a rough ATS identifier for non-adapter sites
   return location.hostname.replace(/^www\./, '');
@@ -94,8 +103,8 @@ function recordField(el: HTMLElement) {
 }
 
 function handleChange(e: Event) {
-  // Skip programmatic events (our own fills) — only record real user interactions
-  if (!e.isTrusted) return;
+  // Skip events fired during our programmatic fills
+  if (filling) return;
   const el = e.target as HTMLElement;
   if (!el || !shouldRecord(el)) return;
 
@@ -125,7 +134,7 @@ function handleChange(e: Event) {
 }
 
 function handleBlur(e: Event) {
-  if (!e.isTrusted) return; // skip our programmatic blur events
+  if (filling) return; // skip our programmatic blur events
   const el = e.target as HTMLElement;
   if (!el || !shouldRecord(el)) return;
   // On blur, record immediately (user moved on)
