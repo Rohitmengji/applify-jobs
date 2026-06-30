@@ -6,9 +6,30 @@
   --color-conf-low: #dc2626;  /* red    <70% */
 }
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 html,
 body,
 #root {
   height: 100%;
   margin: 0;
+}
+
+/* System dark mode detection */
+@media (prefers-color-scheme: dark) {
+  html {
+    color-scheme: dark;
+  }
+  html:not(.light) {
+    --tw-bg-opacity: 1;
+    background-color: rgb(17 24 39 / var(--tw-bg-opacity));
+    color: rgb(243 244 246);
+  }
+  html:not(.light) input,
+  html:not(.light) textarea,
+  html:not(.light) select {
+    background-color: rgb(31 41 55);
+    border-color: rgb(55 65 81);
+    color: rgb(243 244 246);
+  }
 }

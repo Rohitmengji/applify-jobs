@@ -17,8 +17,12 @@ interface Props {
 export function ReviewTable({ fields, filledMap, threshold, answerBank, onChange, onDraft, onSaveAnswer }: Props) {
   if (fields.length === 0) {
     return (
-      <div className="flex-1 p-6 text-center text-xs text-gray-500">
-        No fields detected on this page yet.
+      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+        <div className="text-4xl mb-3">📋</div>
+        <div className="text-sm font-medium text-gray-700 mb-1">No fields detected</div>
+        <div className="text-xs text-gray-400 max-w-[200px]">
+          Navigate to a job application page, then click Detect to find form fields.
+        </div>
       </div>
     );
   }

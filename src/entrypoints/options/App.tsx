@@ -44,6 +44,8 @@ const TABS: { id: string; label: string; C: ComponentType<SectionProps> | null }
   { id: 'settings', label: 'Settings', C: SettingsSection },
 ];
 
+import { Onboarding } from './components/Onboarding';
+
 export function App() {
   const [draft, setDraft] = useState<Profile | null>(null);
   const [active, setActive] = useState('personal');
@@ -52,11 +54,16 @@ export function App() {
   const [info, setInfo] = useState('');
   const [variants, setVariants] = useState<ProfileVariant[]>([]);
   const [activeVariant, setActiveVariant] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     void getProfile().then(setDraft);
     void getVariants().then(setVariants);
     void getActiveVariantId().then(setActiveVariant);
+    // Show onboarding on first visit
+    void chrome.storage.local.get('onboardingDone').then((r) => {
+      if (!r.onboardingDone) setShowOnboarding(true);
+    });
   }, []);
 
   const update = useCallback((fn: (d: Profile) => Profile) => {
@@ -165,6 +172,13 @@ export function App() {
   const ActiveSection = activeTab?.C ?? PersonalSection;
 
   return (
+    <>
+    {showOnboarding && (
+      <Onboarding onComplete={() => {
+        setShowOnboarding(false);
+        void chrome.storage.local.set({ onboardingDone: true });
+      }} />
+    )}
     <div className="mx-auto flex min-h-screen max-w-5xl gap-6 p-6">
       <nav className="w-44 shrink-0 space-y-1">
         <h1 className="mb-3 text-base font-bold text-indigo-700">OneClick Apply</h1>
@@ -271,5 +285,6 @@ export function App() {
         </div>
       </main>
     </div>
+    </>
   );
 }
