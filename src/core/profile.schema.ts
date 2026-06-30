@@ -80,7 +80,8 @@ export const ProfileSchema = z.object({
   skills: z.array(z.string()).default([]),
   salary: z
     .object({
-      expected: z.string().optional(), // e.g. "1500000" or "150000"
+      current: z.string().optional(), // current CTC/salary e.g. "1212000"
+      expected: z.string().optional(), // expected/desired salary e.g. "2475000"
       currency: z.string().default('INR'), // home currency
       period: z.string().default('year'), // year | month | hour
     })

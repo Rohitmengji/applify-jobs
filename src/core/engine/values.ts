@@ -46,20 +46,26 @@ function detectCurrency(text: string): string | null {
 }
 
 function deriveSalary(profile: Profile, field: DetectedField): string | null {
-  const raw = profile.salary?.expected;
+  const labelText = [field.signals.label, field.signals.nearbyText, field.signals.ariaLabel].join(' ');
+  const labelLower = labelText.toLowerCase();
+
+  // Determine if this is asking for CURRENT or EXPECTED salary
+  const isCurrent = /current\s*(ctc|salary|compensation|pay)|present\s*(ctc|salary)/.test(labelLower);
+  const raw = isCurrent
+    ? (profile.salary?.current || profile.salary?.expected)
+    : (profile.salary?.expected || profile.salary?.current);
+
   if (!raw) return null;
   const amount = parseInt(raw.replace(/[^0-9]/g, ''), 10);
   if (!amount || isNaN(amount)) return null;
 
   const homeCurrency = (profile.salary?.currency ?? 'INR').toUpperCase();
-  const labelText = [field.signals.label, field.signals.nearbyText, field.signals.ariaLabel].join(' ');
-  // Default to HOME currency (not USD) — only convert if the field explicitly asks for a different currency
+  // Default to HOME currency — only convert if the field explicitly asks for a different currency
   const targetCurrency = detectCurrency(labelText) ?? homeCurrency;
 
-  // Also detect LPA (Lakhs Per Annum) — Indian format, keep INR
-  if (/\blpa\b|\blakhs?\b|\bper\s*annum\b/i.test(labelText) && homeCurrency === 'INR') {
-    // Convert to LPA format (divide by 100000)
-    const lpa = Math.round((amount / 100000) * 10) / 10;
+  // Detect LPA (Lakhs Per Annum) — Indian format
+  if (/\blpa\b|\blakhs?\b/i.test(labelText) && homeCurrency === 'INR') {
+    const lpa = Math.round((amount / 100000) * 100) / 100;
     return String(lpa);
   }
 

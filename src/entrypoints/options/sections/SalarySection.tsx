@@ -15,30 +15,34 @@ export function SalarySection({ draft, setDraft }: SectionProps) {
   const setS = (patch: Partial<Profile['salary']>) =>
     setDraft((d) => ({ ...d, salary: { ...d.salary, ...patch } }));
 
-  // Format display with commas
-  const formatted = s.expected
-    ? Number(s.expected.replace(/[^0-9]/g, '')).toLocaleString()
-    : '';
-
   // Approximate conversion preview
   const rates: Record<string, number> = {
     USD: 1, INR: 0.012, GBP: 1.27, EUR: 1.09, CAD: 0.74,
     AUD: 0.66, SGD: 0.74, AED: 0.27, JPY: 0.0067, CHF: 1.12, NZD: 0.61,
   };
-  const amount = parseInt((s.expected ?? '').replace(/[^0-9]/g, ''), 10);
+  const expectedAmt = parseInt((s.expected ?? '').replace(/[^0-9]/g, ''), 10);
+  const currentAmt = parseInt((s.current ?? '').replace(/[^0-9]/g, ''), 10);
+  const amount = expectedAmt || currentAmt;
   const homeRate = rates[s.currency] ?? 1;
 
   return (
     <Section
       title="Salary"
-      description="Your expected compensation. Auto-converts when a form asks in a different currency."
+      description="Your current and expected compensation. Auto-converts when a form asks in a different currency."
     >
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Expected salary">
+        <Field label="Current CTC / Salary">
+          <TextInput
+            value={s.current ?? ''}
+            onChange={(v) => setS({ current: v.replace(/[^0-9]/g, '') })}
+            placeholder="e.g. 1212000"
+          />
+        </Field>
+        <Field label="Expected / Desired Salary">
           <TextInput
             value={s.expected ?? ''}
             onChange={(v) => setS({ expected: v.replace(/[^0-9]/g, '') })}
-            placeholder="e.g. 1500000"
+            placeholder="e.g. 2475000"
           />
         </Field>
         <Field label="Currency">
@@ -81,9 +85,13 @@ export function SalarySection({ draft, setDraft }: SectionProps) {
         </div>
       )}
 
-      {formatted && (
+      {(currentAmt > 0 || expectedAmt > 0) && (
         <p className="text-xs text-gray-400 mt-1">
-          {s.currency} {formatted} / {s.period}
+          {currentAmt > 0 && `Current: ${s.currency} ${currentAmt.toLocaleString()}`}
+          {currentAmt > 0 && expectedAmt > 0 && ' | '}
+          {expectedAmt > 0 && `Expected: ${s.currency} ${expectedAmt.toLocaleString()}`}
+          {s.currency === 'INR' && expectedAmt > 0 && ` (${(expectedAmt / 100000).toFixed(1)} LPA)`}
+          {` / ${s.period}`}
         </p>
       )}
     </Section>
