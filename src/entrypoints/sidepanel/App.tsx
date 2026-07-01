@@ -283,6 +283,44 @@ export function App() {
         field.signals.label || field.signals.ariaLabel || field.signals.placeholder || '';
       if (!question) return;
 
+      // NUMBER fields (years of experience, etc.) — compute directly, don't call LLM
+      if (field.kind === 'number' || /^(\d+|how many|years?|months?|number of)/i.test(question.trim())) {
+        const profile = await getProfile();
+        // Try to compute a numeric answer from profile
+        const label = question.toLowerCase();
+        if (/years?.*(experience|exp)|experience.*years?|total.*experience/i.test(label)) {
+          if (profile.experience.length > 0) {
+            const earliest = profile.experience
+              .map((e) => parseInt(e.startDate.slice(0, 4), 10))
+              .filter((y) => !isNaN(y))
+              .sort()[0];
+            if (earliest) {
+              const years = new Date().getFullYear() - earliest;
+              applyResolved(field.uid, String(years), 'heuristic');
+              return;
+            }
+          }
+        }
+        // For other number fields, ask LLM but instruct it to return ONLY a number
+        const res = await sendToBackground<FromBackground>({
+          type: 'LLM_DRAFT_ANSWER',
+          uid: field.uid,
+          question: `[FIELD TYPE: number - respond with ONLY a single number, no text] ${question}`,
+        });
+        if (res.type === 'LLM_DRAFT_RESULT' && res.answer) {
+          // Extract just the number from the response
+          const num = res.answer.match(/\d+/)?.[0] ?? res.answer;
+          applyResolved(field.uid, num, 'llm');
+        }
+        return;
+      }
+
+      // SHORT text fields (name-like, single-word answers) — instruct LLM to be brief
+      const isShort = field.kind === 'text' && (
+        /^(how many|what is your|select|enter|type)/i.test(question.trim()) &&
+        question.length < 50
+      );
+
       // Cover letter fields → generate a full cover letter from the JD
       const isCoverLetter =
         field.mappedKey === 'documents.coverLetter' ||
@@ -311,11 +349,16 @@ export function App() {
         return;
       }
 
-      // Regular free-text → draft with AI
+      // Regular free-text → draft with AI (include field type context)
+      const fieldContext = isShort
+        ? `[FIELD TYPE: short text input - respond with a brief 1-5 word answer only] `
+        : field.kind === 'textarea'
+          ? `[FIELD TYPE: textarea - respond with 2-5 sentences] `
+          : '';
       const res = await sendToBackground<FromBackground>({
         type: 'LLM_DRAFT_ANSWER',
         uid: field.uid,
-        question,
+        question: `${fieldContext}${question}`,
       });
       if (res.type === 'LLM_DRAFT_RESULT' && res.answer) {
         applyResolved(field.uid, res.answer, res.source === 'answerBank' ? 'answerBank' : 'llm');
