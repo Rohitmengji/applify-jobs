@@ -181,6 +181,8 @@ export function getNearbyText(el: Element): string {
 
 export function extractSignals(el: Element): FieldSignals {
   const input = el as HTMLInputElement;
+  const minLen = parseInt(el.getAttribute('minlength') ?? '', 10);
+  const maxLen = parseInt(el.getAttribute('maxlength') ?? '', 10);
   return {
     label: getLabelText(el),
     name: el.getAttribute('name') ?? '',
@@ -191,6 +193,9 @@ export function extractSignals(el: Element): FieldSignals {
     nearbyText: getNearbyText(el),
     required: input.required || el.getAttribute('aria-required') === 'true',
     options: extractOptions(el),
+    minLength: isNaN(minLen) ? undefined : minLen,
+    maxLength: isNaN(maxLen) ? undefined : maxLen,
+    inputType: input.type || undefined,
   };
 }
 

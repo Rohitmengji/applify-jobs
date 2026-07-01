@@ -1,4 +1,5 @@
 import { defineContentScript } from 'wxt/utils/define-content-script';
+import { ATS_MATCH_PATTERNS } from '@/core/atsHosts';
 import { resolveAll } from '@/core/engine/resolve';
 import { fillOne, fileFromB64, dropFileOnZone, attachFile, applyConfidenceOverlay } from '@/core/engine/fill';
 import { matchAdapter } from '@/core/engine/adapters';
@@ -15,7 +16,10 @@ import type { DetectedField } from '@/core/types';
 // iframe-embedded ATSes (iCIMS, embedded Greenhouse) are covered without any
 // broadcast/merge race. The single-frame case is just "one frame, id 0".
 export default defineContentScript({
-  matches: ['https://*/*'], // broad in dev; narrow before publishing (§7/§21)
+  // Auto-inject only on known ATS domains (single source of truth: src/core/atsHosts.ts).
+  // Generic / self-hosted career sites are injected on demand by the side panel via
+  // chrome.scripting when the user opens the panel there (§7/§21).
+  matches: ATS_MATCH_PATTERNS,
   allFrames: true,
   runAt: 'document_idle',
 

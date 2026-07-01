@@ -27,6 +27,9 @@ export interface FieldSignals {
   nearbyText: string; // visible text immediately preceding the control
   required: boolean;
   options?: string[]; // for selects / radio groups / custom dropdowns
+  minLength?: number; // HTML minlength attribute
+  maxLength?: number; // HTML maxlength attribute
+  inputType?: string; // HTML input type (number, email, tel, etc.)
 }
 
 export type FillSource =

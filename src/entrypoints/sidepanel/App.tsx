@@ -9,7 +9,7 @@ import { logApplication, findDuplicate } from '@/core/storage/appTracker';
 import { saveFillProgress, loadFillProgress, clearFillProgress } from '@/core/storage/fillProgress';
 import { learnableEntries } from '@/core/engine/learn';
 import { valueForKey } from '@/core/engine/values';
-import { sendToFrame, sendToBackground, frameIds, fileToB64, activeTabId } from './lib/messaging';
+import { sendToFrame, sendToBackground, frameIds, fileToB64, activeTabId, injectContentScript } from './lib/messaging';
 import { StatusBar } from './components/StatusBar';
 import { ReviewTable } from './components/ReviewTable';
 import { FillButton } from './components/FillButton';
@@ -19,6 +19,21 @@ import { analyzeJobDescription, type JdAnalysis } from '@/core/engine/jdAnalysis
 
 type FilledMap = Record<string, { ok: boolean; error?: string }>;
 type LlmPatch = { key: ProfileKey; confidence: number; value: string | null };
+
+// Turn a terse wizard error into something a stranded user can act on. The content script
+// emits short machine strings ('wizard failed', 'no adapter', 'busy', …); map the ones we
+// know to a next step, and fall back to generic guidance for the rest.
+function wizardErrorHelp(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes('no adapter'))
+    return 'No multi-step handler for this site — use “Fill & Next” to fill each step and advance manually.';
+  if (m.includes('busy'))
+    return 'Another action is still running. Wait a moment, then try again.';
+  if (m.includes('max') || m.includes('step'))
+    return 'The run stopped after too many steps. Click “Next step” to advance manually, then Re-detect.';
+  // 'wizard failed' and anything unrecognized:
+  return 'The automated run hit a snag. Try “Next step” to advance manually, then Re-detect — your filled values are kept.';
+}
 
 export function App() {
   const [fields, setFields] = useState<DetectedField[]>([]);
@@ -34,7 +49,15 @@ export function App() {
   const [coverLetter, setCoverLetter] = useState<string | null>(null);
   const [jobMatch, setJobMatch] = useState<JdAnalysis | null>(null);
   const [isRunning, setIsRunning] = useState(false); // a wizard run is in flight (#1)
+  const [aiReady, setAiReady] = useState(false); // llmEnabled AND an API key is saved
   const locked = busy || isRunning;
+
+  // Required fields the user still hasn't given a value — surfaced as a pre-submit warning
+  // so a real applicant doesn't hit "Fill" and then get the form rejected on the page for a
+  // blank mandatory field they never saw. Files are excluded (the résumé attaches on Fill).
+  const requiredEmpty = fields.filter(
+    (f) => f.signals.required && f.kind !== 'file' && (f.value == null || f.value === ''),
+  );
 
   const tabIdRef = useRef<number | null>(null); // tab this panel is bound to (#5)
   const adapterFrameRef = useRef(0); // frame that owns the multi-step adapter
@@ -90,18 +113,35 @@ export function App() {
       setThreshold(profile.settings.confidenceThreshold);
       setAnswerBank(profile.answerBank ?? []);
 
+      // AI features are only usable when the user enabled them AND saved an API key.
+      // Surface that up front so the AI buttons don't fail silently later (see render).
+      const { llmApiKey = '' } = await chrome.storage.local.get('llmApiKey');
+      const aiUsable = profile.settings.llmEnabled && !!llmApiKey;
+      setAiReady(aiUsable);
+
       // Detect every frame; don't gate on the top frame having a content script — the
       // form may live only inside an iframe (iCIMS). We fail only if NO frame responds (#4).
-      const ids = await frameIds(tabId);
-      const perFrame = await Promise.all(
-        ids.map(async (fid) => {
-          const r = await sendToFrame(tabId, fid, { type: 'DETECT' }).catch(() => null);
-          return r && r.type === 'DETECTED'
-            ? { fid, fields: r.fields, adapterId: r.adapterId, multiStep: r.multiStep }
-            : null;
-        }),
-      );
-      const got = perFrame.filter((x): x is NonNullable<typeof x> => x !== null);
+      const detectFrames = async () => {
+        const ids = await frameIds(tabId);
+        const perFrame = await Promise.all(
+          ids.map(async (fid) => {
+            const r = await sendToFrame(tabId, fid, { type: 'DETECT' }).catch(() => null);
+            return r && r.type === 'DETECTED'
+              ? { fid, fields: r.fields, adapterId: r.adapterId, multiStep: r.multiStep }
+              : null;
+          }),
+        );
+        return perFrame.filter((x): x is NonNullable<typeof x> => x !== null);
+      };
+
+      let got = await detectFrames();
+      // Generic / self-hosted career site: the content script isn't auto-injected there
+      // (we narrowed `matches` to known ATS domains for store review). Inject on demand via
+      // activeTab, then retry once. Falls through to the notice if injection isn't allowed.
+      if (got.length === 0 && (await injectContentScript(tabId))) {
+        await new Promise((r) => setTimeout(r, 400));
+        got = await detectFrames();
+      }
       if (got.length === 0) {
         noContent();
         return;
@@ -121,10 +161,14 @@ export function App() {
       setFields(merged);
       setDuplicate(null);
 
-      // Restore saved fill progress (if user revisits the same page after a crash)
-      try {
-        const pageInfo = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
-        if (pageInfo?.type === 'PAGE_INFO') {
+      // Fetch page info (company/role/description/url) ONCE and reuse it for progress
+      // restore, duplicate detection, the job-match pre-check, and cover-letter drafting.
+      const pi = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
+      const pageInfo = pi?.type === 'PAGE_INFO' ? pi : null;
+
+      if (pageInfo) {
+        // Restore saved fill progress (if the user revisits after a crash), then snapshot.
+        try {
           const saved = await loadFillProgress(pageInfo.url);
           if (saved) {
             const savedMap = new Map(saved.fields.map((f) => [f.uid, f]));
@@ -136,16 +180,11 @@ export function App() {
               }),
             );
           }
-
-          // Auto-save current progress
           void saveFillProgress(pageInfo.url, merged);
-        }
-      } catch { /* non-critical */ }
+        } catch { /* non-critical */ }
 
-      // Check for duplicate application
-      try {
-        const pageInfo = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
-        if (pageInfo?.type === 'PAGE_INFO') {
+        // Duplicate-application warning.
+        try {
           const dup = await findDuplicate(pageInfo.url);
           if (dup) {
             const daysAgo = Math.round((Date.now() - dup.appliedAt) / (1000 * 60 * 60 * 24));
@@ -153,8 +192,16 @@ export function App() {
               `You applied to this role on ${new Date(dup.appliedAt).toLocaleDateString()} (${daysAgo} day${daysAgo === 1 ? '' : 's'} ago)`,
             );
           }
+        } catch { /* non-critical */ }
+
+        // Job-match pre-check (Track 4): auto-run so the applicant sees fit + skill gaps
+        // BEFORE filling, instead of behind an extra click after they've already committed.
+        if (pageInfo.description) {
+          try {
+            setJobMatch(analyzeJobDescription(pageInfo.description, profile));
+          } catch { /* non-critical */ }
         }
-      } catch { /* non-critical */ }
+      }
 
       // Apply LLM mappings — wrapped in try/catch so LLM failures don't wipe fields
       try {
@@ -181,9 +228,9 @@ export function App() {
       }
 
       // Auto-generate cover letter for cover-letter textareas that are empty.
-      // Uses the JD from the page + profile to create a tailored letter.
-      const profile2 = await getProfile();
-      if (profile2.settings.llmEnabled) {
+      // Uses the JD from the page + profile to create a tailored letter. Requires a saved
+      // API key (aiUsable), not just llmEnabled, so we don't fire a call that will 401.
+      if (aiUsable && pageInfo) {
         const coverLetterField = merged.find((f) => {
           if (f.value) return false; // already has value
           if (f.kind !== 'textarea' && f.kind !== 'text') return false;
@@ -192,15 +239,14 @@ export function App() {
         });
         if (coverLetterField) {
           try {
-            const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
-            const company = info?.type === 'PAGE_INFO' ? info.company : '';
-            const role = info?.type === 'PAGE_INFO' ? info.role : '';
+            const company = pageInfo.company;
+            const role = pageInfo.role;
             if (company || role) {
               const res = await sendToBackground<FromBackground>({
                 type: 'LLM_COVER_LETTER',
                 company,
                 role,
-                description: info?.type === 'PAGE_INFO' ? info.description : undefined,
+                description: pageInfo.description,
               });
               if (res.type === 'LLM_COVER_LETTER_RESULT' && res.text) {
                 setFields((prev) =>
@@ -349,19 +395,35 @@ export function App() {
         return;
       }
 
-      // Regular free-text → draft with AI (include field type context)
-      const fieldContext = isShort
-        ? `[FIELD TYPE: short text input - respond with a brief 1-5 word answer only] `
-        : field.kind === 'textarea'
-          ? `[FIELD TYPE: textarea - respond with 2-5 sentences] `
-          : '';
+      // Regular free-text → draft with AI (include field type + length constraints)
+      let fieldContext = '';
+      if (isShort) {
+        fieldContext = '[FIELD TYPE: short text input - respond with a brief 1-5 word answer only] ';
+      } else if (field.kind === 'textarea') {
+        fieldContext = '[FIELD TYPE: textarea - respond with 2-5 sentences] ';
+      }
+
+      // Add character length constraints if the field has them
+      const { minLength, maxLength } = field.signals;
+      if (maxLength && maxLength > 0) {
+        fieldContext += `[MAX ${maxLength} characters - your response MUST be under ${maxLength} chars] `;
+      }
+      if (minLength && minLength > 0) {
+        fieldContext += `[MIN ${minLength} characters required] `;
+      }
+
       const res = await sendToBackground<FromBackground>({
         type: 'LLM_DRAFT_ANSWER',
         uid: field.uid,
         question: `${fieldContext}${question}`,
       });
       if (res.type === 'LLM_DRAFT_RESULT' && res.answer) {
-        applyResolved(field.uid, res.answer, res.source === 'answerBank' ? 'answerBank' : 'llm');
+        // Enforce maxLength at the application level (in case LLM exceeds it)
+        let answer = res.answer;
+        if (maxLength && answer.length > maxLength) {
+          answer = answer.slice(0, maxLength - 3) + '...';
+        }
+        applyResolved(field.uid, answer, res.source === 'answerBank' ? 'answerBank' : 'llm');
       }
     },
     [applyResolved],
@@ -609,7 +671,10 @@ export function App() {
         </div>
       )}
       {status?.phase === 'error' && (
-        <div className="mx-3 mt-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[11px] text-red-700">{status.message}</div>
+        <div className="mx-3 mt-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[11px] text-red-700">
+          <div className="font-medium">Multi-step run stopped</div>
+          <div className="mt-0.5 text-red-600">{wizardErrorHelp(status.message)}</div>
+        </div>
       )}
       {duplicate && (
         <div className="mx-3 mt-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-700 flex items-center gap-1.5">
@@ -634,7 +699,18 @@ export function App() {
       {/* Ask AI — paste any question, get an answer to copy */}
       <AskAI />
 
+      {/* AI not configured — tell the user why the AI actions are missing instead of
+          letting the buttons fail silently later (Track 3). */}
+      {!aiReady && (
+        <div className="mx-3 mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+          <span className="font-medium text-slate-700">AI features are off.</span> Add an
+          OpenAI or Anthropic API key in Settings to unlock cover letters, “Draft All
+          Answers,” and Ask AI.
+        </div>
+      )}
+
       {/* Cover letter section */}
+      {aiReady && (
       <div className="border-t border-gray-100 px-3 py-2">
         <button
           onClick={genCoverLetter}
@@ -662,9 +738,10 @@ export function App() {
           </div>
         )}
       </div>
+      )}
 
       {/* Draft All Answers — one click generates all free-text answers */}
-      {fields.some((f) => !f.value && (f.kind === 'textarea' || f.kind === 'text') &&
+      {aiReady && fields.some((f) => !f.value && (f.kind === 'textarea' || f.kind === 'text') &&
         (!f.mappedKey || f.mappedKey === 'freeText' || f.mappedKey === 'documents.coverLetter') &&
         (f.signals.label || f.signals.ariaLabel || '').length > 5
       ) && (
@@ -683,6 +760,18 @@ export function App() {
               '🚀 Draft All Answers with AI'
             )}
           </button>
+        </div>
+      )}
+
+      {/* Pre-submit safety net (Track 3): required fields with no value would sail past
+          "Fill" and get the form bounced on the page. Make them impossible to miss. */}
+      {!notice && requiredEmpty.length > 0 && (
+        <div className="mx-3 mb-1 mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
+          <span className="font-medium">
+            {requiredEmpty.length} required field{requiredEmpty.length === 1 ? '' : 's'} still empty.
+          </span>{' '}
+          Fill {requiredEmpty.length === 1 ? 'it' : 'them'} above before submitting on the page —
+          the form may be rejected otherwise.
         </div>
       )}
 

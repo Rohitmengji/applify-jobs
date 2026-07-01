@@ -22,13 +22,16 @@ const STEPS = [
     icon: '📄',
   },
   {
-    title: 'Train the Engine',
-    description: 'Go to the Training tab and answer 42 common questions once. They\'ll auto-fill everywhere.',
+    title: 'Train Once, Fill Forever',
+    description:
+      'This is the biggest time-saver. In the Training tab, answer 42 common questions once — work authorization, notice period, salary, “why this company.” OneClick remembers and auto-fills them on every future application. 10 minutes here can save 100+ hours.',
     icon: '🧠',
+    action: 'Don\'t skip this — it\'s what makes the extension feel like magic.',
   },
   {
-    title: 'Add Your AI Key',
-    description: 'In Settings, add your OpenAI API key for AI-powered answers and cover letter generation.',
+    title: 'Add Your AI Key (optional)',
+    description:
+      'For AI-drafted answers and tailored cover letters, add an OpenAI or Anthropic (Claude) API key in Settings. Everything else works without it.',
     icon: '🔑',
   },
   {

@@ -1,4 +1,5 @@
 import { defineConfig } from 'wxt';
+import { ATS_MATCH_PATTERNS } from './src/core/atsHosts';
 
 // WXT generates manifest.json from this config + the entrypoint files.
 // Content-script registration lives in src/entrypoints/content.ts (WXT convention).
@@ -22,15 +23,17 @@ export default defineConfig({
     permissions: [
       'storage', // profile + settings
       'sidePanel', // the review surface
-      'scripting', // programmatic injection if needed
-      'activeTab', // act on the current tab on a user gesture
+      'scripting', // on-demand injection into generic career sites (see atsHosts.ts)
+      'activeTab', // host access to the current tab on user gesture (covers generic sites)
       'webNavigation', // enumerate frames so we can detect/fill inside iframes (iCIMS, §25)
     ],
-    // Required for universal form-filling. Justification: the extension fills job application
-    // forms across hundreds of different ATS platforms and company career sites — it cannot
-    // enumerate all possible domains. It only reads/writes form fields (never passwords,
-    // payment info, or non-form content) and only when the user explicitly triggers it.
-    host_permissions: ['https://*/*'],
+    // Auto-inject only on known ATS domains (atsHosts.ts) so the install-time prompt lists
+    // recognizable job sites, not "all your data on all websites" (§21). Generic / self-
+    // hosted career pages are handled on demand via activeTab + chrome.scripting when the
+    // user opens the panel there. Power users can opt into "run everywhere" by granting the
+    // optional broad permission below.
+    host_permissions: [...ATS_MATCH_PATTERNS],
+    optional_host_permissions: ['https://*/*'],
     action: { default_title: 'OneClick Apply' },
     commands: {
       'fill-page': {
