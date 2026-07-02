@@ -225,7 +225,9 @@ describe('matchAdapter registry', () => {
 
   it('returns indeed for smartapply.indeed.com', () => {
     document.body.innerHTML = '<form><input name="q" /></form>';
-    expect(matchAdapter(new URL('https://smartapply.indeed.com/form/x'), document)?.id).toBe('indeed');
+    expect(matchAdapter(new URL('https://smartapply.indeed.com/form/x'), document)?.id).toBe(
+      'indeed',
+    );
   });
 
   it('returns jobvite for *.jobvite.com', () => {
@@ -235,7 +237,9 @@ describe('matchAdapter registry', () => {
 
   it('returns linkedin for linkedin.com', () => {
     document.body.innerHTML = '<form><input name="q" /></form>';
-    expect(matchAdapter(new URL('https://www.linkedin.com/jobs/view/x'), document)?.id).toBe('linkedin');
+    expect(matchAdapter(new URL('https://www.linkedin.com/jobs/view/x'), document)?.id).toBe(
+      'linkedin',
+    );
   });
 
   it('returns naukri for naukri.com', () => {
@@ -245,17 +249,23 @@ describe('matchAdapter registry', () => {
 
   it('returns bamboohr for *.bamboohr.com', () => {
     document.body.innerHTML = '<form><input name="q" /></form>';
-    expect(matchAdapter(new URL('https://acme.bamboohr.com/careers/x'), document)?.id).toBe('bamboohr');
+    expect(matchAdapter(new URL('https://acme.bamboohr.com/careers/x'), document)?.id).toBe(
+      'bamboohr',
+    );
   });
 
   it('returns zohorecruit for *.zohorecruit.com', () => {
     document.body.innerHTML = '<form><input name="q" /></form>';
-    expect(matchAdapter(new URL('https://acme.zohorecruit.com/x'), document)?.id).toBe('zohorecruit');
+    expect(matchAdapter(new URL('https://acme.zohorecruit.com/x'), document)?.id).toBe(
+      'zohorecruit',
+    );
   });
 
   it('returns wellfound for wellfound.com', () => {
     document.body.innerHTML = '<form><input name="q" /></form>';
-    expect(matchAdapter(new URL('https://wellfound.com/company/x'), document)?.id).toBe('wellfound');
+    expect(matchAdapter(new URL('https://wellfound.com/company/x'), document)?.id).toBe(
+      'wellfound',
+    );
   });
 
   it('returns dice for dice.com', () => {

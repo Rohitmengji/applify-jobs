@@ -12,7 +12,9 @@ export function extractCompany(doc: Document): string {
       const data = JSON.parse(ld.textContent ?? '');
       if (data.hiringOrganization?.name) return data.hiringOrganization.name;
       if (data.name) return data.name;
-    } catch { /* malformed JSON */ }
+    } catch {
+      /* malformed JSON */
+    }
   }
 
   const title = doc.title.trim();
@@ -48,7 +50,9 @@ export function extractDescription(doc: Document): string {
         const text = (tmp.textContent ?? '').trim();
         if (text.length > 100) return text.slice(0, 3000);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   // Try common JD containers

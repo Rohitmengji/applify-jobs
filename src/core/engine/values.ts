@@ -46,14 +46,18 @@ function detectCurrency(text: string): string | null {
 }
 
 function deriveSalary(profile: Profile, field: DetectedField): string | null {
-  const labelText = [field.signals.label, field.signals.nearbyText, field.signals.ariaLabel].join(' ');
+  const labelText = [field.signals.label, field.signals.nearbyText, field.signals.ariaLabel].join(
+    ' ',
+  );
   const labelLower = labelText.toLowerCase();
 
   // Determine if this is asking for CURRENT or EXPECTED salary
-  const isCurrent = /current\s*(ctc|salary|compensation|pay)|present\s*(ctc|salary)/.test(labelLower);
+  const isCurrent = /current\s*(ctc|salary|compensation|pay)|present\s*(ctc|salary)/.test(
+    labelLower,
+  );
   const raw = isCurrent
-    ? (profile.salary?.current || profile.salary?.expected)
-    : (profile.salary?.expected || profile.salary?.current);
+    ? profile.salary?.current || profile.salary?.expected
+    : profile.salary?.expected || profile.salary?.current;
 
   if (!raw) return null;
   const amount = parseInt(raw.replace(/[^0-9]/g, ''), 10);
@@ -154,8 +158,12 @@ export function valueForKey(
       if (typeof v === 'string') {
         if (!v.length) return null;
         // Auto-capitalize name fields (many forms require "First letter should be capital")
-        if (key.startsWith('personal.firstName') || key.startsWith('personal.lastName') ||
-            key.startsWith('personal.middleName') || key.startsWith('personal.preferredName')) {
+        if (
+          key.startsWith('personal.firstName') ||
+          key.startsWith('personal.lastName') ||
+          key.startsWith('personal.middleName') ||
+          key.startsWith('personal.preferredName')
+        ) {
           return capitalize(v);
         }
         return v;

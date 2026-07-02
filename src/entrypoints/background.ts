@@ -1,7 +1,12 @@
 import { defineBackground } from 'wxt/utils/define-background';
 import { getProfile } from '@/core/storage/profileStore';
 import { recordLearned } from '@/core/storage/learnStore';
-import { mapFieldsWithLLM, draftAnswerWithLLM, extractResumeWithLLM, generateCoverLetter } from '@/core/llm/client';
+import {
+  mapFieldsWithLLM,
+  draftAnswerWithLLM,
+  extractResumeWithLLM,
+  generateCoverLetter,
+} from '@/core/llm/client';
 import { findAnswer } from '@/core/llm/answerBank';
 import type { ToBackground, FromBackground } from '@/core/messages';
 
@@ -56,10 +61,12 @@ export default defineBackground(() => {
       const count = (msg.fields as unknown[])?.length ?? 0;
       const text = count > 0 ? String(count) : '';
       chrome.action.setBadgeText({ text, tabId: sender.tab.id }).catch(() => {});
-      chrome.action.setBadgeBackgroundColor({
-        color: count > 0 ? '#6d28d9' : '#9ca3af',
-        tabId: sender.tab.id,
-      }).catch(() => {});
+      chrome.action
+        .setBadgeBackgroundColor({
+          color: count > 0 ? '#6d28d9' : '#9ca3af',
+          tabId: sender.tab.id,
+        })
+        .catch(() => {});
     }
     if (msg?.type === 'LEARN_FIELD' && msg.entries) {
       void recordLearned(msg.entries, msg.adapterId ?? null);

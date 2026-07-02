@@ -31,7 +31,8 @@ export function JobMatchCard({ analysis, loading, onAnalyze }: Props) {
     );
   }
 
-  const { matchPercentage, matchedSkills, missingSkills, experienceLevel, yearsRequired } = analysis;
+  const { matchPercentage, matchedSkills, missingSkills, experienceLevel, yearsRequired } =
+    analysis;
   const color = matchPercentage >= 75 ? 'emerald' : matchPercentage >= 50 ? 'amber' : 'red';
 
   return (
@@ -41,7 +42,9 @@ export function JobMatchCard({ analysis, loading, onAnalyze }: Props) {
         className="w-full flex items-center justify-between"
       >
         <div className="flex items-center gap-2">
-          <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-white bg-${color}-500`}>
+          <div
+            className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-white bg-${color}-500`}
+          >
             {matchPercentage}%
           </div>
           <div className="text-left">
@@ -66,7 +69,9 @@ export function JobMatchCard({ analysis, loading, onAnalyze }: Props) {
               <div className="font-medium text-emerald-700 mb-0.5">✓ Your matching skills:</div>
               <div className="flex flex-wrap gap-1">
                 {matchedSkills.map((s) => (
-                  <span key={s} className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">{s}</span>
+                  <span key={s} className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">
+                    {s}
+                  </span>
                 ))}
               </div>
             </div>
@@ -77,16 +82,15 @@ export function JobMatchCard({ analysis, loading, onAnalyze }: Props) {
               <div className="font-medium text-red-600 mb-0.5">✗ Skills to highlight or learn:</div>
               <div className="flex flex-wrap gap-1">
                 {missingSkills.map((s) => (
-                  <span key={s} className="rounded-full bg-red-50 px-2 py-0.5 text-red-600">{s}</span>
+                  <span key={s} className="rounded-full bg-red-50 px-2 py-0.5 text-red-600">
+                    {s}
+                  </span>
                 ))}
               </div>
             </div>
           )}
 
-          <button
-            onClick={onAnalyze}
-            className="text-[9px] text-gray-400 hover:text-gray-600"
-          >
+          <button onClick={onAnalyze} className="text-[9px] text-gray-400 hover:text-gray-600">
             ↻ Re-analyze
           </button>
         </div>

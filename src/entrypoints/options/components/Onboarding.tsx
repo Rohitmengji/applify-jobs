@@ -7,18 +7,20 @@ interface Props {
 const STEPS = [
   {
     title: 'Welcome to OneClick Apply',
-    description: 'Fill job applications across every ATS in seconds. Let\'s get you set up.',
+    description: "Fill job applications across every ATS in seconds. Let's get you set up.",
     icon: '🚀',
   },
   {
     title: 'Set Up Your Profile',
-    description: 'Fill in your personal info, experience, and skills. This data fills forms automatically.',
+    description:
+      'Fill in your personal info, experience, and skills. This data fills forms automatically.',
     icon: '👤',
     action: 'Go to profile settings to add your info.',
   },
   {
     title: 'Upload Your Resume',
-    description: 'Upload your PDF resume in the Documents tab. It auto-attaches to file upload fields.',
+    description:
+      'Upload your PDF resume in the Documents tab. It auto-attaches to file upload fields.',
     icon: '📄',
   },
   {
@@ -26,7 +28,7 @@ const STEPS = [
     description:
       'This is the biggest time-saver. In the Training tab, answer 42 common questions once — work authorization, notice period, salary, “why this company.” OneClick remembers and auto-fills them on every future application. 10 minutes here can save 100+ hours.',
     icon: '🧠',
-    action: 'Don\'t skip this — it\'s what makes the extension feel like magic.',
+    action: "Don't skip this — it's what makes the extension feel like magic.",
   },
   {
     title: 'Add Your AI Key (optional)',
@@ -35,8 +37,9 @@ const STEPS = [
     icon: '🔑',
   },
   {
-    title: 'You\'re Ready!',
-    description: 'Open any job application, click the OneClick Apply icon, and watch it fill. The more you use it, the smarter it gets.',
+    title: "You're Ready!",
+    description:
+      'Open any job application, click the OneClick Apply icon, and watch it fill. The more you use it, the smarter it gets.',
     icon: '✨',
   },
 ];
@@ -55,7 +58,11 @@ export function Onboarding({ onComplete }: Props) {
             <div
               key={i}
               className={`h-2 rounded-full transition-all ${
-                i === step ? 'w-6 bg-indigo-600' : i < step ? 'w-2 bg-indigo-300' : 'w-2 bg-gray-200'
+                i === step
+                  ? 'w-6 bg-indigo-600'
+                  : i < step
+                    ? 'w-2 bg-indigo-300'
+                    : 'w-2 bg-gray-200'
               }`}
             />
           ))}

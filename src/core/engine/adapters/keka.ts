@@ -27,7 +27,7 @@ export const keka: SiteAdapter = {
   detectFields(doc) {
     const fields = detectFields(doc);
     for (const f of fields) {
-      const name = f.signals.name.replace(/[-_\[\]]/g, '').toLowerCase();
+      const name = f.signals.name.replace(/[-_[\]]/g, '').toLowerCase();
       for (const [pattern, key] of Object.entries(NAME_MAP)) {
         if (name === pattern.toLowerCase() || name.includes(pattern.toLowerCase())) {
           f.mappedKey = key;

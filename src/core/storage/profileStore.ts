@@ -72,13 +72,22 @@ function repair(raw: unknown): Profile {
 
   // Deep merge: for each top-level key in EMPTY, use the existing value if present,
   // otherwise use the default. For nested objects, merge recursively.
-  function deepMerge(base: Record<string, unknown>, patch: Record<string, unknown>): Record<string, unknown> {
+  function deepMerge(
+    base: Record<string, unknown>,
+    patch: Record<string, unknown>,
+  ): Record<string, unknown> {
     const result: Record<string, unknown> = { ...base };
     for (const key of Object.keys(patch)) {
       const bVal = base[key];
       const pVal = patch[key];
-      if (pVal != null && typeof pVal === 'object' && !Array.isArray(pVal) &&
-          bVal != null && typeof bVal === 'object' && !Array.isArray(bVal)) {
+      if (
+        pVal != null &&
+        typeof pVal === 'object' &&
+        !Array.isArray(pVal) &&
+        bVal != null &&
+        typeof bVal === 'object' &&
+        !Array.isArray(bVal)
+      ) {
         result[key] = deepMerge(bVal as Record<string, unknown>, pVal as Record<string, unknown>);
       } else if (pVal !== undefined) {
         result[key] = pVal;

@@ -8,6 +8,7 @@ export type ToContent =
   | { type: 'FILL'; fields: ResolvedFill[] } // fill these values
   | { type: 'FILL_FILE'; uid: string; filename: string; mime: string; b64: string }
   | { type: 'FILL_AND_NEXT' } // fill current step + click Next (generic, no adapter needed)
+  | { type: 'FILL_SECTIONS' } // fill repeatable Work Experience / Education sections
   | { type: 'GET_PAGE_INFO' } // extract company + role from the page
   | { type: 'WIZARD_NEXT' } // advance one step
   | { type: 'WIZARD_RUN' } // run to the review step
@@ -24,6 +25,13 @@ export type FromContent =
   | { type: 'STATUS'; status: WizardStatus }
   | { type: 'FIELD_FILLED'; uid: string; ok: boolean; error?: string }
   | { type: 'PAGE_INFO'; company: string; role: string; url: string; description?: string }
+  | {
+      type: 'SECTIONS_RESULT';
+      experience: number; // rows actually filled
+      education: number;
+      expFound: boolean; // was a Work Experience section present on the page?
+      eduFound: boolean;
+    }
   | { type: 'PONG' };
 
 // --- side panel  →  background (LLM work) -------------------------------

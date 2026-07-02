@@ -12,6 +12,7 @@ export default tseslint.config(
       'dist/**',
       'coverage/**',
       'stats.html',
+      'e2e/**', // Playwright suite — its own toolchain, not part of the unit gate
       '**/*.config.{js,mjs,cjs,ts}',
     ],
   },

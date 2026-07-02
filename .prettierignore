@@ -5,4 +5,5 @@ coverage/
 dist/
 pnpm-lock.yaml
 src/tests/fixtures/
+e2e/
 *.zip

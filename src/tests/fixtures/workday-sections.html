@@ -1,0 +1,68 @@
+<!--
+  Realistic Workday application markup for the Work Experience / Education / Skills sections,
+  using the data-automation-id scheme the workday adapter + sections.ts target. Two experience
+  panels are pre-rendered (no JS "Add" needed) so a fixture test can verify the REAL selectors
+  end-to-end. Includes a global-nav button to verify the nav-noise filter.
+-->
+<header data-automation-id="globalNavButton">
+  <button data-automation-id="languageSelectorButton" aria-label="Language Selector Button">EN</button>
+  <button data-automation-id="accountSettingsButton" aria-label="Account Settings Button">Account</button>
+</header>
+
+<div data-automation-id="workExperienceSection">
+  <h3>Work Experience</h3>
+
+  <div data-automation-id="workExperience-1">
+    <label>Job Title<input data-automation-id="jobTitle" type="text" /></label>
+    <label>Company<input data-automation-id="company" type="text" /></label>
+    <label>Location<input data-automation-id="location" type="text" /></label>
+    <label data-automation-id="currentlyWorkHere"
+      ><input type="checkbox" /> I currently work here</label
+    >
+    <div data-automation-id="formField-startDate">
+      <input data-automation-id="dateSectionMonth-input" role="spinbutton" aria-label="Month" />
+      <input data-automation-id="dateSectionYear-input" role="spinbutton" aria-label="Year" />
+    </div>
+    <div data-automation-id="formField-endDate">
+      <input data-automation-id="dateSectionMonth-input" role="spinbutton" aria-label="Month" />
+      <input data-automation-id="dateSectionYear-input" role="spinbutton" aria-label="Year" />
+    </div>
+    <textarea data-automation-id="roleDescription"></textarea>
+  </div>
+
+  <div data-automation-id="workExperience-2">
+    <label>Job Title<input data-automation-id="jobTitle" type="text" /></label>
+    <label>Company<input data-automation-id="company" type="text" /></label>
+    <label>Location<input data-automation-id="location" type="text" /></label>
+    <label data-automation-id="currentlyWorkHere"
+      ><input type="checkbox" /> I currently work here</label
+    >
+    <div data-automation-id="formField-startDate">
+      <input data-automation-id="dateSectionMonth-input" role="spinbutton" aria-label="Month" />
+      <input data-automation-id="dateSectionYear-input" role="spinbutton" aria-label="Year" />
+    </div>
+    <div data-automation-id="formField-endDate">
+      <input data-automation-id="dateSectionMonth-input" role="spinbutton" aria-label="Month" />
+      <input data-automation-id="dateSectionYear-input" role="spinbutton" aria-label="Year" />
+    </div>
+    <textarea data-automation-id="roleDescription"></textarea>
+  </div>
+
+  <button data-automation-id="Add">Add Another</button>
+</div>
+
+<div data-automation-id="educationSection">
+  <h3>Education</h3>
+  <div data-automation-id="education-1">
+    <label>School<input data-automation-id="school" type="text" /></label>
+    <label>Degree<input data-automation-id="degree" type="text" /></label>
+    <div data-automation-id="formField-startDate">
+      <input data-automation-id="dateSectionYear-input" role="spinbutton" aria-label="Year" />
+    </div>
+    <div data-automation-id="formField-endDate">
+      <input data-automation-id="dateSectionYear-input" role="spinbutton" aria-label="Year" />
+    </div>
+    <label>Overall Result / GPA<input data-automation-id="gradeAverage" type="text" /></label>
+  </div>
+  <button data-automation-id="Add">Add Another</button>
+</div>

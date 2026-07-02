@@ -25,8 +25,10 @@ const NAME_MAP: Record<string, ProfileKey> = {
 export const zohorecruit: SiteAdapter = {
   id: 'zohorecruit',
   matches(url) {
-    return /(^|\.)zohorecruit\.com$/.test(url.hostname) ||
-           /recruit\.zoho\.(com|in|eu)$/.test(url.hostname);
+    return (
+      /(^|\.)zohorecruit\.com$/.test(url.hostname) ||
+      /recruit\.zoho\.(com|in|eu)$/.test(url.hostname)
+    );
   },
   detectFields(doc) {
     const fields = detectFields(doc);

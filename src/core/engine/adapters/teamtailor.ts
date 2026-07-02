@@ -24,7 +24,7 @@ function mapField(f: DetectedField): ProfileKey | null {
   if (dataField && FIELD_MAP[dataField]) return FIELD_MAP[dataField];
 
   // Check name
-  const name = f.signals.name.toLowerCase().replace(/[-_\[\]]/g, '');
+  const name = f.signals.name.toLowerCase().replace(/[-_[\]]/g, '');
   for (const [pattern, key] of Object.entries(FIELD_MAP)) {
     if (name.includes(pattern.replace(/_/g, ''))) return key;
   }

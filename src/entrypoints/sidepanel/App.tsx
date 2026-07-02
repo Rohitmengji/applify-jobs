@@ -4,12 +4,21 @@ import type { FromContent, FromBackground, ResolvedFill } from '@/core/messages'
 import type { ProfileKey, SavedAnswer } from '@/core/profile.schema';
 import { getProfile } from '@/core/storage/profileStore';
 import { getFile } from '@/core/storage/blobStore';
-import { recordLearned } from '@/core/storage/learnStore';
+import { recordLearned, countLearned } from '@/core/storage/learnStore';
 import { logApplication, findDuplicate } from '@/core/storage/appTracker';
 import { saveFillProgress, loadFillProgress, clearFillProgress } from '@/core/storage/fillProgress';
 import { learnableEntries } from '@/core/engine/learn';
+import { findAnswer } from '@/core/llm/answerBank';
 import { valueForKey } from '@/core/engine/values';
-import { sendToFrame, sendToBackground, frameIds, fileToB64, activeTabId, injectContentScript } from './lib/messaging';
+import {
+  sendToFrame,
+  sendToBackground,
+  frameIds,
+  fileToB64,
+  activeTabId,
+  currentWindowId,
+  injectContentScript,
+} from './lib/messaging';
 import { StatusBar } from './components/StatusBar';
 import { ReviewTable } from './components/ReviewTable';
 import { FillButton } from './components/FillButton';
@@ -27,8 +36,7 @@ function wizardErrorHelp(message: string): string {
   const m = message.toLowerCase();
   if (m.includes('no adapter'))
     return 'No multi-step handler for this site — use “Fill & Next” to fill each step and advance manually.';
-  if (m.includes('busy'))
-    return 'Another action is still running. Wait a moment, then try again.';
+  if (m.includes('busy')) return 'Another action is still running. Wait a moment, then try again.';
   if (m.includes('max') || m.includes('step'))
     return 'The run stopped after too many steps. Click “Next step” to advance manually, then Re-detect.';
   // 'wizard failed' and anything unrecognized:
@@ -50,7 +58,20 @@ export function App() {
   const [jobMatch, setJobMatch] = useState<JdAnalysis | null>(null);
   const [isRunning, setIsRunning] = useState(false); // a wizard run is in flight (#1)
   const [aiReady, setAiReady] = useState(false); // llmEnabled AND an API key is saved
+  const [learnedCount, setLearnedCount] = useState(0); // answers remembered (shown in header)
+  // Result of the last section fill (Work Experience / Education), for the post-fill summary.
+  const [sections, setSections] = useState<{
+    exp: number;
+    edu: number;
+    expFound: boolean; // section was present on the page (→ warn if present but 0 filled)
+    eduFound: boolean;
+  } | null>(null);
   const locked = busy || isRunning;
+
+  // Post-fill summary derived from live FIELD_FILLED broadcasts + the section result.
+  const okCount = Object.values(filledMap).filter((f) => f.ok).length;
+  const failCount = Object.values(filledMap).filter((f) => !f.ok).length;
+  const showSummary = okCount + failCount > 0 || sections !== null;
 
   // Required fields the user still hasn't given a value — surfaced as a pre-submit warning
   // so a real applicant doesn't hit "Fill" and then get the form rejected on the page for a
@@ -60,7 +81,10 @@ export function App() {
   );
 
   const tabIdRef = useRef<number | null>(null); // tab this panel is bound to (#5)
+  const windowIdRef = useRef<number | undefined>(undefined); // the window this panel lives in
   const adapterFrameRef = useRef(0); // frame that owns the multi-step adapter
+  const detectIdRef = useRef(0); // increments each detect() so a slow run can't clobber a newer one
+  const committedRef = useRef<Map<string, string>>(new Map()); // uid → last value auto-saved (avoid re-saving)
 
   // Ask the LLM to map fields the deterministic layers left unmapped, then resolve their
   // values from the profile (§11.4/§11.5). Returns a per-uid patch map so the caller can
@@ -95,8 +119,27 @@ export function App() {
   // Detect across every frame of the tab (iframe ATSes), tagging each field with its
   // frameId so fills route back to the right frame. Single-frame pages = just frame 0.
   const detect = useCallback(async () => {
+    // Tag this run so a slow detect (e.g. LLM enrichment) for a tab the user has since
+    // left can't overwrite the newer tab's results (multi-tab race, #switch).
+    const runId = ++detectIdRef.current;
+    const stale = () => runId !== detectIdRef.current;
+
     setBusy(true);
     setNotice(null);
+    // Reset per-tab UI state up front so the previous job's data never lingers while we
+    // switch tabs (blank → new job), and a stuck wizard flag can't disable Re-detect.
+    setFields([]);
+    setFilledMap({});
+    setSections(null);
+    setAdapterId(null);
+    setMultiStep(false);
+    setDuplicate(null);
+    setJobMatch(null);
+    setCoverLetter(null);
+    setStatus(null);
+    setIsRunning(false);
+    committedRef.current.clear();
+
     const noContent = () => {
       setNotice(
         'Open a job application page, then re-detect. (This panel can’t read browser pages.)',
@@ -106,12 +149,15 @@ export function App() {
       setMultiStep(false);
     };
     try {
-      const tabId = await activeTabId();
+      const tabId = await activeTabId(windowIdRef.current);
       tabIdRef.current = tabId;
 
       const profile = await getProfile();
       setThreshold(profile.settings.confidenceThreshold);
       setAnswerBank(profile.answerBank ?? []);
+      void countLearned().then((n) => {
+        if (!stale()) setLearnedCount(n);
+      });
 
       // AI features are only usable when the user enabled them AND saved an API key.
       // Surface that up front so the AI buttons don't fail silently later (see render).
@@ -146,6 +192,7 @@ export function App() {
         noContent();
         return;
       }
+      if (stale()) return; // user switched tabs while we were detecting — abandon this run
 
       const merged: DetectedField[] = [];
       for (const fr of got) for (const f of fr.fields) merged.push({ ...f, frameId: fr.fid });
@@ -156,6 +203,7 @@ export function App() {
       const best = adapterFrames.find((fr) => fr.fields.length > 0) ?? adapterFrames[0];
       adapterFrameRef.current = best?.fid ?? 0;
       setFilledMap({});
+      setSections(null); // clear the previous fill summary
       setAdapterId(best?.adapterId ?? null);
       setMultiStep(best?.multiStep ?? false);
       setFields(merged);
@@ -175,38 +223,46 @@ export function App() {
             setFields((prev) =>
               prev.map((f) => {
                 const s = savedMap.get(f.uid);
-                if (s?.value && !f.value) return { ...f, value: s.value, source: 'manual' as FillSource };
+                if (s?.value && !f.value)
+                  return { ...f, value: s.value, source: 'manual' as FillSource };
                 return f;
               }),
             );
           }
           void saveFillProgress(pageInfo.url, merged);
-        } catch { /* non-critical */ }
+        } catch {
+          /* non-critical */
+        }
 
         // Duplicate-application warning.
         try {
           const dup = await findDuplicate(pageInfo.url);
-          if (dup) {
+          if (!stale() && dup) {
             const daysAgo = Math.round((Date.now() - dup.appliedAt) / (1000 * 60 * 60 * 24));
             setDuplicate(
               `You applied to this role on ${new Date(dup.appliedAt).toLocaleDateString()} (${daysAgo} day${daysAgo === 1 ? '' : 's'} ago)`,
             );
           }
-        } catch { /* non-critical */ }
+        } catch {
+          /* non-critical */
+        }
 
         // Job-match pre-check (Track 4): auto-run so the applicant sees fit + skill gaps
         // BEFORE filling, instead of behind an extra click after they've already committed.
         if (pageInfo.description) {
           try {
-            setJobMatch(analyzeJobDescription(pageInfo.description, profile));
-          } catch { /* non-critical */ }
+            const match = analyzeJobDescription(pageInfo.description, profile);
+            if (!stale()) setJobMatch(match);
+          } catch {
+            /* non-critical */
+          }
         }
       }
 
       // Apply LLM mappings — wrapped in try/catch so LLM failures don't wipe fields
       try {
         const patches = await enrichWithLLM(merged);
-        if (patches.size > 0) {
+        if (!stale() && patches.size > 0) {
           setFields((prev) =>
             prev.map((f) => {
               if (f.source === 'manual') return f;
@@ -234,8 +290,15 @@ export function App() {
         const coverLetterField = merged.find((f) => {
           if (f.value) return false; // already has value
           if (f.kind !== 'textarea' && f.kind !== 'text') return false;
-          const lbl = (f.signals.label || f.signals.ariaLabel || f.signals.placeholder || '').toLowerCase();
-          return /cover letter|covering letter|motivation letter|letter of motivation|why .* this (role|position|company)|why .* join|tell us why/.test(lbl);
+          const lbl = (
+            f.signals.label ||
+            f.signals.ariaLabel ||
+            f.signals.placeholder ||
+            ''
+          ).toLowerCase();
+          return /cover letter|covering letter|motivation letter|letter of motivation|why .* this (role|position|company)|why .* join|tell us why/.test(
+            lbl,
+          );
         });
         if (coverLetterField) {
           try {
@@ -248,17 +311,25 @@ export function App() {
                 role,
                 description: pageInfo.description,
               });
-              if (res.type === 'LLM_COVER_LETTER_RESULT' && res.text) {
+              if (!stale() && res.type === 'LLM_COVER_LETTER_RESULT' && res.text) {
                 setFields((prev) =>
                   prev.map((f) =>
                     f.uid === coverLetterField.uid
-                      ? { ...f, value: res.text, source: 'llm' as FillSource, confidence: 0.85, reason: 'AI-generated cover letter tailored to job' }
+                      ? {
+                          ...f,
+                          value: res.text,
+                          source: 'llm' as FillSource,
+                          confidence: 0.85,
+                          reason: 'AI-generated cover letter tailored to job',
+                        }
                       : f,
                   ),
                 );
               }
             }
-          } catch { /* non-critical — user can still click "Generate Cover Letter" manually */ }
+          } catch {
+            /* non-critical — user can still click "Generate Cover Letter" manually */
+          }
         }
       }
     } catch {
@@ -273,7 +344,39 @@ export function App() {
   useEffect(() => {
     if (didMount.current) return;
     didMount.current = true;
-    void detect();
+    void (async () => {
+      windowIdRef.current = await currentWindowId(); // bind to THIS panel's window first
+      void detect();
+    })();
+  }, [detect]);
+
+  // Multi-tab: the side panel is a SINGLE instance shared across the window's tabs. Re-detect
+  // whenever the user switches to another tab, or the bound tab navigates to a new job (SPA or
+  // full load), so the panel always reflects the job the user is looking at — never a stale one.
+  // Debounced so rapid tab-flipping only detects the tab they actually land on.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void detect(), 120);
+    };
+    const onActivated = (info: chrome.tabs.TabActiveInfo) => {
+      // onActivated fires for EVERY window; only react to switches in our own window so a
+      // second window's panel doesn't rebind us to the wrong tab (#multi-window).
+      if (windowIdRef.current != null && info.windowId !== windowIdRef.current) return;
+      schedule();
+    };
+    const onUpdated = (tabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
+      // Only when the tab THIS panel is bound to navigates to a new URL (new job on same tab).
+      if (tabId === tabIdRef.current && changeInfo.url) schedule();
+    };
+    chrome.tabs.onActivated.addListener(onActivated);
+    chrome.tabs.onUpdated.addListener(onUpdated);
+    return () => {
+      if (timer) clearTimeout(timer);
+      chrome.tabs.onActivated.removeListener(onActivated);
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+    };
   }, [detect]);
 
   // Live updates broadcast by the content script during fill / wizard runs.
@@ -323,6 +426,22 @@ export function App() {
     [applyResolved],
   );
 
+  // Before any action that touches the page, confirm the panel is still bound to the ACTIVE
+  // tab. Tab-switch auto-detect keeps these in sync; this guards the race where the user
+  // switches tabs right before clicking Fill. Returns the tab id to act on, or null (and
+  // kicks off a re-detect of the now-active tab) so a fill can NEVER land on the wrong job.
+  const activeTabGuard = useCallback(async (): Promise<number | null> => {
+    const active = await activeTabId(windowIdRef.current).catch(() => null);
+    if (active == null) return null;
+    if (tabIdRef.current !== active) {
+      tabIdRef.current = active;
+      setNotice('You switched tabs — re-detecting this page…');
+      void detect();
+      return null;
+    }
+    return active;
+  }, [detect]);
+
   const onDraft = useCallback(
     async (field: DetectedField) => {
       const question =
@@ -330,7 +449,10 @@ export function App() {
       if (!question) return;
 
       // NUMBER fields (years of experience, etc.) — compute directly, don't call LLM
-      if (field.kind === 'number' || /^(\d+|how many|years?|months?|number of)/i.test(question.trim())) {
+      if (
+        field.kind === 'number' ||
+        /^(\d+|how many|years?|months?|number of)/i.test(question.trim())
+      ) {
         const profile = await getProfile();
         // Try to compute a numeric answer from profile
         const label = question.toLowerCase();
@@ -362,20 +484,23 @@ export function App() {
       }
 
       // SHORT text fields (name-like, single-word answers) — instruct LLM to be brief
-      const isShort = field.kind === 'text' && (
+      const isShort =
+        field.kind === 'text' &&
         /^(how many|what is your|select|enter|type)/i.test(question.trim()) &&
-        question.length < 50
-      );
+        question.length < 50;
 
       // Cover letter fields → generate a full cover letter from the JD
       const isCoverLetter =
         field.mappedKey === 'documents.coverLetter' ||
-        /cover letter|covering letter|motivation letter|why .* (this|the) (role|position|company|job)|tell us why|why.*join/i.test(question);
+        /cover letter|covering letter|motivation letter|why .* (this|the) (role|position|company|job)|tell us why|why.*join/i.test(
+          question,
+        );
 
       if (isCoverLetter) {
         setBusy(true);
         try {
-          const tabId = tabIdRef.current ?? (await activeTabId());
+          const tabId = await activeTabGuard();
+          if (tabId == null) return;
           const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
           const company = info?.type === 'PAGE_INFO' ? info.company : '';
           const role = info?.type === 'PAGE_INFO' ? info.role : '';
@@ -398,7 +523,8 @@ export function App() {
       // Regular free-text → draft with AI (include field type + length constraints)
       let fieldContext = '';
       if (isShort) {
-        fieldContext = '[FIELD TYPE: short text input - respond with a brief 1-5 word answer only] ';
+        fieldContext =
+          '[FIELD TYPE: short text input - respond with a brief 1-5 word answer only] ';
       } else if (field.kind === 'textarea') {
         fieldContext = '[FIELD TYPE: textarea - respond with 2-5 sentences] ';
       }
@@ -432,7 +558,8 @@ export function App() {
   const fillAll = useCallback(async () => {
     setBusy(true);
     try {
-      const tabId = tabIdRef.current ?? (await activeTabId());
+      const tabId = await activeTabGuard();
+      if (tabId == null) return;
       const profile = await getProfile();
 
       // 1) résumé first, routed to the frame that owns the file field.
@@ -473,24 +600,47 @@ export function App() {
         await sendToFrame(tabId, fid, { type: 'FILL', fields: list });
       }
 
+      // 3) repeatable sections (Work Experience / Education). Routed to the adapter frame;
+      // a no-op on ATSs without a section spec. Bounded + timeout-guarded in the content
+      // script, so this can't hang the fill. Best-effort — don't block the rest on it.
+      // Capture how many rows actually filled so the panel can report it (and warn on 0).
+      try {
+        const r = await sendToFrame(tabId, adapterFrameRef.current, { type: 'FILL_SECTIONS' });
+        if (r.type === 'SECTIONS_RESULT') {
+          setSections({
+            exp: r.experience,
+            edu: r.education,
+            expFound: r.expFound,
+            eduFound: r.eduFound,
+          });
+        }
+      } catch {
+        /* section fill failed / port closed — non-critical */
+      }
+
       // Learning engine: remember how the user resolved custom/corrected fields so the
       // next form with that field auto-fills (source 'learned') without re-asking —
       // scoped to this ATS, with a global fallback.
       await recordLearned(learnableEntries(fields), adapterId);
-      await clearFillProgress(); // filled successfully, no need to restore
 
-      // Application tracker: log this application for history/duplicate detection.
+      // Application tracker + progress cleanup, keyed to THIS job's URL so clearing one
+      // job's saved progress never wipes another open tab's job (#multitab).
       try {
         const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' });
         if (info?.type === 'PAGE_INFO') {
+          await clearFillProgress(info.url); // this job filled — drop only its saved progress
           await logApplication({
             company: info.company,
             role: info.role,
             url: info.url,
             atsType: adapterId ?? 'generic',
           });
+        } else {
+          await clearFillProgress(); // no URL available — best-effort clear
         }
-      } catch { /* page info extraction failed — non-critical */ }
+      } catch {
+        /* page info extraction failed — non-critical */
+      }
     } finally {
       setBusy(false);
     }
@@ -499,7 +649,8 @@ export function App() {
   const runStep = useCallback(async () => {
     setBusy(true);
     try {
-      const tabId = tabIdRef.current ?? (await activeTabId());
+      const tabId = await activeTabGuard();
+      if (tabId == null) return;
       await sendToFrame(tabId, adapterFrameRef.current, { type: 'WIZARD_NEXT' });
     } catch {
       /* page navigated / port closed — status arrives via broadcast */
@@ -512,7 +663,8 @@ export function App() {
     setBusy(true);
     setIsRunning(true); // gates Re-detect until a STATUS broadcast reports the run ended (#1)
     try {
-      const tabId = tabIdRef.current ?? (await activeTabId());
+      const tabId = await activeTabGuard();
+      if (tabId == null) return;
       await sendToFrame(tabId, adapterFrameRef.current, { type: 'WIZARD_RUN' });
     } catch {
       /* run proceeds via STATUS broadcasts even if the ack channel closes */
@@ -525,7 +677,8 @@ export function App() {
   const fillAndNext = useCallback(async () => {
     setBusy(true);
     try {
-      const tabId = tabIdRef.current ?? (await activeTabId());
+      const tabId = await activeTabGuard();
+      if (tabId == null) return;
       await sendToFrame(tabId, adapterFrameRef.current, { type: 'FILL_AND_NEXT' });
     } catch {
       /* page navigated or port closed */
@@ -539,7 +692,8 @@ export function App() {
     setBusy(true);
     setCoverLetter(null);
     try {
-      const tabId = tabIdRef.current ?? (await activeTabId());
+      const tabId = await activeTabGuard();
+      if (tabId == null) return;
       const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
       const company = info?.type === 'PAGE_INFO' ? info.company : 'the company';
       const role = info?.type === 'PAGE_INFO' ? info.role : 'this role';
@@ -550,6 +704,7 @@ export function App() {
         role,
         description,
       });
+      if (tabIdRef.current !== tabId) return; // user switched tabs during the LLM call
       if (res.type === 'LLM_COVER_LETTER_RESULT' && res.text) {
         setCoverLetter(res.text);
       } else {
@@ -570,13 +725,14 @@ export function App() {
   const analyzeMatch = useCallback(async () => {
     setBusy(true);
     try {
-      const tabId = tabIdRef.current ?? (await activeTabId());
+      const tabId = await activeTabGuard();
+      if (tabId == null) return;
       const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
       const description = info?.type === 'PAGE_INFO' ? info.description : '';
       if (description) {
         const profile = await getProfile();
         const result = analyzeJobDescription(description, profile);
-        setJobMatch(result);
+        if (tabIdRef.current === tabId) setJobMatch(result); // ignore if user switched tabs
       }
     } finally {
       setBusy(false);
@@ -590,7 +746,9 @@ export function App() {
     const already = profile.answerBank.some(
       (a) => a.questionPattern.toLowerCase() === question.toLowerCase(),
     );
-    if (already) return; // don't duplicate
+    // Also skip near-identical questions (e.g. "Why this role?" vs "Why this role") so blur
+    // auto-save doesn't spam the bank with slight label variants of the same question.
+    if (already || findAnswer(question, profile.answerBank, 0.8)) return;
     const entry = {
       id: crypto.randomUUID(),
       questionPattern: question,
@@ -603,15 +761,64 @@ export function App() {
     setAnswerBank(updated.answerBank);
   }, []);
 
+  // Persist a user's answer/edit the MOMENT they commit it (blur after typing, or picking a
+  // dropdown/checkbox), so it's reused on future forms even if they never click "Fill all".
+  // - Learned store: every committed field (structured or custom) → auto-fills next time.
+  // - Answer bank: free-text questions → reusable saved answers.
+  // Protected/blank/search fields are filtered inside learnableEntries. Wizard steps are
+  // covered too: an edit on step 1 is saved on blur, before the user ever advances.
+  const onCommit = useCallback(
+    async (field: DetectedField, value: string) => {
+      const v = (value ?? '').trim();
+      if (!v) return;
+      if (committedRef.current.get(field.uid) === v) return; // already saved this exact value
+      committedRef.current.set(field.uid, v);
+
+      const edited: DetectedField = { ...field, value: v, source: 'manual' };
+      try {
+        const entries = learnableEntries([edited]);
+        if (entries.length) {
+          await recordLearned(entries, adapterId);
+          setLearnedCount(await countLearned()); // reflect the newly-remembered answer live
+        }
+      } catch {
+        /* non-critical */
+      }
+
+      const isFreeText =
+        field.mappedKey === 'freeText' ||
+        field.mappedKey === 'documents.coverLetter' ||
+        (field.mappedKey === null && (field.kind === 'textarea' || field.kind === 'text'));
+      const label = (
+        field.signals.label ||
+        field.signals.ariaLabel ||
+        field.signals.placeholder ||
+        ''
+      ).trim();
+      // Only bank substantial free-text answers (short/structured values live in the learned
+      // store, not the answer bank). saveToAnswerBank de-dups by question.
+      if (isFreeText && label.length >= 5 && v.length >= 15) {
+        await saveToAnswerBank(label, v);
+      }
+    },
+    [adapterId, saveToAnswerBank],
+  );
+
   const draftAllAnswers = useCallback(async () => {
     setBusy(true);
     try {
       const freeTextFields = fields.filter((f) => {
         if (f.value) return false; // already has a value
         if (f.kind !== 'textarea' && f.kind !== 'text') return false;
-        const lbl = (f.signals.label || f.signals.ariaLabel || f.signals.placeholder || '').toLowerCase();
+        const lbl = (
+          f.signals.label ||
+          f.signals.ariaLabel ||
+          f.signals.placeholder ||
+          ''
+        ).toLowerCase();
         // Skip fields that are clearly structured (name, email, etc.)
-        if (f.mappedKey && f.mappedKey !== 'freeText' && f.mappedKey !== 'documents.coverLetter') return false;
+        if (f.mappedKey && f.mappedKey !== 'freeText' && f.mappedKey !== 'documents.coverLetter')
+          return false;
         // Need a meaningful label to draft from
         return lbl.length > 5;
       });
@@ -620,11 +827,16 @@ export function App() {
 
       // Draft in batches of 3 to avoid rate-limiting
       const draftOne = async (field: DetectedField) => {
-        const question = field.signals.label || field.signals.ariaLabel || field.signals.placeholder || '';
-        const isCL = /cover letter|motivation letter|why .* (this|the) (role|position|company)/i.test(question);
+        const question =
+          field.signals.label || field.signals.ariaLabel || field.signals.placeholder || '';
+        const isCL =
+          /cover letter|motivation letter|why .* (this|the) (role|position|company)/i.test(
+            question,
+          );
         try {
           if (isCL) {
-            const tabId = tabIdRef.current ?? (await activeTabId());
+            const tabId = await activeTabGuard();
+            if (tabId == null) return;
             const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
             const res = await sendToBackground<FromBackground>({
               type: 'LLM_COVER_LETTER',
@@ -645,7 +857,9 @@ export function App() {
               applyResolved(field.uid, res.answer, 'llm');
             }
           }
-        } catch { /* single draft failed — continue with others */ }
+        } catch {
+          /* single draft failed — continue with others */
+        }
       };
 
       // Process in batches of 3 (avoids API rate limits)
@@ -660,14 +874,21 @@ export function App() {
 
   return (
     <div className="flex h-full flex-col bg-gradient-to-b from-white to-gray-50/80 text-sm text-gray-900">
-      <StatusBar adapterId={adapterId} count={fields.length} busy={locked} onRedetect={detect} />
+      <StatusBar
+        adapterId={adapterId}
+        count={fields.length}
+        busy={locked}
+        learnedCount={learnedCount}
+        onRedetect={detect}
+      />
 
       {/* Job Match Score */}
       <JobMatchCard analysis={jobMatch} loading={busy} onAnalyze={analyzeMatch} />
 
       {status?.phase === 'review' && (
         <div className="mx-3 mt-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-[11px] text-green-700 flex items-center gap-1.5">
-          <span className="text-green-500">✓</span> Reached the review step — check the page and submit.
+          <span className="text-green-500">✓</span> Reached the review step — check the page and
+          submit.
         </div>
       )}
       {status?.phase === 'error' && (
@@ -682,8 +903,48 @@ export function App() {
         </div>
       )}
 
+      {/* Post-fill summary — makes the fill self-diagnosing: what landed, what didn't. */}
+      {showSummary && !busy && (
+        <div className="mx-3 mt-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[11px] shadow-sm">
+          <div className="text-gray-700">
+            <span className="font-medium text-green-700">
+              ✓ Filled {okCount} field{okCount === 1 ? '' : 's'}
+            </span>
+            {failCount > 0 && (
+              <span className="text-amber-700">
+                {' '}
+                · {failCount} need{failCount === 1 ? 's' : ''} attention
+              </span>
+            )}
+            {sections && sections.exp > 0 && (
+              <span className="text-gray-600">
+                {' '}
+                · {sections.exp} experience row{sections.exp === 1 ? '' : 's'}
+              </span>
+            )}
+            {sections && sections.edu > 0 && (
+              <span className="text-gray-600"> · {sections.edu} education</span>
+            )}
+          </div>
+          {/* Warn only when a section was actually PRESENT on the page but nothing filled —
+              never on forms that simply have no such section. */}
+          {sections && sections.expFound && sections.exp === 0 && (
+            <div className="mt-1 text-amber-700">
+              ⚠ Couldn’t fill Work Experience automatically — add it on the page manually.
+            </div>
+          )}
+          {sections && sections.eduFound && sections.edu === 0 && (
+            <div className="mt-1 text-amber-700">
+              ⚠ Couldn’t fill Education automatically — add it on the page manually.
+            </div>
+          )}
+        </div>
+      )}
+
       {notice ? (
-        <div className="flex-1 flex items-center justify-center p-6 text-center text-xs text-gray-400">{notice}</div>
+        <div className="flex-1 flex items-center justify-center p-6 text-center text-xs text-gray-400">
+          {notice}
+        </div>
       ) : (
         <ReviewTable
           fields={fields}
@@ -691,6 +952,7 @@ export function App() {
           threshold={threshold}
           answerBank={answerBank}
           onChange={onChange}
+          onCommit={onCommit}
           onDraft={onDraft}
           onSaveAnswer={saveToAnswerBank}
         />
@@ -703,72 +965,80 @@ export function App() {
           letting the buttons fail silently later (Track 3). */}
       {!aiReady && (
         <div className="mx-3 mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-          <span className="font-medium text-slate-700">AI features are off.</span> Add an
-          OpenAI or Anthropic API key in Settings to unlock cover letters, “Draft All
-          Answers,” and Ask AI.
+          <span className="font-medium text-slate-700">AI features are off.</span> Add an OpenAI or
+          Anthropic API key in Settings to unlock cover letters, “Draft All Answers,” and Ask AI.
         </div>
       )}
 
       {/* Cover letter section */}
       {aiReady && (
-      <div className="border-t border-gray-100 px-3 py-2">
-        <button
-          onClick={genCoverLetter}
-          disabled={locked}
-          className="w-full rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 px-3 py-2 text-[11px] font-medium text-purple-700 transition hover:border-purple-200 hover:shadow-sm disabled:opacity-50"
-        >
-          {busy ? (
-            <span className="flex items-center justify-center gap-1.5">
-              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-purple-200 border-t-purple-600" />
-              Generating...
-            </span>
-          ) : (
-            '✨ Generate Cover Letter'
-          )}
-        </button>
-        {coverLetter && (
-          <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 text-[11px] text-gray-700 shadow-sm">
-            <pre className="whitespace-pre-wrap font-sans leading-relaxed">{coverLetter}</pre>
-            <button
-              onClick={() => { navigator.clipboard.writeText(coverLetter); }}
-              className="mt-2 rounded-md bg-indigo-50 px-2 py-1 text-[10px] font-medium text-indigo-600 transition hover:bg-indigo-100"
-            >
-              📋 Copy to clipboard
-            </button>
-          </div>
-        )}
-      </div>
-      )}
-
-      {/* Draft All Answers — one click generates all free-text answers */}
-      {aiReady && fields.some((f) => !f.value && (f.kind === 'textarea' || f.kind === 'text') &&
-        (!f.mappedKey || f.mappedKey === 'freeText' || f.mappedKey === 'documents.coverLetter') &&
-        (f.signals.label || f.signals.ariaLabel || '').length > 5
-      ) && (
-        <div className="px-3 py-1.5">
+        <div className="border-t border-gray-100 px-3 py-2">
           <button
-            onClick={draftAllAnswers}
+            onClick={genCoverLetter}
             disabled={locked}
-            className="w-full rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 px-3 py-2 text-[11px] font-medium text-indigo-700 transition hover:border-indigo-300 hover:shadow-sm disabled:opacity-50"
+            className="w-full rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 px-3 py-2 text-[11px] font-medium text-purple-700 transition hover:border-purple-200 hover:shadow-sm disabled:opacity-50"
           >
             {busy ? (
               <span className="flex items-center justify-center gap-1.5">
-                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
-                Drafting all answers...
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-purple-200 border-t-purple-600" />
+                Generating...
               </span>
             ) : (
-              '🚀 Draft All Answers with AI'
+              '✨ Generate Cover Letter'
             )}
           </button>
+          {coverLetter && (
+            <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 text-[11px] text-gray-700 shadow-sm">
+              <pre className="whitespace-pre-wrap font-sans leading-relaxed">{coverLetter}</pre>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(coverLetter);
+                }}
+                className="mt-2 rounded-md bg-indigo-50 px-2 py-1 text-[10px] font-medium text-indigo-600 transition hover:bg-indigo-100"
+              >
+                📋 Copy to clipboard
+              </button>
+            </div>
+          )}
         </div>
       )}
+
+      {/* Draft All Answers — one click generates all free-text answers */}
+      {aiReady &&
+        fields.some(
+          (f) =>
+            !f.value &&
+            (f.kind === 'textarea' || f.kind === 'text') &&
+            (!f.mappedKey ||
+              f.mappedKey === 'freeText' ||
+              f.mappedKey === 'documents.coverLetter') &&
+            (f.signals.label || f.signals.ariaLabel || '').length > 5,
+        ) && (
+          <div className="px-3 py-1.5">
+            <button
+              onClick={draftAllAnswers}
+              disabled={locked}
+              className="w-full rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 px-3 py-2 text-[11px] font-medium text-indigo-700 transition hover:border-indigo-300 hover:shadow-sm disabled:opacity-50"
+            >
+              {busy ? (
+                <span className="flex items-center justify-center gap-1.5">
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
+                  Drafting all answers...
+                </span>
+              ) : (
+                '🚀 Draft All Answers with AI'
+              )}
+            </button>
+          </div>
+        )}
 
       {/* Pre-submit safety net (Track 3): required fields with no value would sail past
           "Fill" and get the form bounced on the page. Make them impossible to miss. */}
       {!notice && requiredEmpty.length > 0 && (
         <div className="mx-3 mb-1 mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
           <span className="font-medium">
-            {requiredEmpty.length} required field{requiredEmpty.length === 1 ? '' : 's'} still empty.
+            {requiredEmpty.length} required field{requiredEmpty.length === 1 ? '' : 's'} still
+            empty.
           </span>{' '}
           Fill {requiredEmpty.length === 1 ? 'it' : 'them'} above before submitting on the page —
           the form may be rejected otherwise.

@@ -223,13 +223,7 @@ export const SYNONYMS: Partial<Record<ProfileKey, string[]>> = {
     'hourly rate',
     'annual compensation',
   ],
-  'eeo.gender': [
-    'gender',
-    'sex',
-    'gender identity',
-    'what is your gender',
-    'how do you identify',
-  ],
+  'eeo.gender': ['gender', 'sex', 'gender identity', 'what is your gender', 'how do you identify'],
   'eeo.race': [
     'race',
     'ethnicity',
@@ -238,13 +232,7 @@ export const SYNONYMS: Partial<Record<ProfileKey, string[]>> = {
     'race/ethnicity',
     'race ethnicity',
   ],
-  'eeo.hispanicLatino': [
-    'hispanic',
-    'latino',
-    'hispanic or latino',
-    'hispanic/latino',
-    'latinx',
-  ],
+  'eeo.hispanicLatino': ['hispanic', 'latino', 'hispanic or latino', 'hispanic/latino', 'latinx'],
   'eeo.veteranStatus': [
     'veteran',
     'protected veteran',

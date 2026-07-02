@@ -4,34 +4,122 @@ import type { Profile } from '../profile.schema';
 // the user's profile to show match percentage and gaps.
 
 const TECH_KEYWORDS = new Set([
-  'javascript', 'typescript', 'react', 'next.js', 'node.js', 'python', 'java',
-  'go', 'rust', 'c++', 'c#', 'ruby', 'php', 'swift', 'kotlin', 'scala',
-  'aws', 'gcp', 'azure', 'docker', 'kubernetes', 'terraform',
-  'sql', 'postgresql', 'mysql', 'mongodb', 'redis', 'elasticsearch',
-  'graphql', 'rest', 'grpc', 'microservices',
-  'react native', 'flutter', 'ios', 'android',
-  'html', 'css', 'tailwind', 'sass', 'less',
-  'vue', 'angular', 'svelte', 'solid',
-  'django', 'flask', 'spring', 'express', 'nestjs', 'fastapi',
-  'git', 'ci/cd', 'jenkins', 'github actions',
-  'jest', 'vitest', 'playwright', 'cypress', 'selenium',
-  'figma', 'sketch', 'adobe xd',
-  'agile', 'scrum', 'kanban', 'jira',
-  'machine learning', 'deep learning', 'nlp', 'computer vision',
-  'tensorflow', 'pytorch', 'scikit-learn',
-  'data science', 'data engineering', 'spark', 'hadoop',
-  'blockchain', 'web3', 'solidity',
-  'accessibility', 'wcag', 'a11y',
-  'seo', 'analytics', 'google analytics',
-  'stripe', 'payment', 'oauth', 'jwt',
-  'prisma', 'drizzle', 'typeorm', 'sequelize',
-  'webpack', 'vite', 'esbuild', 'rollup',
-  'linux', 'bash', 'nginx', 'apache',
+  'javascript',
+  'typescript',
+  'react',
+  'next.js',
+  'node.js',
+  'python',
+  'java',
+  'go',
+  'rust',
+  'c++',
+  'c#',
+  'ruby',
+  'php',
+  'swift',
+  'kotlin',
+  'scala',
+  'aws',
+  'gcp',
+  'azure',
+  'docker',
+  'kubernetes',
+  'terraform',
+  'sql',
+  'postgresql',
+  'mysql',
+  'mongodb',
+  'redis',
+  'elasticsearch',
+  'graphql',
+  'rest',
+  'grpc',
+  'microservices',
+  'react native',
+  'flutter',
+  'ios',
+  'android',
+  'html',
+  'css',
+  'tailwind',
+  'sass',
+  'less',
+  'vue',
+  'angular',
+  'svelte',
+  'solid',
+  'django',
+  'flask',
+  'spring',
+  'express',
+  'nestjs',
+  'fastapi',
+  'git',
+  'ci/cd',
+  'jenkins',
+  'github actions',
+  'jest',
+  'vitest',
+  'playwright',
+  'cypress',
+  'selenium',
+  'figma',
+  'sketch',
+  'adobe xd',
+  'agile',
+  'scrum',
+  'kanban',
+  'jira',
+  'machine learning',
+  'deep learning',
+  'nlp',
+  'computer vision',
+  'tensorflow',
+  'pytorch',
+  'scikit-learn',
+  'data science',
+  'data engineering',
+  'spark',
+  'hadoop',
+  'blockchain',
+  'web3',
+  'solidity',
+  'accessibility',
+  'wcag',
+  'a11y',
+  'seo',
+  'analytics',
+  'google analytics',
+  'stripe',
+  'payment',
+  'oauth',
+  'jwt',
+  'prisma',
+  'drizzle',
+  'typeorm',
+  'sequelize',
+  'webpack',
+  'vite',
+  'esbuild',
+  'rollup',
+  'linux',
+  'bash',
+  'nginx',
+  'apache',
 ]);
 
 // Experience level keywords
 const LEVEL_KEYWORDS: Record<string, string[]> = {
-  junior: ['junior', 'entry level', 'entry-level', '0-2 years', '1-2 years', 'new grad', 'associate'],
+  junior: [
+    'junior',
+    'entry level',
+    'entry-level',
+    '0-2 years',
+    '1-2 years',
+    'new grad',
+    'associate',
+  ],
   mid: ['mid-level', 'mid level', '2-5 years', '3-5 years', '2+ years', '3+ years'],
   senior: ['senior', '5+ years', '5-8 years', '7+ years', 'lead', 'principal', 'staff'],
   executive: ['director', 'vp', 'vice president', 'cto', 'ceo', 'head of'],
@@ -85,9 +173,10 @@ export function analyzeJobDescription(jdText: string, profile: Profile): JdAnaly
 
   const matchedSkills = requiredSkills.filter((s) => userSkills.has(s));
   const missingSkills = requiredSkills.filter((s) => !userSkills.has(s));
-  const matchPercentage = requiredSkills.length > 0
-    ? Math.round((matchedSkills.length / requiredSkills.length) * 100)
-    : 100;
+  const matchPercentage =
+    requiredSkills.length > 0
+      ? Math.round((matchedSkills.length / requiredSkills.length) * 100)
+      : 100;
 
   // Detect experience level
   let experienceLevel = 'unknown';
@@ -122,7 +211,9 @@ export function extractJobDescription(doc: Document): string {
     try {
       const data = JSON.parse(ld.textContent ?? '');
       if (data.description) return stripHtml(data.description);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   // Try common JD containers

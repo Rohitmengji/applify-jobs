@@ -8,23 +8,26 @@ import type { ProfileKey } from '../../profile.schema';
 const LABEL_MAP: Record<string, ProfileKey> = {
   'first name': 'personal.firstName',
   'last name': 'personal.lastName',
-  'email': 'personal.email',
-  'phone': 'personal.phone',
-  'linkedin': 'links.linkedin',
-  'github': 'links.github',
-  'portfolio': 'links.portfolio',
-  'website': 'links.website',
-  'location': 'personal.address.city',
+  email: 'personal.email',
+  phone: 'personal.phone',
+  linkedin: 'links.linkedin',
+  github: 'links.github',
+  portfolio: 'links.portfolio',
+  website: 'links.website',
+  location: 'personal.address.city',
 };
 
 const norm = (s: string) =>
-  s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 export const wellfound: SiteAdapter = {
   id: 'wellfound',
   matches(url) {
-    return /(^|\.)wellfound\.com$/.test(url.hostname) ||
-           /(^|\.)angel\.co$/.test(url.hostname);
+    return /(^|\.)wellfound\.com$/.test(url.hostname) || /(^|\.)angel\.co$/.test(url.hostname);
   },
   detectFields(doc) {
     const fields = detectFields(doc);

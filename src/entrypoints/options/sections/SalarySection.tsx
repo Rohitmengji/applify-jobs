@@ -1,9 +1,7 @@
 import type { Profile } from '@/core/profile.schema';
 import { Section, Field, TextInput, type SectionProps } from '../components/ui';
 
-const CURRENCIES = [
-  'INR', 'USD', 'GBP', 'EUR', 'CAD', 'AUD', 'SGD', 'AED', 'JPY', 'CHF', 'NZD',
-];
+const CURRENCIES = ['INR', 'USD', 'GBP', 'EUR', 'CAD', 'AUD', 'SGD', 'AED', 'JPY', 'CHF', 'NZD'];
 const PERIODS = [
   { value: 'year', label: 'Per year' },
   { value: 'month', label: 'Per month' },
@@ -17,8 +15,17 @@ export function SalarySection({ draft, setDraft }: SectionProps) {
 
   // Approximate conversion preview
   const rates: Record<string, number> = {
-    USD: 1, INR: 0.012, GBP: 1.27, EUR: 1.09, CAD: 0.74,
-    AUD: 0.66, SGD: 0.74, AED: 0.27, JPY: 0.0067, CHF: 1.12, NZD: 0.61,
+    USD: 1,
+    INR: 0.012,
+    GBP: 1.27,
+    EUR: 1.09,
+    CAD: 0.74,
+    AUD: 0.66,
+    SGD: 0.74,
+    AED: 0.27,
+    JPY: 0.0067,
+    CHF: 1.12,
+    NZD: 0.61,
   };
   const expectedAmt = parseInt((s.expected ?? '').replace(/[^0-9]/g, ''), 10);
   const currentAmt = parseInt((s.current ?? '').replace(/[^0-9]/g, ''), 10);
@@ -52,7 +59,9 @@ export function SalarySection({ draft, setDraft }: SectionProps) {
             className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
           >
             {CURRENCIES.map((c) => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c} value={c}>
+                {c}
+              </option>
             ))}
           </select>
         </Field>
@@ -63,7 +72,9 @@ export function SalarySection({ draft, setDraft }: SectionProps) {
             className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
           >
             {PERIODS.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
             ))}
           </select>
         </Field>
@@ -73,14 +84,16 @@ export function SalarySection({ draft, setDraft }: SectionProps) {
         <div className="mt-3 rounded bg-gray-50 p-3 text-xs text-gray-600">
           <p className="font-medium text-gray-700 mb-1">Conversion preview (approximate):</p>
           <div className="grid grid-cols-3 gap-2">
-            {['USD', 'GBP', 'EUR', 'INR', 'CAD', 'AUD'].filter((c) => c !== s.currency).map((c) => {
-              const converted = Math.round((amount * homeRate) / (rates[c] ?? 1));
-              return (
-                <span key={c}>
-                  {c}: {converted.toLocaleString()}
-                </span>
-              );
-            })}
+            {['USD', 'GBP', 'EUR', 'INR', 'CAD', 'AUD']
+              .filter((c) => c !== s.currency)
+              .map((c) => {
+                const converted = Math.round((amount * homeRate) / (rates[c] ?? 1));
+                return (
+                  <span key={c}>
+                    {c}: {converted.toLocaleString()}
+                  </span>
+                );
+              })}
           </div>
         </div>
       )}

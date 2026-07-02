@@ -38,8 +38,8 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let lastDetectAt = 0;
 let detecting = false;
 let paused = false;
-let origPushState: (typeof history.pushState) | null = null;
-let origReplaceState: (typeof history.replaceState) | null = null;
+let origPushState: typeof history.pushState | null = null;
+let origReplaceState: typeof history.replaceState | null = null;
 let generation = 0; // monotonic counter to discard stale results
 let lastUrl = '';
 let lastFieldCount = 0;
@@ -76,14 +76,20 @@ export function resumeAutoDetect(detectNow = false): void {
 function scheduleDetect(delayMs: number): void {
   if (paused || detecting) return;
   // Guard: if extension context was invalidated (reloaded), stop all auto-detection
-  if (!chrome.runtime?.id) { stopAutoDetect(); return; }
+  if (!chrome.runtime?.id) {
+    stopAutoDetect();
+    return;
+  }
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(runDetect, delayMs);
 }
 
 async function runDetect(): Promise<void> {
   if (paused || detecting) return;
-  if (!chrome.runtime?.id) { stopAutoDetect(); return; } // context invalidated
+  if (!chrome.runtime?.id) {
+    stopAutoDetect();
+    return;
+  } // context invalidated
 
   // Throttle: don't detect more than once per THROTTLE_MS
   const now = Date.now();
@@ -199,7 +205,8 @@ async function autoFillFields(_fields: DetectedField[]): Promise<void> {
   autoCheckConsent();
 }
 
-const CONSENT_RE = /\b(privacy\s*policy|data\s*processing|terms\s*(and|&)\s*conditions|consent|gdpr|i\s*agree|i\s*accept|acknowledge)\b/i;
+const CONSENT_RE =
+  /\b(privacy\s*policy|data\s*processing|terms\s*(and|&)\s*conditions|consent|gdpr|i\s*agree|i\s*accept|acknowledge)\b/i;
 
 function autoCheckConsent(): void {
   // Only check consent boxes inside forms (not cookie banners, marketing opt-ins)
@@ -208,9 +215,7 @@ function autoCheckConsent(): void {
   );
   for (const cb of checkboxes) {
     if (autoFilledUids.has(cb.getAttribute('data-oca-uid') ?? '')) continue;
-    const label = cb.id
-      ? document.querySelector(`label[for="${cb.id}"]`)
-      : cb.closest('label');
+    const label = cb.id ? document.querySelector(`label[for="${cb.id}"]`) : cb.closest('label');
     const text = (label?.textContent ?? '').trim();
     // Only consent/privacy checkboxes, NOT marketing ("cookie" removed — too broad)
     if (CONSENT_RE.test(text)) {
@@ -224,10 +229,7 @@ function autoCheckConsent(): void {
  * @param broadcast - function to send messages to side panel/background
  * @param onFields - callback to update local field state
  */
-export function startAutoDetect(
-  broadcast: BroadcastFn,
-  onFields: FieldsCallback,
-): void {
+export function startAutoDetect(broadcast: BroadcastFn, onFields: FieldsCallback): void {
   broadcastRef = broadcast;
   onFieldsRef = onFields;
   lastUrl = location.href;

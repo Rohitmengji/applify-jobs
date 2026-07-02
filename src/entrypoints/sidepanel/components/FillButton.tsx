@@ -8,7 +8,15 @@ interface Props {
   onRun: () => void;
 }
 
-export function FillButton({ busy, hasFields, multiStep, onFill, onFillAndNext, onNext, onRun }: Props) {
+export function FillButton({
+  busy,
+  hasFields,
+  multiStep,
+  onFill,
+  onFillAndNext,
+  onNext,
+  onRun,
+}: Props) {
   return (
     <div className="space-y-2 border-t border-gray-100 bg-gray-50/50 p-3">
       <div className="flex gap-2">
