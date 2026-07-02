@@ -1,10 +1,23 @@
 import type { ToContent, FromContent, ToBackground, FromBackground } from '@/core/messages';
 
-// Resolve the active tab and talk to its content script.
-export async function activeTabId(): Promise<number> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+// Resolve the active tab and talk to its content script. Pass the panel's OWN windowId so a
+// per-window side panel never binds to another window's active tab (`currentWindow` follows
+// the focused window, which is wrong when multiple windows each have a panel open).
+export async function activeTabId(windowId?: number): Promise<number> {
+  const [tab] = await chrome.tabs.query(
+    windowId != null ? { active: true, windowId } : { active: true, currentWindow: true },
+  );
   if (!tab?.id) throw new Error('No active tab');
   return tab.id;
+}
+
+// The window this side-panel document belongs to (captured once on open).
+export async function currentWindowId(): Promise<number | undefined> {
+  try {
+    return (await chrome.windows.getCurrent()).id;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function sendToTab<R = FromContent>(msg: ToContent): Promise<R> {

@@ -20,13 +20,15 @@ const NAME_MAP: Record<string, ProfileKey> = {
 export const personio: SiteAdapter = {
   id: 'personio',
   matches(url) {
-    return /(^|\.)personio\.(de|com)$/.test(url.hostname) ||
-           /(^|\.)jobs\.personio\.(de|com)$/.test(url.hostname);
+    return (
+      /(^|\.)personio\.(de|com)$/.test(url.hostname) ||
+      /(^|\.)jobs\.personio\.(de|com)$/.test(url.hostname)
+    );
   },
   detectFields(doc) {
     const fields = detectFields(doc);
     for (const f of fields) {
-      const name = f.signals.name.toLowerCase().replace(/[-\[\]]/g, '_');
+      const name = f.signals.name.toLowerCase().replace(/[-[\]]/g, '_');
       for (const [pattern, key] of Object.entries(NAME_MAP)) {
         if (name.includes(pattern)) {
           f.mappedKey = key;

@@ -7,22 +7,22 @@
 
 ## 1. Universal Standard Fields (appear on ~100% of applications)
 
-| Field | HTML Types Seen | Common `name`/`id` Attributes | Notes |
-|-------|----------------|-------------------------------|-------|
-| First Name | `input[type=text]` | `first_name`, `firstName`, `firstname`, `fname`, `given-name`, `legalNameSection_firstName` (Workday) | Sometimes combined into "Full Name" (Lever, Indeed) |
-| Last Name | `input[type=text]` | `last_name`, `lastName`, `lastname`, `lname`, `family-name`, `legalNameSection_lastName` | |
-| Email | `input[type=email]` | `email`, `emailAddress`, `email_address`, `candidate_email` | Always required |
-| Phone | `input[type=tel]` | `phone`, `phoneNumber`, `phone_number`, `phone-number`, `mobile`, `cell_phone` | |
-| Resume/CV | `input[type=file]` | `resume`, `cv`, `resume_file`, `attachment`, `candidateResume` | See §8 for upload patterns |
+| Field      | HTML Types Seen     | Common `name`/`id` Attributes                                                                         | Notes                                               |
+| ---------- | ------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| First Name | `input[type=text]`  | `first_name`, `firstName`, `firstname`, `fname`, `given-name`, `legalNameSection_firstName` (Workday) | Sometimes combined into "Full Name" (Lever, Indeed) |
+| Last Name  | `input[type=text]`  | `last_name`, `lastName`, `lastname`, `lname`, `family-name`, `legalNameSection_lastName`              |                                                     |
+| Email      | `input[type=email]` | `email`, `emailAddress`, `email_address`, `candidate_email`                                           | Always required                                     |
+| Phone      | `input[type=tel]`   | `phone`, `phoneNumber`, `phone_number`, `phone-number`, `mobile`, `cell_phone`                        |                                                     |
+| Resume/CV  | `input[type=file]`  | `resume`, `cv`, `resume_file`, `attachment`, `candidateResume`                                        | See §8 for upload patterns                          |
 
 ### Near-universal (>80% of applications)
 
-| Field | HTML Types | Common Attributes | Notes |
-|-------|-----------|-------------------|-------|
-| LinkedIn | `input[type=url/text]` | `linkedin`, `urls[LinkedIn]`, `linkedinQuestion`, `linkedin_url`, `linkedin_profile` | Lever uses `urls[LinkedIn]` |
-| Location/City | `input[type=text]` | `location`, `city`, `address_city`, `addressSection_city` | Often uses Google Places autocomplete |
-| Cover Letter | `input[type=file]`, `textarea` | `cover_letter`, `coverLetter`, `cover_letter_text` | File OR paste text |
-| Current Company | `input[type=text]` | `org`, `current_company`, `company`, `currentEmployer` | Lever uses `org` |
+| Field           | HTML Types                     | Common Attributes                                                                    | Notes                                 |
+| --------------- | ------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------- |
+| LinkedIn        | `input[type=url/text]`         | `linkedin`, `urls[LinkedIn]`, `linkedinQuestion`, `linkedin_url`, `linkedin_profile` | Lever uses `urls[LinkedIn]`           |
+| Location/City   | `input[type=text]`             | `location`, `city`, `address_city`, `addressSection_city`                            | Often uses Google Places autocomplete |
+| Cover Letter    | `input[type=file]`, `textarea` | `cover_letter`, `coverLetter`, `cover_letter_text`                                   | File OR paste text                    |
+| Current Company | `input[type=text]`             | `org`, `current_company`, `company`, `currentEmployer`                               | Lever uses `org`                      |
 
 ---
 
@@ -33,6 +33,7 @@
 **Hostname patterns:** `*.greenhouse.io`, embedded via `#grnhse_app`, `form[action*="greenhouse"]`, `#application_form`
 
 **Field naming conventions:**
+
 - API fields: `first_name`, `last_name`, `email`, `phone`, `location`, `resume`, `cover_letter`
 - Custom questions: `question_{numeric_id}` (e.g., `question_12345`)
 - Education fields: `educations[][school_name_id]`, `educations[][degree_id]`, `educations[][discipline_id]`
@@ -40,14 +41,15 @@
 - HTML form names: `job_application[first_name]`, `job_application[last_name]`, `job_application[email]`
 
 **Field types (from API docs):**
-| API Type | HTML Rendering |
-|----------|---------------|
-| `input_file` | `<input type="file">` |
-| `input_text` | `<input type="text">` |
-| `input_hidden` | `<input type="hidden">` (latitude, longitude, country_short_name) |
-| `textarea` | `<textarea>` |
-| `multi_value_single_select` | Radio buttons OR `<select>` dropdown |
-| `multi_value_multi_select` | Checkboxes OR multi-select |
+
+| API Type                    | HTML Rendering                                                    |
+| --------------------------- | ----------------------------------------------------------------- |
+| `input_file`                | `<input type="file">`                                             |
+| `input_text`                | `<input type="text">`                                             |
+| `input_hidden`              | `<input type="hidden">` (latitude, longitude, country_short_name) |
+| `textarea`                  | `<textarea>`                                                      |
+| `multi_value_single_select` | Radio buttons OR `<select>` dropdown                              |
+| `multi_value_multi_select`  | Checkboxes OR multi-select                                        |
 
 **Dropdowns:** Native `<select>` for standard questions. Custom questions with `multi_value_single_select` can be either native or custom depending on the embed.
 
@@ -58,6 +60,7 @@
 **Location handling:** Uses Google Places Autocomplete. Hidden fields for `latitude`, `longitude`, `country_short_name`. The visible field is `location` (free text address).
 
 **Education/Employment:**
+
 - Structured sub-forms with IDs from Greenhouse's reference data
 - Schools: 2,464+ entries (searchable via API)
 - Degrees: High School, Associate's, Bachelor's, Master's, MBA, JD, MD, PhD, Engineer's, Other
@@ -65,11 +68,13 @@
 - Dates: `{month, year}` hash format
 
 **Custom questions:**
+
 - Named `question_{id}` where `{id}` is a numeric identifier
 - Can be: text input, textarea, file upload, single-select, multi-select
 - Custom file attachments use `question_{id}_content` (base64) + `question_{id}_content_filename`
 
 **EEOC/Compliance:**
+
 - Separate compliance section with `gender`, `race`, `veteran_status`, `disability_status`
 - Demographic questions (with Greenhouse Inclusion): `demographic_answers[]` array
 - GDPR consent: `data_compliance[gdpr_consent_given]`, `data_compliance[gdpr_processing_consent_given]`, `data_compliance[gdpr_retention_consent_given]`
@@ -85,6 +90,7 @@
 **Stable hook:** `data-automation-id` attribute (the ONLY reliable selector — element IDs are auto-generated and unstable).
 
 **Known `data-automation-id` values:**
+
 ```
 legalNameSection_firstName     → First Name
 legalNameSection_lastName      → Last Name
@@ -113,12 +119,15 @@ selectedItem                   → Currently selected dropdown value
 ```
 
 **Dropdown pattern (CRITICAL — hardest to auto-fill):**
+
 ```html
-<button type="button" 
-        data-automation-id="workAuthorization"
-        aria-haspopup="listbox" 
-        aria-expanded="false"
-        aria-label="Question text select one required">
+<button
+  type="button"
+  data-automation-id="workAuthorization"
+  aria-haspopup="listbox"
+  aria-expanded="false"
+  aria-label="Question text select one required"
+>
   <span data-automation-id="selectedItem">Select One</span>
 </button>
 <!-- Popup (hidden until clicked): -->
@@ -128,17 +137,20 @@ selectedItem                   → Currently selected dropdown value
   </li>
 </ul>
 ```
+
 - Trigger is `<button aria-haspopup="listbox">` (NOT `role=combobox`)
 - Options lazy-load (may need delay after opening)
 - Type-to-filter works in some dropdowns
 - Option selector: `[data-automation-id*="promptOption"]`, `ul[role=listbox] li[role=option]`
 
 **Label quirks:**
+
 - Labels often have suffix: `"Question text select one required"` — must strip `"select one"` and `"required"`
 - Some controls have NO label; question text is a sibling within `formField-*` wrapper
 - The `aria-labelledby` sometimes refs the control's own value span (must skip)
 
 **Multi-step wizard:** Always multi-step. Pages include:
+
 1. My Information (name, contact, address)
 2. My Experience (work history, education)
 3. Application Questions (custom screening questions)
@@ -165,6 +177,7 @@ selectedItem                   → Currently selected dropdown value
 **Key uniqueness:** Lever uses a SINGLE "Full Name" field instead of first/last split.
 
 **Field names:**
+
 ```
 name             → Full Name (SINGLE FIELD — must compose first+last)
 email            → Email
@@ -178,6 +191,7 @@ resume           → Resume (file upload)
 ```
 
 **Additional fields that may appear:**
+
 ```
 urls[Twitter]    → Twitter URL
 urls[Other]      → Additional URL
@@ -186,6 +200,7 @@ cards[...]       → Custom question cards
 ```
 
 **HTML structure:**
+
 ```html
 <form class="application-form" data-qa="application-form">
   <input name="name" type="text" aria-label="Full name" />
@@ -212,6 +227,7 @@ cards[...]       → Custom question cards
 **Stable hooks:** `data-test` attributes.
 
 **Known `data-test` values:**
+
 ```
 firstName-input      → First Name
 lastName-input       → Last Name
@@ -221,6 +237,7 @@ application-form     → Form container
 ```
 
 **Screening questions (from API):**
+
 - Retrieved via `GET /postings/:uuid/configuration`
 - Types: text, textarea, single-select, multi-select, file, boolean
 - Compliance types: `SCREENING` (regular) vs `DIVERSITY` (EEO — must be displayed separately)
@@ -245,6 +262,7 @@ application-form     → Form container
 **Fields:** Standard HTML inputs with good labels. No special attribute hooks needed — the generic detector + heuristic matcher handles well.
 
 **Key fields:**
+
 ```
 First Name, Last Name, Email, Phone, LinkedIn URL, Resume upload
 + Custom questions per job
@@ -263,6 +281,7 @@ First Name, Last Name, Email, Phone, LinkedIn URL, Resume upload
 **Critical quirk:** Often embedded in an iframe (`#icims_content_iframe`). The content script runs INSIDE the iframe (where `location.host` is `*.icims.com`), NOT in the parent employer page.
 
 **Field names (normalized):**
+
 ```
 firstname       → First Name
 lastname        → Last Name
@@ -274,6 +293,7 @@ zip/postalcode  → ZIP/Postal Code
 ```
 
 **Multi-step wizard:** Yes, always. Pages include:
+
 1. Personal Information
 2. Work Experience
 3. Education
@@ -296,6 +316,7 @@ zip/postalcode  → ZIP/Postal Code
 **Key uniqueness:** "Your Name" can be a single full-name field (like Lever).
 
 **Label-based mapping (field names are not stable):**
+
 ```
 "First Name"          → personal.firstName
 "Last Name"           → personal.lastName
@@ -319,6 +340,7 @@ zip/postalcode  → ZIP/Postal Code
 **Hostname patterns:** `*.workable.com`, `[data-ui="application-form"]`
 
 **Field names:**
+
 ```
 firstname    → First Name
 lastname     → Last Name
@@ -341,6 +363,7 @@ resume       → Resume
 **Hostname patterns:** `*.applytojob.com`, `*.jazz.co`, `form#new_applicant`
 
 **Field names:**
+
 ```
 first_name   → First Name
 last_name    → Last Name
@@ -364,6 +387,7 @@ state        → State
 **Hostname patterns:** `*.taleo.net`, `*.oraclecloud.com`, `#requisitionDescriptionInterface`, `[id^="apply-flow"]`
 
 **Two distinct products:**
+
 1. **Taleo** (legacy): Multi-page, dated markup, generated IDs. Label-based detection only.
 2. **Oracle Recruiting Cloud (Redwood)**: ADF/Redwood SPA. Modern but still generated IDs.
 
@@ -388,11 +412,13 @@ state        → State
 ## 3. Tricky Input Types (Hard to Auto-Fill)
 
 ### 3.1 Custom Dropdowns (Difficulty: HIGH)
+
 **ATS:** Workday, SuccessFactors, iCIMS (legacy), some Greenhouse embeds
 
 **Pattern:** `<button aria-haspopup>` trigger → click to open → `<ul role=listbox>` popup → click `<li role=option>`
 
 **Challenges:**
+
 - Options lazy-load after click (needs delay/retry)
 - Type-to-filter may or may not work
 - Popup can be in a portal (different DOM position)
@@ -401,9 +427,11 @@ state        → State
 - iCIMS legacy: `<span onclick>` triggers
 
 ### 3.2 Date Pickers (Difficulty: HIGH)
+
 **ATS:** Workday, iCIMS, SuccessFactors, Oracle
 
 **Patterns seen:**
+
 - `<input type="date">` — native, easy (set `.value` + dispatch events)
 - `<input type="month">` — native month picker
 - Custom JS calendar widget (Workday `[data-automation-id*="dateWidget"]`)
@@ -412,6 +440,7 @@ state        → State
 - React DatePicker components (need `setReactInputValue`)
 
 ### 3.3 Google Places Autocomplete (Difficulty: MEDIUM)
+
 **ATS:** Greenhouse, some SmartRecruiters, some custom career pages
 
 **Pattern:** Text input that triggers Google Places API suggestions. Selecting a suggestion populates hidden latitude/longitude/country fields.
@@ -419,6 +448,7 @@ state        → State
 **Challenge:** Can't just type an address — need to trigger the autocomplete and select a suggestion, or set the hidden fields manually.
 
 ### 3.4 Typeahead/Autocomplete Dropdowns (Difficulty: MEDIUM)
+
 **ATS:** Greenhouse (schools/degrees), Workday (countries/states), SmartRecruiters
 
 **Pattern:** Type to search → debounced API call → dropdown of matches → select one
@@ -426,6 +456,7 @@ state        → State
 **Challenge:** Must type enough characters, wait for API response, then select from filtered list.
 
 ### 3.5 React-Controlled Inputs (Difficulty: MEDIUM)
+
 **ATS:** Ashby, Lever, SmartRecruiters, Indeed, any modern React-based ATS
 
 **Pattern:** React controls the input via `value` prop. Setting `el.value = x` gets reverted on next render.
@@ -433,6 +464,7 @@ state        → State
 **Solution:** Must use native value setter + dispatch synthetic `input`/`change`/`blur` events (the `setReactInputValue` pattern).
 
 ### 3.6 Drag-and-Drop File Zones (Difficulty: MEDIUM)
+
 **ATS:** Greenhouse, Workday, Ashby, SmartRecruiters
 
 **Pattern:** Styled drop zone over a hidden `<input type="file">`. Sometimes labeled "Attach" or "Drop files here".
@@ -440,11 +472,13 @@ state        → State
 **Solution:** Find the hidden file input (often inside or near the zone), dispatch a `change` event with a `FileList`.
 
 ### 3.7 Multi-Select / Tag Inputs (Difficulty: MEDIUM)
+
 **ATS:** Greenhouse (skills), Workday, SmartRecruiters
 
 **Pattern:** Click to open → select multiple options → tags appear. Or type + Enter to add tags.
 
 ### 3.8 Phone Number with Country Code (Difficulty: LOW-MEDIUM)
+
 **ATS:** Workday, SmartRecruiters, Indeed
 
 **Pattern:** Dropdown for country code + input for number. Sometimes a single input with format detection. Workday adds a "Device Type" (Mobile/Home/Work) dropdown.
@@ -455,20 +489,21 @@ state        → State
 
 ### 4.1 Work Authorization (appear on ~70% of US applications)
 
-| # | Exact Wording | Answer Type | Notes |
-|---|---------------|-------------|-------|
-| 1 | "Are you legally authorized to work in the United States?" | Yes/No | Most common phrasing |
-| 2 | "Are you legally authorized to work in this country?" | Yes/No | Workday standard |
-| 3 | "Will you now or in the future require sponsorship for employment visa status?" | Yes/No | #1 sponsorship wording |
-| 4 | "Do you now or will you in the future require sponsorship?" | Yes/No | Short form |
-| 5 | "Will you require visa sponsorship to work in the US?" | Yes/No | |
-| 6 | "Do you need sponsorship from an employer to obtain, extend, or renew legal authorization to work in the US?" | Yes/No | Greenhouse standard |
-| 7 | "Are you authorized to work in the US for any employer?" | Yes/No | Emphasizes "any employer" |
-| 8 | "Do you have the right to work in [Country]?" | Yes/No | Country-specific variant |
-| 9 | "What is your current work authorization status?" | Dropdown | Options: Citizen, PR, H-1B, OPT, EAD, etc. |
-| 10 | "Will you require immigration sponsorship for employment in the US (e.g., H-1B)?" | Yes/No | Specific visa type |
+| #   | Exact Wording                                                                                                 | Answer Type | Notes                                      |
+| --- | ------------------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------------ |
+| 1   | "Are you legally authorized to work in the United States?"                                                    | Yes/No      | Most common phrasing                       |
+| 2   | "Are you legally authorized to work in this country?"                                                         | Yes/No      | Workday standard                           |
+| 3   | "Will you now or in the future require sponsorship for employment visa status?"                               | Yes/No      | #1 sponsorship wording                     |
+| 4   | "Do you now or will you in the future require sponsorship?"                                                   | Yes/No      | Short form                                 |
+| 5   | "Will you require visa sponsorship to work in the US?"                                                        | Yes/No      |                                            |
+| 6   | "Do you need sponsorship from an employer to obtain, extend, or renew legal authorization to work in the US?" | Yes/No      | Greenhouse standard                        |
+| 7   | "Are you authorized to work in the US for any employer?"                                                      | Yes/No      | Emphasizes "any employer"                  |
+| 8   | "Do you have the right to work in [Country]?"                                                                 | Yes/No      | Country-specific variant                   |
+| 9   | "What is your current work authorization status?"                                                             | Dropdown    | Options: Citizen, PR, H-1B, OPT, EAD, etc. |
+| 10  | "Will you require immigration sponsorship for employment in the US (e.g., H-1B)?"                             | Yes/No      | Specific visa type                         |
 
 **Synonyms to add:**
+
 ```
 'authorized to work in the united states'
 'authorized to work in this country'
@@ -485,19 +520,20 @@ state        → State
 
 ### 4.2 EEO / Demographic Questions
 
-| # | Question | Type | Standard Options |
-|---|----------|------|-----------------|
-| 11 | "What is your gender?" | Dropdown/Radio | Male, Female, Non-binary, Prefer not to say, Decline to self-identify |
-| 12 | "What is your race/ethnicity?" | Dropdown/Radio | American Indian/Alaska Native, Asian, Black/African American, Hispanic/Latino, Native Hawaiian/Pacific Islander, White, Two or More Races, Decline |
-| 13 | "Are you Hispanic or Latino?" | Yes/No/Decline | Separate from race per EEOC |
-| 14 | "Are you a protected veteran?" | Dropdown/Radio | I am a veteran, I am not a veteran, I decline to self-identify |
-| 15 | "Do you have a disability?" | Dropdown/Radio | Yes I have a disability, No I don't have a disability, I don't wish to answer |
-| 16 | "Voluntary Self-Identification of Disability" | Radio | With long-form CC-305 text |
-| 17 | "Gender Identity" | Dropdown | Man, Woman, Non-binary, Prefer to self-describe, Prefer not to say |
-| 18 | "Sexual Orientation" | Dropdown | Only on some platforms with Inclusion modules |
-| 19 | "Pronouns" | Text/Dropdown | he/him, she/her, they/them, other |
+| #   | Question                                      | Type           | Standard Options                                                                                                                                   |
+| --- | --------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 11  | "What is your gender?"                        | Dropdown/Radio | Male, Female, Non-binary, Prefer not to say, Decline to self-identify                                                                              |
+| 12  | "What is your race/ethnicity?"                | Dropdown/Radio | American Indian/Alaska Native, Asian, Black/African American, Hispanic/Latino, Native Hawaiian/Pacific Islander, White, Two or More Races, Decline |
+| 13  | "Are you Hispanic or Latino?"                 | Yes/No/Decline | Separate from race per EEOC                                                                                                                        |
+| 14  | "Are you a protected veteran?"                | Dropdown/Radio | I am a veteran, I am not a veteran, I decline to self-identify                                                                                     |
+| 15  | "Do you have a disability?"                   | Dropdown/Radio | Yes I have a disability, No I don't have a disability, I don't wish to answer                                                                      |
+| 16  | "Voluntary Self-Identification of Disability" | Radio          | With long-form CC-305 text                                                                                                                         |
+| 17  | "Gender Identity"                             | Dropdown       | Man, Woman, Non-binary, Prefer to self-describe, Prefer not to say                                                                                 |
+| 18  | "Sexual Orientation"                          | Dropdown       | Only on some platforms with Inclusion modules                                                                                                      |
+| 19  | "Pronouns"                                    | Text/Dropdown  | he/him, she/her, they/them, other                                                                                                                  |
 
 **Synonyms to add:**
+
 ```
 'gender identity'
 'sex'
@@ -521,17 +557,18 @@ state        → State
 
 ### 4.3 Salary / Compensation
 
-| # | Question | Type | Notes |
-|---|----------|------|-------|
-| 20 | "What is your desired salary?" | Text/Number | Usually annual |
-| 21 | "What are your salary expectations?" | Text/Number | |
-| 22 | "Expected salary (annual)" | Text/Number | |
-| 23 | "What is your current salary?" | Text/Number | Illegal in some states |
-| 24 | "Desired compensation range" | Two fields (min/max) | |
-| 25 | "What is your expected CTC?" | Text | Common in India |
-| 26 | "Salary expectation per year" | Text/Number | Indeed phrasing |
+| #   | Question                             | Type                 | Notes                  |
+| --- | ------------------------------------ | -------------------- | ---------------------- |
+| 20  | "What is your desired salary?"       | Text/Number          | Usually annual         |
+| 21  | "What are your salary expectations?" | Text/Number          |                        |
+| 22  | "Expected salary (annual)"           | Text/Number          |                        |
+| 23  | "What is your current salary?"       | Text/Number          | Illegal in some states |
+| 24  | "Desired compensation range"         | Two fields (min/max) |                        |
+| 25  | "What is your expected CTC?"         | Text                 | Common in India        |
+| 26  | "Salary expectation per year"        | Text/Number          | Indeed phrasing        |
 
 **Synonyms to add:**
+
 ```
 'desired salary'
 'salary expectations'
@@ -560,17 +597,18 @@ state        → State
 
 ### 4.4 Availability / Start Date
 
-| # | Question | Type | Notes |
-|---|----------|------|-------|
-| 27 | "What is your earliest start date?" | Date picker | |
-| 28 | "When can you start?" | Date/Text | |
-| 29 | "Available start date" | Date | |
-| 30 | "What is your availability?" | Text/Dropdown | |
-| 31 | "Are you available to work full-time?" | Yes/No | |
-| 32 | "Are you available to work weekends?" | Yes/No | |
-| 33 | "Notice period (in days/weeks)" | Text/Number | Common outside US |
+| #   | Question                               | Type          | Notes             |
+| --- | -------------------------------------- | ------------- | ----------------- |
+| 27  | "What is your earliest start date?"    | Date picker   |                   |
+| 28  | "When can you start?"                  | Date/Text     |                   |
+| 29  | "Available start date"                 | Date          |                   |
+| 30  | "What is your availability?"           | Text/Dropdown |                   |
+| 31  | "Are you available to work full-time?" | Yes/No        |                   |
+| 32  | "Are you available to work weekends?"  | Yes/No        |                   |
+| 33  | "Notice period (in days/weeks)"        | Text/Number   | Common outside US |
 
 **Synonyms to add (NEW ProfileKey: `availability.startDate`):**
+
 ```
 'start date'
 'earliest start date'
@@ -586,18 +624,20 @@ state        → State
 
 ### 4.5 "How Did You Hear About Us" / Referral
 
-| # | Question | Type | Notes |
-|---|----------|------|-------|
-| 34 | "How did you hear about this position?" | Dropdown/Text | |
-| 35 | "How did you hear about us?" | Dropdown/Text | |
-| 36 | "What is the source of your application?" | Dropdown | |
-| 37 | "Were you referred by a current employee?" | Yes/No + Text | Referral name field |
-| 38 | "Referral name" | Text | Appears conditionally |
+| #   | Question                                   | Type          | Notes                 |
+| --- | ------------------------------------------ | ------------- | --------------------- |
+| 34  | "How did you hear about this position?"    | Dropdown/Text |                       |
+| 35  | "How did you hear about us?"               | Dropdown/Text |                       |
+| 36  | "What is the source of your application?"  | Dropdown      |                       |
+| 37  | "Were you referred by a current employee?" | Yes/No + Text | Referral name field   |
+| 38  | "Referral name"                            | Text          | Appears conditionally |
 
 **Common dropdown options:**
+
 - LinkedIn, Indeed, Glassdoor, Company Website, Referral, Job Board, Career Fair, Social Media, Google Search, University/Campus, Recruiter, Other
 
 **Synonyms to add (NEW ProfileKey: `freeText` routed to answer bank):**
+
 ```
 'how did you hear'
 'source of application'
@@ -613,18 +653,19 @@ state        → State
 
 ### 4.6 Experience / Qualifications
 
-| # | Question | Type | Notes |
-|---|----------|------|-------|
-| 39 | "How many years of experience do you have in [X]?" | Number/Dropdown | Very common |
-| 40 | "Years of experience" | Number | |
-| 41 | "Highest level of education completed" | Dropdown | |
-| 42 | "Do you have a [degree type] degree?" | Yes/No | |
-| 43 | "Are you proficient in [language/tool]?" | Yes/No | |
-| 44 | "Rate your proficiency in [X]" | Scale 1-5 / Dropdown | |
-| 45 | "Certifications" | Text/Multi-select | |
-| 46 | "Do you have experience with [technology]?" | Yes/No | |
+| #   | Question                                           | Type                 | Notes       |
+| --- | -------------------------------------------------- | -------------------- | ----------- |
+| 39  | "How many years of experience do you have in [X]?" | Number/Dropdown      | Very common |
+| 40  | "Years of experience"                              | Number               |             |
+| 41  | "Highest level of education completed"             | Dropdown             |             |
+| 42  | "Do you have a [degree type] degree?"              | Yes/No               |             |
+| 43  | "Are you proficient in [language/tool]?"           | Yes/No               |             |
+| 44  | "Rate your proficiency in [X]"                     | Scale 1-5 / Dropdown |             |
+| 45  | "Certifications"                                   | Text/Multi-select    |             |
+| 46  | "Do you have experience with [technology]?"        | Yes/No               |             |
 
 **Synonyms to add:**
+
 ```
 'years of experience'
 'years of relevant experience'
@@ -643,27 +684,28 @@ state        → State
 
 ### 4.7 Legal / Background
 
-| # | Question | Type | Notes |
-|---|----------|------|-------|
-| 47 | "Have you ever been convicted of a crime?" | Yes/No | Ban-the-box laws limit this |
-| 48 | "Are you at least 18 years of age?" | Yes/No | Legal minimum |
-| 49 | "Have you previously worked for [Company]?" | Yes/No | |
-| 50 | "Are you related to any current employees?" | Yes/No | |
-| 51 | "Have you previously applied to [Company]?" | Yes/No | |
-| 52 | "Are you subject to any non-compete agreements?" | Yes/No | |
+| #   | Question                                         | Type   | Notes                       |
+| --- | ------------------------------------------------ | ------ | --------------------------- |
+| 47  | "Have you ever been convicted of a crime?"       | Yes/No | Ban-the-box laws limit this |
+| 48  | "Are you at least 18 years of age?"              | Yes/No | Legal minimum               |
+| 49  | "Have you previously worked for [Company]?"      | Yes/No |                             |
+| 50  | "Are you related to any current employees?"      | Yes/No |                             |
+| 51  | "Have you previously applied to [Company]?"      | Yes/No |                             |
+| 52  | "Are you subject to any non-compete agreements?" | Yes/No |                             |
 
 ### 4.8 Cover Letter / Additional
 
-| # | Question | Type | Notes |
-|---|----------|------|-------|
-| 53 | "Cover Letter" | File/Textarea | |
-| 54 | "Why do you want to work here?" | Textarea | Very common |
-| 55 | "Tell us about yourself" | Textarea | |
-| 56 | "Additional information" | Textarea | Catch-all |
-| 57 | "What makes you a good fit for this role?" | Textarea | |
-| 58 | "Describe a challenging project you've worked on" | Textarea | |
+| #   | Question                                          | Type          | Notes       |
+| --- | ------------------------------------------------- | ------------- | ----------- |
+| 53  | "Cover Letter"                                    | File/Textarea |             |
+| 54  | "Why do you want to work here?"                   | Textarea      | Very common |
+| 55  | "Tell us about yourself"                          | Textarea      |             |
+| 56  | "Additional information"                          | Textarea      | Catch-all   |
+| 57  | "What makes you a good fit for this role?"        | Textarea      |             |
+| 58  | "Describe a challenging project you've worked on" | Textarea      |             |
 
 **Synonyms to add:**
+
 ```
 'why do you want to work'
 'why are you interested'
@@ -681,14 +723,15 @@ state        → State
 
 ### 4.9 Relocation / Remote
 
-| # | Question | Type | Notes |
-|---|----------|------|-------|
-| 59 | "Are you willing to relocate?" | Yes/No | |
-| 60 | "What is your preferred work arrangement?" | Dropdown | Remote/Hybrid/In-office |
-| 61 | "Are you open to travel?" | Yes/No / Percentage | |
-| 62 | "What percentage of travel is acceptable?" | Number/Dropdown | 0-100% |
+| #   | Question                                   | Type                | Notes                   |
+| --- | ------------------------------------------ | ------------------- | ----------------------- |
+| 59  | "Are you willing to relocate?"             | Yes/No              |                         |
+| 60  | "What is your preferred work arrangement?" | Dropdown            | Remote/Hybrid/In-office |
+| 61  | "Are you open to travel?"                  | Yes/No / Percentage |                         |
+| 62  | "What percentage of travel is acceptable?" | Number/Dropdown     | 0-100%                  |
 
 **Synonyms to add:**
+
 ```
 'willing to relocate'
 'open to relocation'
@@ -708,101 +751,112 @@ state        → State
 ## 5. Radio / Checkbox Patterns
 
 ### 5.1 Yes/No Radio Groups
+
 **Most common structure:**
+
 ```html
 <fieldset>
   <legend>Are you legally authorized to work in the US?</legend>
-  <label><input type="radio" name="work_auth" value="Yes"> Yes</label>
-  <label><input type="radio" name="work_auth" value="No"> No</label>
+  <label><input type="radio" name="work_auth" value="Yes" /> Yes</label>
+  <label><input type="radio" name="work_auth" value="No" /> No</label>
 </fieldset>
 ```
 
 **Variations:**
+
 - `value="1"` / `value="0"` instead of Yes/No
 - `value="true"` / `value="false"`
 - Three options: Yes / No / Prefer not to answer
 - Custom radio-like buttons (Workday, SuccessFactors)
 
 ### 5.2 EEO Multi-Option Radio
+
 ```html
 <fieldset>
   <legend>Veteran Status</legend>
-  <label><input type="radio" name="veteran" value="1"> I am a protected veteran</label>
-  <label><input type="radio" name="veteran" value="2"> I am not a protected veteran</label>
-  <label><input type="radio" name="veteran" value="3"> I don't wish to answer</label>
+  <label><input type="radio" name="veteran" value="1" /> I am a protected veteran</label>
+  <label><input type="radio" name="veteran" value="2" /> I am not a protected veteran</label>
+  <label><input type="radio" name="veteran" value="3" /> I don't wish to answer</label>
 </fieldset>
 ```
 
 ### 5.3 Checkbox Patterns
+
 **Single checkbox (consent/confirmation):**
+
 ```html
 <label>
-  <input type="checkbox" name="terms" value="1">
+  <input type="checkbox" name="terms" value="1" />
   I agree to the Terms and Conditions
 </label>
 ```
 
 **Multi-checkbox (skills/languages):**
+
 ```html
-<label><input type="checkbox" name="skills[]" value="python"> Python</label>
-<label><input type="checkbox" name="skills[]" value="java"> Java</label>
+<label><input type="checkbox" name="skills[]" value="python" /> Python</label>
+<label><input type="checkbox" name="skills[]" value="java" /> Java</label>
 ```
 
 ---
 
 ## 6. Date Picker Implementations
 
-| ATS | Date Pattern | Format |
-|-----|-------------|--------|
-| Greenhouse | `{month: "1", year: "2016"}` hash | Separate month/year |
-| Workday | `[data-automation-id*="dateWidget"] input` | Custom calendar |
-| Lever | N/A (rarely uses dates) | — |
-| SmartRecruiters | Native `<input type="date">` or custom | ISO (YYYY-MM-DD) |
-| iCIMS | Mix of native + custom JS calendar | MM/DD/YYYY |
-| Indeed | Text input with format hint | MM/DD/YYYY |
-| SuccessFactors | SAP UI5 DatePicker control | Locale-dependent |
-| Oracle/Taleo | Custom calendar popup | MM/DD/YYYY |
-| Ashby | Native `<input type="date">` | ISO |
-| JazzHR | Native `<input type="date">` | ISO |
-| Workable | Native or React DatePicker | ISO |
+| ATS             | Date Pattern                               | Format              |
+| --------------- | ------------------------------------------ | ------------------- |
+| Greenhouse      | `{month: "1", year: "2016"}` hash          | Separate month/year |
+| Workday         | `[data-automation-id*="dateWidget"] input` | Custom calendar     |
+| Lever           | N/A (rarely uses dates)                    | —                   |
+| SmartRecruiters | Native `<input type="date">` or custom     | ISO (YYYY-MM-DD)    |
+| iCIMS           | Mix of native + custom JS calendar         | MM/DD/YYYY          |
+| Indeed          | Text input with format hint                | MM/DD/YYYY          |
+| SuccessFactors  | SAP UI5 DatePicker control                 | Locale-dependent    |
+| Oracle/Taleo    | Custom calendar popup                      | MM/DD/YYYY          |
+| Ashby           | Native `<input type="date">`               | ISO                 |
+| JazzHR          | Native `<input type="date">`               | ISO                 |
+| Workable        | Native or React DatePicker                 | ISO                 |
 
 ---
 
 ## 7. Phone / Address Formatting
 
 ### Phone Patterns
-| ATS | Accepts | Validation | Notes |
-|-----|---------|-----------|-------|
-| Greenhouse | Any format | No format check (API strips non-digits) | "First/last/phone must not contain a URL" |
-| Workday | Any format | Companion "Device Type" dropdown (Mobile/Home/Work) | |
-| Lever | Any format | Minimal | |
-| SmartRecruiters | With country code | `data-test="phoneNumber-input"` | |
-| iCIMS | US format preferred | Sometimes enforces `(XXX) XXX-XXXX` | |
-| Indeed | US format | May auto-format | |
+
+| ATS             | Accepts             | Validation                                          | Notes                                     |
+| --------------- | ------------------- | --------------------------------------------------- | ----------------------------------------- |
+| Greenhouse      | Any format          | No format check (API strips non-digits)             | "First/last/phone must not contain a URL" |
+| Workday         | Any format          | Companion "Device Type" dropdown (Mobile/Home/Work) |                                           |
+| Lever           | Any format          | Minimal                                             |                                           |
+| SmartRecruiters | With country code   | `data-test="phoneNumber-input"`                     |                                           |
+| iCIMS           | US format preferred | Sometimes enforces `(XXX) XXX-XXXX`                 |                                           |
+| Indeed          | US format           | May auto-format                                     |                                           |
 
 ### Address Patterns
-| Component | Common Labels | Notes |
-|-----------|--------------|-------|
-| Street Address | "Address", "Street Address", "Address Line 1" | |
-| Apt/Suite | "Address Line 2", "Apt", "Suite", "Unit" | |
-| City | "City", "Town", "City/Town" | |
-| State | "State", "Province", "State/Province", "County" | Dropdown or text |
-| ZIP | "ZIP", "Postal Code", "ZIP Code", "Postcode" | |
-| Country | "Country", "Country/Region" | Almost always dropdown |
+
+| Component      | Common Labels                                   | Notes                  |
+| -------------- | ----------------------------------------------- | ---------------------- |
+| Street Address | "Address", "Street Address", "Address Line 1"   |                        |
+| Apt/Suite      | "Address Line 2", "Apt", "Suite", "Unit"        |                        |
+| City           | "City", "Town", "City/Town"                     |                        |
+| State          | "State", "Province", "State/Province", "County" | Dropdown or text       |
+| ZIP            | "ZIP", "Postal Code", "ZIP Code", "Postcode"    |                        |
+| Country        | "Country", "Country/Region"                     | Almost always dropdown |
 
 ---
 
 ## 8. File Upload Patterns
 
 ### Standard File Input
+
 ```html
-<input type="file" name="resume" accept=".pdf,.doc,.docx,.txt,.rtf">
+<input type="file" name="resume" accept=".pdf,.doc,.docx,.txt,.rtf" />
 ```
 
 ### Drag-Drop Zone (Greenhouse, Workday, Ashby)
+
 ```html
 <div class="dropzone" data-accepts=".pdf,.doc,.docx">
-  <input type="file" style="display:none" id="hidden-file-input">
+  <input type="file" style="display:none" id="hidden-file-input" />
   <label for="hidden-file-input">
     <span>Drag & drop or click to upload</span>
   </label>
@@ -810,11 +864,14 @@ state        → State
 ```
 
 ### Greenhouse Dual Upload
+
 Resume can be submitted as:
+
 1. `input[type=file]` for file upload
 2. `<textarea name="resume_text">` for paste-text fallback
 
 ### Accepted File Types (universal)
+
 - `.pdf` (most preferred)
 - `.doc`, `.docx` (Microsoft Word)
 - `.txt` (plain text)
@@ -828,6 +885,7 @@ Resume can be submitted as:
 Based on this research, here are synonym entries that should be **added or expanded** in `synonyms.ts`:
 
 ### Missing from `personal.phone`:
+
 ```
 'phone number', 'cell phone', 'mobile phone', 'home phone', 'work phone',
 'daytime phone number', 'primary phone', 'contact phone', 'telephone number',
@@ -835,6 +893,7 @@ Based on this research, here are synonym entries that should be **added or expan
 ```
 
 ### Missing from `personal.address.*`:
+
 ```
 // line1:
 'street', 'home address', 'physical address', 'permanent address'
@@ -850,6 +909,7 @@ Based on this research, here are synonym entries that should be **added or expan
 ```
 
 ### Missing from `workAuth.*`:
+
 ```
 // authorizedToWork:
 'authorized to work in the united states',
@@ -876,6 +936,7 @@ Based on this research, here are synonym entries that should be **added or expan
 ```
 
 ### Missing from `salary.expected`:
+
 ```
 'desired salary', 'salary expectations', 'compensation requirement',
 'pay expectations', 'pay rate', 'hourly rate', 'annual salary',
@@ -884,6 +945,7 @@ Based on this research, here are synonym entries that should be **added or expan
 ```
 
 ### Missing from `eeo.*`:
+
 ```
 // gender:
 'gender identity', 'sex/gender'
@@ -902,6 +964,7 @@ Based on this research, here are synonym entries that should be **added or expan
 ```
 
 ### Missing from `documents.*`:
+
 ```
 // resume:
 'upload your resume', 'upload cv', 'upload resume/cv', 'drop resume',
@@ -913,6 +976,7 @@ Based on this research, here are synonym entries that should be **added or expan
 ```
 
 ### Missing from `links.*`:
+
 ```
 // linkedin:
 'linkedin url', 'linkedin profile', 'linkedin profile url'
@@ -929,6 +993,7 @@ Based on this research, here are synonym entries that should be **added or expan
 ```
 
 ### Entirely new keys to consider:
+
 ```
 'personal.fullName'     → For Lever/Indeed single-name fields
 'availability.startDate' → "When can you start?" / "Earliest start date"
@@ -959,19 +1024,19 @@ The HTML `autocomplete` attribute is a high-confidence signal. Current coverage 
 
 ## 11. Multi-Step Wizard Patterns Summary
 
-| ATS | Is Wizard? | Pages | Next Button | Submit Button |
-|-----|-----------|-------|-------------|---------------|
-| Greenhouse | No | 1 | N/A | "Submit Application" |
-| Workday | Yes | 4-6 | `data-automation-id="bottom-navigation-next-button"` | "Submit" |
-| Lever | No | 1 | N/A | "Submit application" |
-| SmartRecruiters | Sectioned | 1 (scrollable sections) | N/A | "Apply" or "Submit" |
-| Ashby | No | 1 | N/A | "Submit Application" |
-| iCIMS | Yes | 3-6 | "Continue" / "Next" / "Save & Continue" | "Submit" / "Submit Application" |
-| Indeed | Yes | 2-5 | "Continue" | "Submit" |
-| Workable | No | 1 | N/A | "Submit" |
-| JazzHR | No | 1 | N/A | "Apply" |
-| Oracle/Taleo | Yes | 3-5 | "Continue" / "Next" / "Save and Continue" | "Submit Application" |
-| SuccessFactors | Yes | 3-5 | "Continue" / "Next" | "Submit Application" |
+| ATS             | Is Wizard? | Pages                   | Next Button                                          | Submit Button                   |
+| --------------- | ---------- | ----------------------- | ---------------------------------------------------- | ------------------------------- |
+| Greenhouse      | No         | 1                       | N/A                                                  | "Submit Application"            |
+| Workday         | Yes        | 4-6                     | `data-automation-id="bottom-navigation-next-button"` | "Submit"                        |
+| Lever           | No         | 1                       | N/A                                                  | "Submit application"            |
+| SmartRecruiters | Sectioned  | 1 (scrollable sections) | N/A                                                  | "Apply" or "Submit"             |
+| Ashby           | No         | 1                       | N/A                                                  | "Submit Application"            |
+| iCIMS           | Yes        | 3-6                     | "Continue" / "Next" / "Save & Continue"              | "Submit" / "Submit Application" |
+| Indeed          | Yes        | 2-5                     | "Continue"                                           | "Submit"                        |
+| Workable        | No         | 1                       | N/A                                                  | "Submit"                        |
+| JazzHR          | No         | 1                       | N/A                                                  | "Apply"                         |
+| Oracle/Taleo    | Yes        | 3-5                     | "Continue" / "Next" / "Save and Continue"            | "Submit Application"            |
+| SuccessFactors  | Yes        | 3-5                     | "Continue" / "Next"                                  | "Submit Application"            |
 
 ---
 
@@ -982,9 +1047,10 @@ The HTML `autocomplete` attribute is a high-confidence signal. Current coverage 
 **SmartRecruiters:** Privacy policy consent checkbox with custom text per company. Mandatory opt-in checkbox. AI disclosure when AI solutions are used.
 
 **General pattern:**
+
 ```html
 <label>
-  <input type="checkbox" name="consent" required>
+  <input type="checkbox" name="consent" required />
   I have read and agree to the <a href="/privacy">Privacy Policy</a>
 </label>
 ```
@@ -994,29 +1060,36 @@ The HTML `autocomplete` attribute is a high-confidence signal. Current coverage 
 ## 13. Recommendations for Extension Improvement
 
 ### Priority 1: Add Missing Synonyms
+
 Expand `SYNONYMS` dict with the additional terms identified in §9. Highest impact for minimal code change.
 
 ### Priority 2: New ProfileKey Candidates
+
 Consider adding:
+
 - `availability.startDate` — extremely common question with no current mapping
 - `personal.fullName` — explicit handling for Lever/Indeed full-name fields
 - `referral.source` — "How did you hear about us?" (currently falls to freeText)
 - `relocation.willing` — common Yes/No question
 
 ### Priority 3: Adapter Improvements
+
 - **Greenhouse:** Map education/employment structured fields, handle `question_{id}` naming pattern
 - **Workday:** Map additional `data-automation-id` values (phone-device-type, dateWidget), improve dropdown retry logic
 - **iCIMS:** Handle legacy DHTML dropdowns and iframe detection
 - **Indeed:** Handle "Your Name" full-name field (already partially done)
 
 ### Priority 4: Input Type Handling
+
 - Improve Google Places autocomplete detection and hidden field population
 - Better date picker handling across custom calendar widgets
 - Improved typeahead/autocomplete dropdown interaction
 - Phone number country code + device type handling
 
 ### Priority 5: Answer Bank Pre-Seeding
+
 Pre-populate the answer bank with common question patterns:
+
 - "How did you hear about this position?" → configurable default
 - "Why do you want to work here?" → template answer
 - "Are you at least 18 years of age?" → "Yes"

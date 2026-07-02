@@ -19,8 +19,7 @@ const VALID_KEYS = new Set<string>(PROFILE_KEYS);
 // Only https origins are accepted as the LLM endpoint, so the user's API key is never
 // shipped over http or to a malformed / credential-bearing URL (finding #7).
 function safeBase(raw: string, provider: LlmProvider): string {
-  const defaultUrl =
-    provider === 'openai' ? 'https://api.openai.com' : 'https://api.anthropic.com';
+  const defaultUrl = provider === 'openai' ? 'https://api.openai.com' : 'https://api.anthropic.com';
   try {
     const u = new URL(raw || defaultUrl);
     if (u.protocol !== 'https:') throw new Error('not https');
@@ -163,7 +162,7 @@ export async function generateCoverLetter(
       title: e.title,
       company: e.company,
       location: e.location,
-      dates: `${e.startDate} - ${e.current ? 'Present' : e.endDate ?? ''}`,
+      dates: `${e.startDate} - ${e.current ? 'Present' : (e.endDate ?? '')}`,
       description: e.description,
     })),
     education: profile.education.map((e) => ({

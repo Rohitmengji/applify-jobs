@@ -22,7 +22,11 @@ const norm = (s: string) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-export function matchField(field: DetectedField): { key: ProfileKey | null; confidence: number; reason?: string } {
+export function matchField(field: DetectedField): {
+  key: ProfileKey | null;
+  confidence: number;
+  reason?: string;
+} {
   const s = field.signals;
 
   // 1) autocomplete is authoritative when present
@@ -43,7 +47,10 @@ export function matchField(field: DetectedField): { key: ProfileKey | null; conf
     ['nearbyText', norm(s.nearbyText)],
   ];
 
-  let best: { key: ProfileKey | null; confidence: number; reason?: string } = { key: null, confidence: 0 };
+  let best: { key: ProfileKey | null; confidence: number; reason?: string } = {
+    key: null,
+    confidence: 0,
+  };
 
   for (const [key, syns] of Object.entries(SYNONYMS) as [ProfileKey, string[]][]) {
     let score = 0;

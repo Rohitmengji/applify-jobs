@@ -13,19 +13,23 @@ const LABEL_MAP: Record<string, ProfileKey> = {
   'email address': 'personal.email',
   'phone number': 'personal.phone',
   'city, state': 'personal.address.city',
-  'city': 'personal.address.city',
-  'state': 'personal.address.state',
+  city: 'personal.address.city',
+  state: 'personal.address.state',
   'zip code': 'personal.address.zip',
   'street address': 'personal.address.line1',
-  'country': 'personal.address.country',
-  'linkedin': 'links.linkedin',
+  country: 'personal.address.country',
+  linkedin: 'links.linkedin',
   'your name': 'personal.firstName', // Indeed's "Your Name" is full name
   'salary expectation': 'salary.expected',
   'salary expectation per year': 'salary.expected',
 };
 
 const norm = (s: string) =>
-  s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 function mapByLabel(field: DetectedField): ProfileKey | null {
   const label = norm(field.signals.label);
@@ -52,8 +56,9 @@ export const indeed: SiteAdapter = {
   id: 'indeed',
 
   matches(url) {
-    return /(^|\.)indeed\.com$/.test(url.hostname) ||
-           /(^|\.)smartapply\.indeed\.com$/.test(url.hostname);
+    return (
+      /(^|\.)indeed\.com$/.test(url.hostname) || /(^|\.)smartapply\.indeed\.com$/.test(url.hostname)
+    );
   },
 
   detectFields(doc) {
@@ -78,31 +83,37 @@ export const indeed: SiteAdapter = {
 
   isMultiStep(doc) {
     // Indeed's Smart Apply is always multi-step
-    return !!doc.querySelector('[class*="questions-module"], [class*="step"], [data-testid*="step"]');
+    return !!doc.querySelector(
+      '[class*="questions-module"], [class*="step"], [data-testid*="step"]',
+    );
   },
 
   isReviewStep(doc) {
     // Indeed shows a review/submit page at the end
-    return !!doc.querySelector(
-      'button[type="submit"]:not([disabled]), [data-testid*="review"], [data-testid*="submit"]'
-    ) && !doc.querySelector('button:not([disabled])');
+    return (
+      !!doc.querySelector(
+        'button[type="submit"]:not([disabled]), [data-testid*="review"], [data-testid*="submit"]',
+      ) && !doc.querySelector('button:not([disabled])')
+    );
   },
 
   findNextButton(doc) {
     // Indeed uses "Continue" buttons
-    const buttons = Array.from(doc.querySelectorAll<HTMLElement>(
-      'button, a[role=button], [data-testid*="continue"], [data-testid*="next"]'
-    ));
-    return buttons.find((b) => {
-      if ((b as HTMLButtonElement).disabled) return false;
-      const text = (b.textContent ?? '').trim().toLowerCase();
-      return /^(continue|next|save|proceed)$/i.test(text) && !/submit/i.test(text);
-    }) ?? null;
+    const buttons = Array.from(
+      doc.querySelectorAll<HTMLElement>(
+        'button, a[role=button], [data-testid*="continue"], [data-testid*="next"]',
+      ),
+    );
+    return (
+      buttons.find((b) => {
+        if ((b as HTMLButtonElement).disabled) return false;
+        const text = (b.textContent ?? '').trim().toLowerCase();
+        return /^(continue|next|save|proceed)$/i.test(text) && !/submit/i.test(text);
+      }) ?? null
+    );
   },
 
   findSubmitButton(doc) {
-    return doc.querySelector<HTMLElement>(
-      'button[type="submit"], [data-testid*="submit"]'
-    );
+    return doc.querySelector<HTMLElement>('button[type="submit"], [data-testid*="submit"]');
   },
 };

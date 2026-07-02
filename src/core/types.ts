@@ -33,13 +33,7 @@ export interface FieldSignals {
 }
 
 export type FillSource =
-  | 'adapter'
-  | 'heuristic'
-  | 'answerBank'
-  | 'llm'
-  | 'manual'
-  | 'learned'
-  | 'none';
+  'adapter' | 'heuristic' | 'answerBank' | 'llm' | 'manual' | 'learned' | 'none';
 
 export interface DetectedField {
   uid: string; // stable id assigned at detection (data-oca-uid on the el)

@@ -12,7 +12,8 @@ export interface StoredBlob {
   createdAt: number;
 }
 
-export type ApplicationStatus = 'applied' | 'in-progress' | 'interview' | 'rejected' | 'offer' | 'withdrawn';
+export type ApplicationStatus =
+  'applied' | 'in-progress' | 'interview' | 'rejected' | 'offer' | 'withdrawn';
 
 export interface TrackedApplication {
   id: string; // uuid

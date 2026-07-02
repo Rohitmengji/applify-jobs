@@ -47,7 +47,7 @@ export function AnalyticsSection() {
 
   // Estimated time saved (15 min per app manually, 30 sec with extension)
   const timeSavedMin = Math.round(apps.length * 14.5); // 14.5 min saved per app
-  const timeSavedHrs = Math.round(timeSavedMin / 60 * 10) / 10;
+  const timeSavedHrs = Math.round((timeSavedMin / 60) * 10) / 10;
 
   return (
     <Section title="Analytics" description="Your application activity and time saved.">
@@ -66,7 +66,7 @@ export function AnalyticsSection() {
         />
         <StatCard
           label="Avg/day"
-          value={String(Math.round(thisWeek.length / 7 * 10) / 10)}
+          value={String(Math.round((thisWeek.length / 7) * 10) / 10)}
           sub="this week"
         />
       </div>

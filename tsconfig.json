@@ -11,6 +11,7 @@
     ".output",
     "dist",
     "coverage",
+    "e2e",
     "vitest.config.ts",
     "wxt.config.ts",
     "**/*.config.ts",

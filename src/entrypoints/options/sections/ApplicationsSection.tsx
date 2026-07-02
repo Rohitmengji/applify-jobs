@@ -34,7 +34,9 @@ export function ApplicationsSection() {
     setApps(await getApplications());
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const filtered = filter ? apps.filter((a) => a.status === filter) : apps;
 
@@ -72,12 +74,16 @@ export function ApplicationsSection() {
         >
           <option value="">All statuses</option>
           {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>{s}</option>
+            <option key={s} value={s}>
+              {s}
+            </option>
           ))}
         </select>
         <span className="text-xs text-gray-500">{filtered.length} shown</span>
         <div className="flex-1" />
-        <Button variant="ghost" onClick={exportCSV}>Export CSV</Button>
+        <Button variant="ghost" onClick={exportCSV}>
+          Export CSV
+        </Button>
       </div>
 
       {filtered.length === 0 ? (
@@ -101,7 +107,9 @@ export function ApplicationsSection() {
                 className={`rounded px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[app.status]}`}
               >
                 {STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s}>{s}</option>
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
                 ))}
               </select>
               <a

@@ -80,19 +80,19 @@ export const jobvite: SiteAdapter = {
   },
 
   findNextButton(doc) {
-    const buttons = Array.from(doc.querySelectorAll<HTMLElement>(
-      'button, input[type=submit], a[role=button]'
-    ));
-    return buttons.find((b) => {
-      if ((b as HTMLButtonElement).disabled) return false;
-      const text = (b.textContent ?? '').trim().toLowerCase();
-      return /^(next|continue|save|proceed)$/i.test(text) && !/submit/i.test(text);
-    }) ?? null;
+    const buttons = Array.from(
+      doc.querySelectorAll<HTMLElement>('button, input[type=submit], a[role=button]'),
+    );
+    return (
+      buttons.find((b) => {
+        if ((b as HTMLButtonElement).disabled) return false;
+        const text = (b.textContent ?? '').trim().toLowerCase();
+        return /^(next|continue|save|proceed)$/i.test(text) && !/submit/i.test(text);
+      }) ?? null
+    );
   },
 
   findSubmitButton(doc) {
-    return doc.querySelector<HTMLElement>(
-      'button[type="submit"], input[type="submit"]'
-    );
+    return doc.querySelector<HTMLElement>('button[type="submit"], input[type="submit"]');
   },
 };

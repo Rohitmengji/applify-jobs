@@ -28,7 +28,9 @@ export function setReactInputValue(
 
   // Fire the full event sequence that real user typing produces.
   // React 16+ listens on the native input event; some validators need change+blur.
-  el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
+  el.dispatchEvent(
+    new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }),
+  );
   el.dispatchEvent(new Event('change', { bubbles: true }));
   el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
   el.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
@@ -37,7 +39,9 @@ export function setReactInputValue(
   // Places renders a .pac-container; clicking outside or pressing Escape closes it.
   const pac = document.querySelector('.pac-container');
   if (pac && pac instanceof HTMLElement && pac.offsetParent !== null) {
-    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+    el.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }),
+    );
   }
 }
 
@@ -61,7 +65,10 @@ function pickOption<T>(
   if (exact) return exact;
   if (t.length < MIN_SUBSTR) {
     // Short tokens: try alias normalization (handles "US" → "United States", "CA" → "California")
-    const aliasMatch = matchByAlias(target, options.map((o) => text(o)));
+    const aliasMatch = matchByAlias(
+      target,
+      options.map((o) => text(o)),
+    );
     if (aliasMatch) return options.find((o) => text(o) === aliasMatch) ?? null;
     return null;
   }
@@ -74,7 +81,10 @@ function pickOption<T>(
   if (substr) return substr;
 
   // Final fallback: country/state alias normalization
-  const aliasMatch = matchByAlias(target, options.map((o) => text(o)));
+  const aliasMatch = matchByAlias(
+    target,
+    options.map((o) => text(o)),
+  );
   if (aliasMatch) return options.find((o) => text(o) === aliasMatch) ?? null;
 
   return null;
@@ -160,7 +170,9 @@ export async function setCustomDropdown(
   }
 
   // Close the dropdown — try Escape first (works for most frameworks), then click
-  trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+  trigger.dispatchEvent(
+    new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }),
+  );
   await sleep(50);
   trigger.click();
   return false;
@@ -249,11 +261,13 @@ export async function setPhoneValue(el: HTMLInputElement, value: string): Promis
   for (const char of digits) {
     el.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true }));
     el.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true }));
-    el.dispatchEvent(new InputEvent('input', {
-      bubbles: true,
-      inputType: 'insertText',
-      data: char,
-    }));
+    el.dispatchEvent(
+      new InputEvent('input', {
+        bubbles: true,
+        inputType: 'insertText',
+        data: char,
+      }),
+    );
     el.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true }));
     await sleep(20);
   }
@@ -274,24 +288,97 @@ export async function setTagInput(
   values: string,
   separator = ',',
 ): Promise<void> {
-  const items = values.split(separator).map((s) => s.trim()).filter(Boolean);
+  const items = values
+    .split(separator)
+    .map((s) => s.trim())
+    .filter(Boolean);
   el.focus();
   for (const item of items) {
     setReactInputValue(el, item);
     await sleep(100);
     // Press Enter to confirm the tag
-    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
-    el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+    el.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }),
+    );
+    el.dispatchEvent(
+      new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }),
+    );
     await sleep(100);
     // Some tag inputs need comma or tab instead of Enter
     if (el.value === item) {
       el.dispatchEvent(new KeyboardEvent('keydown', { key: ',', code: 'Comma', bubbles: true }));
       await sleep(50);
-      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', keyCode: 9, bubbles: true }));
+      el.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', keyCode: 9, bubbles: true }),
+      );
       await sleep(50);
     }
   }
   el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+}
+
+// §12.6d — searchable multi-select (Workday "Type to Add Skills", and similar widgets).
+// These are NOT tag inputs: typing + Enter leaves the text sitting in the search box. A
+// value is only committed when you CLICK a rendered search result. So for each item we:
+// type it → wait for the async-filtered results → click the best match → clear the box →
+// repeat. Returns how many items were successfully added.
+//
+// `getSearch` is re-invoked each iteration because Workday remounts the input as pills are
+// added; caching a single element reference goes stale after the first selection.
+export async function setSearchMultiSelect(
+  getSearch: () => HTMLInputElement | null,
+  values: string,
+  optionSelector: string,
+  separator = ',',
+): Promise<number> {
+  // De-dupe case-insensitively — profiles often list "SQL" and "sql", or "Python" twice.
+  const seen = new Set<string>();
+  const items = values
+    .split(separator)
+    .map((s) => s.trim())
+    .filter((s) => s && !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()));
+
+  let added = 0;
+  for (const item of items) {
+    const search = getSearch();
+    if (!search || !search.isConnected) break; // widget gone (re-render/step change)
+
+    setReactInputValue(search, item);
+    await sleep(450); // Workday async-filters the option list
+
+    const target = item.toLowerCase();
+    const options = Array.from(document.querySelectorAll<HTMLElement>(optionSelector)).filter(
+      (o) => o.offsetParent !== null,
+    );
+    const optText = (o: HTMLElement) => (o.textContent ?? '').toLowerCase().trim();
+    // Precision order: exact, then prefix, then (length-guarded) substring — so "python"
+    // prefers "Python" over "IronPython", and short tokens don't grab everything.
+    const hit =
+      options.find((o) => optText(o) === target) ??
+      options.find((o) => optText(o).startsWith(target)) ??
+      (target.length >= MIN_SUBSTR
+        ? options.find((o) => optText(o).length >= MIN_SUBSTR && optText(o).includes(target))
+        : undefined);
+
+    if (hit) {
+      // Click the checkbox inside the option if present, else the option row itself.
+      (hit.querySelector<HTMLElement>('input[type=checkbox]') ?? hit).click();
+      added++;
+      await sleep(200);
+    }
+
+    // Clear the box for the next item (whether or not this one matched) so a leftover
+    // query doesn't poison the next search or get left behind as stray text.
+    const s2 = getSearch();
+    if (s2?.isConnected) {
+      setReactInputValue(s2, '');
+      await sleep(150);
+    }
+  }
+
+  const s = getSearch();
+  s?.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+  return added;
 }
 
 // §12.7 — the dispatcher. An optional adapter `override` (SiteAdapter.fillField) gets

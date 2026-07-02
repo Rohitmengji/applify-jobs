@@ -74,7 +74,11 @@ export function scopeKey(adapterId: string | null | undefined, fingerprint: stri
 // Tokenize for fuzzy matching — extract meaningful words (3+ chars)
 function tokenize(s: string): Set<string> {
   return new Set(
-    s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter((w) => w.length >= 3),
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]+/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length >= 3),
   );
 }
 
@@ -108,7 +112,8 @@ export function applyLearned(
     let entry: LearnedEntry | undefined;
 
     for (const fp of fps) {
-      entry = (adapterId ? learned[scopeKey(adapterId, fp)] : undefined) ?? learned[scopeKey(null, fp)];
+      entry =
+        (adapterId ? learned[scopeKey(adapterId, fp)] : undefined) ?? learned[scopeKey(null, fp)];
       if (entry) break;
     }
 
@@ -144,13 +149,13 @@ export function applyLearned(
     if (entry.key) {
       const v = valueForKey(profile, entry.key, f);
       f.mappedKey = entry.key;
-      f.confidence = Math.min(0.97, 0.85 + (entry.uses * 0.02)); // confidence grows with uses
+      f.confidence = Math.min(0.97, 0.85 + entry.uses * 0.02); // confidence grows with uses
       f.source = 'learned';
       f.reason = `Learned (used ${entry.uses}x)`;
       if (v != null) f.value = v;
     } else if (entry.value) {
       f.value = entry.value;
-      f.confidence = Math.min(0.97, 0.85 + (entry.uses * 0.02));
+      f.confidence = Math.min(0.97, 0.85 + entry.uses * 0.02);
       f.source = 'learned';
       f.reason = `Learned answer (used ${entry.uses}x)`;
     }
@@ -158,16 +163,45 @@ export function applyLearned(
   return fields;
 }
 
+// Answers we must NEVER persist to the learned store, by label. Protected/voluntary
+// disclosures (we never guess these — see §EEO) and secrets. Also search/filter boxes,
+// which aren't application answers at all.
+const PROTECTED_LABEL =
+  /gender|\bsex\b|sexual orientation|\brace\b|ethnicity|hispanic|latino|veteran|military|disabilit|criminal|felony|conviction|background check|drug test|password|date of birth|\bdob\b|birth ?date|\bssn\b|social security|social insurance|\bsin\b|national insurance|national id|tax id|\bein\b|passport|driver'?s? licen[cs]e|bank account|routing number|sort code|\biban\b/i;
+const SEARCH_LABEL = /search|filter|keyword|\bquery\b|find jobs?/i;
+
+// Whether a field's answer is safe + meaningful to remember for future fills.
+export function shouldLearn(field: DetectedField): boolean {
+  if (field.value == null || field.value.trim() === '') return false; // blank/whitespace
+  if (field.kind === 'file') return false; // files aren't learned
+  if (field.mappedKey && field.mappedKey.startsWith('eeo.')) return false; // protected class
+  const label = (
+    field.signals.label ||
+    field.signals.ariaLabel ||
+    field.signals.placeholder ||
+    field.signals.name ||
+    ''
+  ).toLowerCase();
+  if (PROTECTED_LABEL.test(label)) return false;
+  if (SEARCH_LABEL.test(label)) return false;
+  return true;
+}
+
 // Which of the just-filled fields are worth remembering: the user's own edits, accepted
 // AI/answer-bank drafts, and custom/unmapped fields — i.e. the ones the deterministic
 // layers couldn't resolve on their own. Also learn adapter/heuristic fills so non-adapter
-// sites with similar questions benefit from confirmed answers.
+// sites with similar questions benefit from confirmed answers. Protected/blank/search
+// fields are dropped (shouldLearn); duplicate fingerprints within one batch are collapsed
+// so a single recordLearned call can't double-count `uses`.
 export function learnableEntries(
   fields: DetectedField[],
 ): { fingerprint: string; key: ProfileKey | null; value: string }[] {
   const out: { fingerprint: string; key: ProfileKey | null; value: string }[] = [];
+  const seen = new Set<string>();
   for (const f of fields) {
-    if (f.value == null) continue;
+    if (!shouldLearn(f)) continue;
+    const value = f.value; // shouldLearn guarantees non-null/non-blank
+    if (value == null) continue; // (narrows the type for TS)
     const key = f.mappedKey && f.mappedKey !== 'freeText' ? f.mappedKey : null;
 
     // Record ALL fingerprints for this field (primary + secondary) so future matching
@@ -175,7 +209,9 @@ export function learnableEntries(
     const fps = fieldFingerprints(f);
     for (const fingerprint of fps) {
       if (!hasLabel(fingerprint)) continue;
-      out.push({ fingerprint, key, value: f.value });
+      if (seen.has(fingerprint)) continue; // de-dup within this batch
+      seen.add(fingerprint);
+      out.push({ fingerprint, key, value });
     }
   }
   return out;

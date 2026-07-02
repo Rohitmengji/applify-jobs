@@ -8,8 +8,19 @@ function normalizeUrl(raw: string): string {
   try {
     const u = new URL(raw);
     // Remove common tracking params
-    const strip = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
-      'source', 'ref', 'fbclid', 'gclid', 'mc_cid', 'mc_eid'];
+    const strip = [
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_content',
+      'utm_term',
+      'source',
+      'ref',
+      'fbclid',
+      'gclid',
+      'mc_cid',
+      'mc_eid',
+    ];
     for (const p of strip) u.searchParams.delete(p);
     u.hash = '';
     return u.toString().replace(/\/+$/, '');
@@ -31,7 +42,9 @@ export function extractCompany(doc: Document): string {
       const data = JSON.parse(ld.textContent ?? '');
       if (data.hiringOrganization?.name) return data.hiringOrganization.name;
       if (data.name) return data.name;
-    } catch { /* malformed JSON */ }
+    } catch {
+      /* malformed JSON */
+    }
   }
 
   // Try page title: common patterns like "Company - Job Title" or "Job Title | Company"
@@ -117,7 +130,10 @@ export async function deleteApplication(id: string): Promise<void> {
 }
 
 /** Check if the user has already applied to this URL recently */
-export async function findDuplicate(url: string, withinDays = 30): Promise<TrackedApplication | null> {
+export async function findDuplicate(
+  url: string,
+  withinDays = 30,
+): Promise<TrackedApplication | null> {
   const normalizedUrl = normalizeUrl(url);
   const cutoff = Date.now() - withinDays * 24 * 60 * 60 * 1000;
   const result = await db.applications

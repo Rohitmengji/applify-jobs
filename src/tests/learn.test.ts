@@ -178,4 +178,38 @@ describe('learnableEntries', () => {
     expect(out[0].key).toBe('personal.firstName');
     expect(out[1].key).toBe('personal.phone');
   });
+
+  it('never persists protected / EEO fields (by label or mappedKey)', () => {
+    const fields = [
+      fld('Gender', { source: 'manual', value: 'Female' }),
+      fld('Are you a protected veteran?', { source: 'manual', value: 'No' }),
+      fld('Disability status', { source: 'manual', value: 'Yes' }),
+      fld('Race / Ethnicity', { source: 'manual', value: 'Asian' }),
+      fld('Voluntary self-ID', { source: 'manual', mappedKey: 'eeo.gender', value: 'Male' }),
+      fld('Date of birth', { source: 'manual', value: '1990-01-01' }),
+      fld('Social Security Number', { source: 'manual', value: '111-22-3333' }),
+      fld('Bank account number', { source: 'manual', value: '12345678' }),
+    ];
+    expect(learnableEntries(fields)).toEqual([]);
+  });
+
+  it('skips search / filter boxes and blank/whitespace values', () => {
+    const fields = [
+      fld('Search jobs', { source: 'manual', value: 'engineer' }),
+      fld('Filter by location', { source: 'manual', value: 'NYC' }),
+      fld('Notes', { source: 'manual', value: '   ' }), // whitespace-only
+    ];
+    expect(learnableEntries(fields)).toEqual([]);
+  });
+
+  it('de-dupes identical fingerprints within one batch (no double uses)', () => {
+    const fields = [
+      fld('How did you hear about us?', { source: 'manual', value: 'LinkedIn' }),
+      fld('How did you hear about us?', { source: 'manual', value: 'Referral' }),
+    ];
+    const out = learnableEntries(fields);
+    // Same kind|label → one fingerprint; first value wins, no duplicate entry.
+    expect(out).toHaveLength(1);
+    expect(out[0].value).toBe('LinkedIn');
+  });
 });

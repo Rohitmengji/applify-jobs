@@ -19,9 +19,13 @@ const recorded = new WeakSet<HTMLElement>(); // don't double-record within one p
 let filling = false;
 
 /** Call before programmatic fill operations */
-export function pauseObserver(): void { filling = true; }
+export function pauseObserver(): void {
+  filling = true;
+}
 /** Call after programmatic fill operations */
-export function resumeObserver(): void { filling = false; }
+export function resumeObserver(): void {
+  filling = false;
+}
 
 function getAdapterId(): string | null {
   // Use hostname as a rough ATS identifier for non-adapter sites
@@ -49,9 +53,7 @@ function getValue(el: HTMLElement): string | null {
     if (el.type === 'checkbox') return el.checked ? 'Yes' : 'No';
     if (el.type === 'radio') {
       // For radio, get the label of the selected option
-      const lbl = el.id
-        ? document.querySelector(`label[for="${el.id}"]`)
-        : el.closest('label');
+      const lbl = el.id ? document.querySelector(`label[for="${el.id}"]`) : el.closest('label');
       return (lbl?.textContent ?? el.value).trim();
     }
     return el.value.trim();
@@ -95,11 +97,13 @@ function recordField(el: HTMLElement) {
   // Send to background for storage (avoids pulling Dexie into content script).
   // Guard: if extension context is invalidated (reloaded), silently no-op.
   if (!chrome.runtime?.id) return;
-  chrome.runtime.sendMessage({
-    type: 'LEARN_FIELD',
-    entries: [{ fingerprint, key: null, value }],
-    adapterId,
-  }).catch(() => {});
+  chrome.runtime
+    .sendMessage({
+      type: 'LEARN_FIELD',
+      entries: [{ fingerprint, key: null, value }],
+      adapterId,
+    })
+    .catch(() => {});
 }
 
 function handleChange(e: Event) {
@@ -109,10 +113,7 @@ function handleChange(e: Event) {
   if (!el || !shouldRecord(el)) return;
 
   // For radios/checkboxes/selects, record immediately
-  if (
-    el instanceof HTMLInputElement &&
-    (el.type === 'radio' || el.type === 'checkbox')
-  ) {
+  if (el instanceof HTMLInputElement && (el.type === 'radio' || el.type === 'checkbox')) {
     recordField(el);
     return;
   }
@@ -178,7 +179,9 @@ export function startObserver(): void {
         const listbox = option.closest('[role=listbox], ul');
         const controlledBy = listbox?.id;
         const trigger = controlledBy
-          ? document.querySelector<HTMLElement>(`[aria-controls="${controlledBy}"], [aria-owns="${controlledBy}"]`)
+          ? document.querySelector<HTMLElement>(
+              `[aria-controls="${controlledBy}"], [aria-owns="${controlledBy}"]`,
+            )
           : null;
         if (trigger && shouldRecord(trigger)) {
           // Wait for the framework to update the trigger's display value

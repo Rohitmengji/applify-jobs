@@ -17,10 +17,10 @@ const LABEL_MAP: Record<string, ProfileKey> = {
   'first name': 'personal.firstName',
   'last name': 'personal.lastName',
   'middle name': 'personal.middleName',
-  'email': 'personal.email',
+  email: 'personal.email',
   'e-mail address': 'personal.email',
-  'phone': 'personal.phone',
-  'mobile': 'personal.phone',
+  phone: 'personal.phone',
+  mobile: 'personal.phone',
   'contact number': 'personal.phone',
   'current salary': 'salary.expected',
   'expected salary': 'salary.expected',
@@ -29,19 +29,23 @@ const LABEL_MAP: Record<string, ProfileKey> = {
   'notice period': 'freeText',
   'total experience': 'freeText',
   'years of experience': 'freeText',
-  'linkedin': 'links.linkedin',
-  'github': 'links.github',
-  'portfolio': 'links.portfolio',
-  'resume': 'documents.resume',
+  linkedin: 'links.linkedin',
+  github: 'links.github',
+  portfolio: 'links.portfolio',
+  resume: 'documents.resume',
   'upload resume': 'documents.resume',
   'date of birth': 'freeText',
-  'gender': 'eeo.gender',
-  'salutation': 'freeText',
+  gender: 'eeo.gender',
+  salutation: 'freeText',
   'country code': 'personal.phone',
 };
 
 const norm = (s: string) =>
-  s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 function mapByLabel(field: DetectedField): ProfileKey | null {
   const label = norm(field.signals.label || field.signals.ariaLabel || field.signals.placeholder);
@@ -82,7 +86,11 @@ export const naukri: SiteAdapter = {
 
       // Don't fill the "Enter keyword/designation/companies" search field with profile data
       const label = norm(f.signals.label || f.signals.placeholder);
-      if (label.includes('keyword') || label.includes('designation') || label.includes('companies')) {
+      if (
+        label.includes('keyword') ||
+        label.includes('designation') ||
+        label.includes('companies')
+      ) {
         f.mappedKey = 'freeText';
         f.confidence = 0.3; // low confidence = needs review
         f.value = null; // don't auto-fill search boxes
@@ -97,11 +105,16 @@ export const naukri: SiteAdapter = {
 
   findNextButton(doc) {
     const buttons = Array.from(doc.querySelectorAll<HTMLElement>('button, a[role=button]'));
-    return buttons.find((b) => {
-      if ((b as HTMLButtonElement).disabled) return false;
-      const text = (b.textContent ?? '').trim().toLowerCase();
-      return /^(next|continue|proceed|save|submit answer)$/i.test(text) && !/submit.*application/i.test(text);
-    }) ?? null;
+    return (
+      buttons.find((b) => {
+        if ((b as HTMLButtonElement).disabled) return false;
+        const text = (b.textContent ?? '').trim().toLowerCase();
+        return (
+          /^(next|continue|proceed|save|submit answer)$/i.test(text) &&
+          !/submit.*application/i.test(text)
+        );
+      }) ?? null
+    );
   },
 
   findSubmitButton(doc) {

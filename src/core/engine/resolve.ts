@@ -74,21 +74,32 @@ export async function resolveAll(): Promise<{
 
 // Auto-compute values for fields that have deterministic answers based on context,
 // even without a profile key mapping. These are common questions with obvious answers.
-const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const norm = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 function autoComputeValue(
   field: DetectedField,
   profile: Profile,
 ): { value: string; confidence: number; reason: string } | null {
   const label = norm(
-    field.signals.label || field.signals.ariaLabel || field.signals.placeholder || field.signals.nearbyText,
+    field.signals.label ||
+      field.signals.ariaLabel ||
+      field.signals.placeholder ||
+      field.signals.nearbyText,
   );
   if (!label) return null;
 
   // "Today's date" / "Date" / "Current date"
-  if (/today.s date|current date|date of application/.test(label) || (label === 'date' && field.kind === 'text')) {
+  if (
+    /today.s date|current date|date of application/.test(label) ||
+    (label === 'date' && field.kind === 'text')
+  ) {
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    return { value: today, confidence: 0.95, reason: 'Auto-computed: today\'s date' };
+    return { value: today, confidence: 0.95, reason: "Auto-computed: today's date" };
   }
 
   // "Full name" / "Your name" (compose from first + last)
@@ -98,7 +109,10 @@ function autoComputeValue(
   }
 
   // "Years of experience" / "Total experience" — calculate from earliest start date
-  if (/years? of experience|total experience|work experience/.test(label) && field.kind === 'text') {
+  if (
+    /years? of experience|total experience|work experience/.test(label) &&
+    field.kind === 'text'
+  ) {
     if (profile.experience.length > 0) {
       const earliest = profile.experience
         .map((e) => parseInt(e.startDate.slice(0, 4), 10))
@@ -106,7 +120,11 @@ function autoComputeValue(
         .sort()[0];
       if (earliest) {
         const years = new Date().getFullYear() - earliest;
-        return { value: String(years), confidence: 0.88, reason: `Auto-computed: ${years} years from ${earliest}` };
+        return {
+          value: String(years),
+          confidence: 0.88,
+          reason: `Auto-computed: ${years} years from ${earliest}`,
+        };
       }
     }
   }
@@ -122,17 +140,23 @@ function autoComputeValue(
   // "Current company" / "Current employer"
   if (/current company|current employer|present company|present employer/.test(label)) {
     const current = profile.experience.find((e) => e.current);
-    if (current) return { value: current.company, confidence: 0.92, reason: 'Current experience company' };
+    if (current)
+      return { value: current.company, confidence: 0.92, reason: 'Current experience company' };
   }
 
   // "Current designation" / "Current role" / "Job title"
   if (/current designation|current role|current title|job title|current position/.test(label)) {
     const current = profile.experience.find((e) => e.current);
-    if (current) return { value: current.title, confidence: 0.92, reason: 'Current experience title' };
+    if (current)
+      return { value: current.title, confidence: 0.92, reason: 'Current experience title' };
   }
 
   // "How did you hear" — LOW confidence so it shows as "needs review"
-  if (/how did you hear|where did you hear|source of application|referral source|how did you find/.test(label)) {
+  if (
+    /how did you hear|where did you hear|source of application|referral source|how did you find/.test(
+      label,
+    )
+  ) {
     return { value: 'Job Board', confidence: 0.4, reason: 'Default - needs review' };
   }
 

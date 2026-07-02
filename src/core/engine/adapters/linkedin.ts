@@ -23,14 +23,18 @@ const LABEL_MAP: Record<string, ProfileKey> = {
   'mobile phone number': 'personal.phone',
   'phone number': 'personal.phone',
   'phone country code': 'personal.phone',
-  'city': 'personal.address.city',
+  city: 'personal.address.city',
   'city, state, or zip code': 'personal.address.city',
   'linkedin profile': 'links.linkedin',
-  'website': 'links.website',
+  website: 'links.website',
 };
 
 const norm = (s: string) =>
-  s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 function mapByLabel(field: DetectedField): ProfileKey | null {
   const label = norm(field.signals.label || field.signals.ariaLabel);
@@ -58,7 +62,9 @@ export const linkedin: SiteAdapter = {
 
   detectFields(doc) {
     // LinkedIn Easy Apply modal
-    const modal = doc.querySelector('.jobs-easy-apply-content, [class*="easy-apply"], [data-test-modal]');
+    const modal = doc.querySelector(
+      '.jobs-easy-apply-content, [class*="easy-apply"], [data-test-modal]',
+    );
     const root = modal ?? doc;
 
     const fields = detectFields(root);
@@ -77,40 +83,44 @@ export const linkedin: SiteAdapter = {
   isMultiStep(doc) {
     // LinkedIn Easy Apply is always multi-step (Contact → Questions → Resume → Review)
     return !!doc.querySelector(
-      '.jobs-easy-apply-content, [class*="easy-apply"], [aria-label*="Easy Apply"]'
+      '.jobs-easy-apply-content, [class*="easy-apply"], [aria-label*="Easy Apply"]',
     );
   },
 
   isReviewStep(doc) {
     // The review step has a "Submit application" button (which we NEVER click)
     const submit = doc.querySelector(
-      'button[aria-label*="Submit application"], button[data-easy-apply-submit]'
+      'button[aria-label*="Submit application"], button[data-easy-apply-submit]',
     );
     return submit !== null;
   },
 
   findNextButton(doc) {
     // LinkedIn uses "Next", "Review", "Continue" buttons
-    const buttons = Array.from(doc.querySelectorAll<HTMLElement>(
-      '.jobs-easy-apply-content button, [class*="easy-apply"] button'
-    ));
-    return buttons.find((b) => {
-      if ((b as HTMLButtonElement).disabled) return false;
-      const text = (b.textContent ?? '').trim().toLowerCase();
-      const label = (b.getAttribute('aria-label') ?? '').toLowerCase();
-      // Match Next/Review/Continue but NEVER Submit
-      return (
-        (/^(next|review|continue|save)$/i.test(text) || /next|review|continue/i.test(label)) &&
-        !/submit/i.test(text) &&
-        !/submit/i.test(label)
-      );
-    }) ?? null;
+    const buttons = Array.from(
+      doc.querySelectorAll<HTMLElement>(
+        '.jobs-easy-apply-content button, [class*="easy-apply"] button',
+      ),
+    );
+    return (
+      buttons.find((b) => {
+        if ((b as HTMLButtonElement).disabled) return false;
+        const text = (b.textContent ?? '').trim().toLowerCase();
+        const label = (b.getAttribute('aria-label') ?? '').toLowerCase();
+        // Match Next/Review/Continue but NEVER Submit
+        return (
+          (/^(next|review|continue|save)$/i.test(text) || /next|review|continue/i.test(label)) &&
+          !/submit/i.test(text) &&
+          !/submit/i.test(label)
+        );
+      }) ?? null
+    );
   },
 
   findSubmitButton(doc) {
     // We identify it but NEVER click it — the user must submit themselves
     return doc.querySelector<HTMLElement>(
-      'button[aria-label*="Submit application"], button[data-easy-apply-submit]'
+      'button[aria-label*="Submit application"], button[data-easy-apply-submit]',
     );
   },
 };

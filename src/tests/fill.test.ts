@@ -4,7 +4,14 @@ import {
   setNativeSelect,
   setRadioGroup,
   setCheckbox,
+  setSearchMultiSelect,
 } from '@/core/engine/fill';
+
+// jsdom has no layout, so offsetParent is always null and the visibility filter would drop
+// every option. Mark elements "visible" so the search/click logic is actually exercised.
+function makeVisible(el: HTMLElement) {
+  Object.defineProperty(el, 'offsetParent', { value: document.body, configurable: true });
+}
 
 beforeEach(() => {
   document.body.innerHTML = '';
@@ -72,6 +79,47 @@ describe('setRadioGroup', () => {
     document.body.innerHTML =
       '<input type="radio" name="g" id="y" value="yes" /><label for="y">Yes</label>';
     expect(setRadioGroup('g', '')).toBe(false);
+  });
+});
+
+describe('setSearchMultiSelect (Workday-style skills)', () => {
+  // A search box plus a static list of options. The real widget filters async on type; for
+  // the test the options are always present, which exercises the match → click → clear loop.
+  function setup(optionTexts: string[]) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    document.body.append(input);
+    const clicked: string[] = [];
+    for (const t of optionTexts) {
+      const opt = document.createElement('div');
+      opt.setAttribute('role', 'option');
+      opt.textContent = t;
+      makeVisible(opt);
+      opt.addEventListener('click', () => clicked.push(t));
+      document.body.append(opt);
+    }
+    return { input, clicked };
+  }
+
+  it('adds each comma-separated skill by clicking its matching option', async () => {
+    const { input, clicked } = setup(['Python', 'SQL', 'MySQL', 'Tableau']);
+    const added = await setSearchMultiSelect(() => input, 'python, sql, Tableau', '[role=option]');
+    expect(added).toBe(3);
+    expect(clicked).toEqual(['Python', 'SQL', 'Tableau']);
+  });
+
+  it('prefers an exact/prefix match over a substring one (python ≠ IronPython)', async () => {
+    const { input, clicked } = setup(['IronPython', 'Python']);
+    const added = await setSearchMultiSelect(() => input, 'python', '[role=option]');
+    expect(added).toBe(1);
+    expect(clicked).toEqual(['Python']);
+  });
+
+  it('de-dupes case-insensitively so a skill is not added twice', async () => {
+    const { input, clicked } = setup(['SQL']);
+    const added = await setSearchMultiSelect(() => input, 'SQL, sql', '[role=option]');
+    expect(added).toBe(1);
+    expect(clicked).toEqual(['SQL']);
   });
 });
 

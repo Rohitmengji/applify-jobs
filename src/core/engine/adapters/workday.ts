@@ -1,6 +1,6 @@
 import type { SiteAdapter } from './types';
 import { detectFields } from '../detect';
-import { setCustomDropdown } from '../fill';
+import { setCustomDropdown, setSearchMultiSelect } from '../fill';
 import type { DetectedField } from '../../types';
 import type { ProfileKey } from '../../profile.schema';
 
@@ -15,7 +15,7 @@ import type { ProfileKey } from '../../profile.schema';
 const DA_MAP: Record<string, ProfileKey> = {
   legalNameSection_firstName: 'personal.firstName',
   legalNameSection_lastName: 'personal.lastName',
-  'legalNameSection_middleName': 'personal.middleName',
+  legalNameSection_middleName: 'personal.middleName',
   email: 'personal.email',
   'phone-number': 'personal.phone',
   'phone-device-type': 'personal.phone',
@@ -108,13 +108,56 @@ export const workday: SiteAdapter = {
         }
       }
     }
-    return fields;
+
+    // Drop Workday's global-nav / utility chrome (language / settings / account buttons,
+    // "options expanded" state leaks). These aren't form fields — they only clutter the
+    // review panel and inflate the "needs review" count. Real form controls live inside a
+    // formField-* group; nav controls live in the header.
+    const NAV_NOISE = /(language|settings|account)\b.*\bbutton|selector button|options expanded/i;
+    return fields.filter((f) => {
+      const el = doc.querySelector(`[data-oca-uid="${f.uid}"]`);
+      if (
+        el?.closest(
+          'header, [role=banner], [data-automation-id*="globalNav"], [data-automation-id*="utilityNav"]',
+        )
+      ) {
+        return false;
+      }
+      const lbl = (f.signals.label || f.signals.ariaLabel || '').trim();
+      return !NAV_NOISE.test(lbl);
+    });
   },
 
   // Workday custom dropdowns are a button + popup of [data-automation-id*=promptOption].
   // Throw on a genuine no-match so the generic dispatcher doesn't re-open/re-type the
   // same dropdown (the override is responsible for select-custom here). Finding #12.
   async fillField(field: DetectedField, value: string): Promise<boolean> {
+    // Skills: Workday's "Type to Add Skills" is a searchable multi-select — a skill is only
+    // committed when you click a rendered search result. Typing the whole comma-joined
+    // string (or pressing Enter per item) does nothing, which is why it was silently
+    // failing. Add each skill by search-and-click instead.
+    if (field.mappedKey === 'skills') {
+      if (!value.trim()) return false;
+      const el = document.querySelector<HTMLElement>(`[data-oca-uid="${field.uid}"]`);
+      if (!el) return false;
+      // The search input is either the tagged element itself or an <input> inside the
+      // multiselect container. Re-query each iteration (Workday remounts it per pill).
+      const container = el.closest<HTMLElement>('[data-automation-id^="formField-"]') ?? el;
+      const getSearch = (): HTMLInputElement | null =>
+        el instanceof HTMLInputElement
+          ? el
+          : (container.querySelector<HTMLInputElement>(
+              'input[data-automation-id="searchBox"], input[type="text"], input[role="combobox"]',
+            ) ?? null);
+      const added = await setSearchMultiSelect(
+        getSearch,
+        value,
+        '[data-automation-id*="promptOption"], [data-automation-id*="promptLeafNode"], [data-automation-id="menuItem"], ul[role=listbox] li[role=option], [role=option]',
+      );
+      if (added === 0) throw new Error('no skills matched');
+      return true;
+    }
+
     if (field.kind !== 'select-custom') return false; // not ours → generic path
     if (!value.trim()) return false; // blank value = skip
     const el = document.querySelector<HTMLElement>(`[data-oca-uid="${field.uid}"]`);

@@ -1,8 +1,16 @@
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import { ATS_MATCH_PATTERNS } from '@/core/atsHosts';
 import { resolveAll } from '@/core/engine/resolve';
-import { fillOne, fileFromB64, dropFileOnZone, attachFile, applyConfidenceOverlay } from '@/core/engine/fill';
+import {
+  fillOne,
+  fileFromB64,
+  dropFileOnZone,
+  attachFile,
+  applyConfidenceOverlay,
+} from '@/core/engine/fill';
 import { matchAdapter } from '@/core/engine/adapters';
+import { fillRepeatableSections } from '@/core/engine/sections';
+import { getProfile } from '@/core/storage/profileStore';
 import { runWizard, waitForDomSettle } from '@/core/engine/wizard';
 import { startObserver, pauseObserver, resumeObserver } from '@/core/engine/observer';
 import { startAutoDetect, pauseAutoDetect, resumeAutoDetect } from '@/core/engine/autoDetect';
@@ -41,12 +49,9 @@ export default defineContentScript({
 
     // Start auto-redetect: watches DOM changes and re-runs detection automatically.
     // This replaces the need for manual "Re-detect" clicks in most cases.
-    startAutoDetect(
-      broadcast,
-      (fields) => {
-        lastFields = fields;
-      },
-    );
+    startAutoDetect(broadcast, (fields) => {
+      lastFields = fields;
+    });
 
     // The matched adapter's per-field fill override (if any), for tricky custom controls.
     const adapterOverride = () => {
@@ -64,7 +69,7 @@ export default defineContentScript({
       const override = adapterOverride();
       for (const f of fields.filter((x) => x.value != null)) {
         try {
-          await fillOne(f, f.kind === 'file' ? pendingFile ?? undefined : undefined, override);
+          await fillOne(f, f.kind === 'file' ? (pendingFile ?? undefined) : undefined, override);
           broadcast({ type: 'FIELD_FILLED', uid: f.uid, ok: true });
         } catch (e) {
           broadcast({ type: 'FIELD_FILLED', uid: f.uid, ok: false, error: String(e) });
@@ -86,97 +91,169 @@ export default defineContentScript({
         }
         // Block concurrent operations (except PING and GET_PAGE_INFO)
         if (inFlight && msg.type !== 'GET_PAGE_INFO') {
-          sendResponse({ type: 'STATUS', status: { phase: 'error', message: 'busy' } } satisfies FromContent);
+          sendResponse({
+            type: 'STATUS',
+            status: { phase: 'error', message: 'busy' },
+          } satisfies FromContent);
           return;
         }
         inFlight = true;
         try {
-        switch (msg.type) {
-          case 'GET_PAGE_INFO': {
-            const { extractCompany, extractRole, extractDescription } = await import('@/core/engine/pageInfo');
-            sendResponse({
-              type: 'PAGE_INFO',
-              company: extractCompany(document),
-              role: extractRole(document),
-              url: location.href,
-              description: extractDescription(document),
-            } satisfies FromContent);
-            break;
-          }
+          switch (msg.type) {
+            case 'GET_PAGE_INFO': {
+              const { extractCompany, extractRole, extractDescription } =
+                await import('@/core/engine/pageInfo');
+              sendResponse({
+                type: 'PAGE_INFO',
+                company: extractCompany(document),
+                role: extractRole(document),
+                url: location.href,
+                description: extractDescription(document),
+              } satisfies FromContent);
+              break;
+            }
 
-          case 'DETECT': {
-            const { fields, adapterId, multiStep } = await resolveAll();
-            lastFields = fields;
-            sendResponse({ type: 'DETECTED', fields, adapterId, multiStep } satisfies FromContent);
-            break;
-          }
+            case 'DETECT': {
+              const { fields, adapterId, multiStep } = await resolveAll();
+              lastFields = fields;
+              sendResponse({
+                type: 'DETECTED',
+                fields,
+                adapterId,
+                multiStep,
+              } satisfies FromContent);
+              break;
+            }
 
-          case 'FILL_FILE': {
-            pauseAutoDetect();
-            pendingFile = fileFromB64(msg.b64, msg.filename, msg.mime);
-            const f = lastFields.find((x) => x.uid === msg.uid);
-            let ok = false;
-            if (f) {
-              // Snapshot current field values BEFORE upload (to detect clobbering)
-              const snapshot = new Map<string, string>();
-              for (const lf of lastFields) {
-                if (lf.value && lf.uid !== msg.uid) {
-                  const lel = document.querySelector<HTMLInputElement>(`[data-oca-uid="${lf.uid}"]`);
-                  if (lel?.value) snapshot.set(lf.uid, lel.value);
-                }
-              }
-
-              const el = document.querySelector<HTMLElement>(`[data-oca-uid="${f.uid}"]`);
-              if (el instanceof HTMLInputElement && el.type === 'file') {
-                attachFile(el, pendingFile);
-                ok = true;
-              } else if (el) {
-                dropFileOnZone(el, pendingFile);
-                ok = true;
-              }
-
-              // Wait for ATS resume parse to complete (may overwrite fields)
-              if (ok) {
-                await waitForDomSettle({ quietMs: 1000, timeoutMs: 5000 });
-                // Re-fill any fields that got clobbered by the resume parser
-                const override = adapterOverride();
+            case 'FILL_FILE': {
+              pauseAutoDetect();
+              pendingFile = fileFromB64(msg.b64, msg.filename, msg.mime);
+              const f = lastFields.find((x) => x.uid === msg.uid);
+              let ok = false;
+              if (f) {
+                // Snapshot current field values BEFORE upload (to detect clobbering)
+                const snapshot = new Map<string, string>();
                 for (const lf of lastFields) {
-                  if (!lf.value || lf.uid === msg.uid) continue;
-                  const lel = document.querySelector<HTMLInputElement>(`[data-oca-uid="${lf.uid}"]`);
-                  if (!lel) continue;
-                  const before = snapshot.get(lf.uid) ?? '';
-                  const after = lel.value ?? '';
-                  // If value changed (clobbered) and we had a value, re-fill
-                  if (before && after !== before) {
-                    try { await fillOne(lf, undefined, override); } catch { /* best effort */ }
+                  if (lf.value && lf.uid !== msg.uid) {
+                    const lel = document.querySelector<HTMLInputElement>(
+                      `[data-oca-uid="${lf.uid}"]`,
+                    );
+                    if (lel?.value) snapshot.set(lf.uid, lel.value);
+                  }
+                }
+
+                const el = document.querySelector<HTMLElement>(`[data-oca-uid="${f.uid}"]`);
+                if (el instanceof HTMLInputElement && el.type === 'file') {
+                  attachFile(el, pendingFile);
+                  ok = true;
+                } else if (el) {
+                  dropFileOnZone(el, pendingFile);
+                  ok = true;
+                }
+
+                // Wait for ATS resume parse to complete (may overwrite fields)
+                if (ok) {
+                  await waitForDomSettle({ quietMs: 1000, timeoutMs: 5000 });
+                  // Re-fill any fields that got clobbered by the resume parser
+                  const override = adapterOverride();
+                  for (const lf of lastFields) {
+                    if (!lf.value || lf.uid === msg.uid) continue;
+                    const lel = document.querySelector<HTMLInputElement>(
+                      `[data-oca-uid="${lf.uid}"]`,
+                    );
+                    if (!lel) continue;
+                    const before = snapshot.get(lf.uid) ?? '';
+                    const after = lel.value ?? '';
+                    // If value changed (clobbered) and we had a value, re-fill
+                    if (before && after !== before) {
+                      try {
+                        await fillOne(lf, undefined, override);
+                      } catch {
+                        /* best effort */
+                      }
+                    }
                   }
                 }
               }
+              resumeAutoDetect(false);
+              sendResponse({ type: 'FIELD_FILLED', uid: msg.uid, ok } satisfies FromContent);
+              break;
             }
-            resumeAutoDetect(false);
-            sendResponse({ type: 'FIELD_FILLED', uid: msg.uid, ok } satisfies FromContent);
-            break;
-          }
 
-          case 'FILL': {
-            pauseAutoDetect(); // prevent detect→fill→detect loop
-            pendingFile = null; // clear stale file from previous FILL_FILE
-            await fillMany(msg.fields, lastFields, pendingFile, broadcast, adapterOverride());
-            resumeAutoDetect(true); // resume + redetect to pick up any new fields post-fill
-            sendResponse({ type: 'STATUS', status: { phase: 'idle' } } satisfies FromContent);
-            break;
-          }
+            case 'FILL': {
+              pauseAutoDetect(); // prevent detect→fill→detect loop
+              pendingFile = null; // clear stale file from previous FILL_FILE
+              await fillMany(msg.fields, lastFields, pendingFile, broadcast, adapterOverride());
+              resumeAutoDetect(true); // resume + redetect to pick up any new fields post-fill
+              sendResponse({ type: 'STATUS', status: { phase: 'idle' } } satisfies FromContent);
+              break;
+            }
 
-          case 'FILL_AND_NEXT': {
-            // Generic "fill current step + click Next" — works without an adapter.
-            pauseAutoDetect();
-            await fillStep();
-            // Find a Next/Continue/Save button generically
-            const nextBtn = findGenericNextButton(document);
-            if (nextBtn) {
-              nextBtn.click();
-              await waitForDomSettle();
-              // Detect new fields on the next step
+            case 'FILL_SECTIONS': {
+              // Fill the repeatable Work Experience / Education sections. This mutates the DOM
+              // (adds rows), so pause autoDetect/observer for the whole run — the section
+              // driver is internally bounded and timeout-guarded so it can never hang.
+              pauseAutoDetect();
+              pauseObserver();
+              let sectionResult = {
+                experience: 0,
+                education: 0,
+                expFound: false,
+                eduFound: false,
+              };
+              try {
+                const profile = await getProfile();
+                const adapter = matchAdapter(new URL(location.href), document);
+                sectionResult = await fillRepeatableSections(profile, adapter?.id ?? null);
+              } catch {
+                /* section fill is best-effort — never break the page */
+              }
+              resumeObserver();
+              resumeAutoDetect(true); // re-detect: rows we added are new fillable fields
+              sendResponse({
+                type: 'SECTIONS_RESULT',
+                ...sectionResult,
+              } satisfies FromContent);
+              break;
+            }
+
+            case 'FILL_AND_NEXT': {
+              // Generic "fill current step + click Next" — works without an adapter.
+              pauseAutoDetect();
+              await fillStep();
+              // Find a Next/Continue/Save button generically
+              const nextBtn = findGenericNextButton(document);
+              if (nextBtn) {
+                nextBtn.click();
+                await waitForDomSettle();
+                // Detect new fields on the next step
+                const r = await resolveAll();
+                lastFields = r.fields;
+                broadcast({
+                  type: 'DETECTED',
+                  fields: r.fields,
+                  adapterId: r.adapterId,
+                  multiStep: r.multiStep,
+                });
+              }
+              resumeAutoDetect(false);
+              sendResponse({
+                type: 'STATUS',
+                status: { phase: nextBtn ? 'ready' : 'idle', step: 0 },
+              } satisfies FromContent);
+              break;
+            }
+
+            case 'WIZARD_NEXT': {
+              pauseAutoDetect(); // wizard owns navigation
+              const adapter = matchAdapter(new URL(location.href), document);
+              await fillStep();
+              const next = adapter?.findNextButton?.(document);
+              if (next) {
+                next.click();
+                await waitForDomSettle();
+              }
+              // Broadcast the NEW step's fields so the side panel's listener updates state
               const r = await resolveAll();
               lastFields = r.fields;
               broadcast({
@@ -185,75 +262,49 @@ export default defineContentScript({
                 adapterId: r.adapterId,
                 multiStep: r.multiStep,
               });
-            }
-            resumeAutoDetect(false);
-            sendResponse({
-              type: 'STATUS',
-              status: { phase: nextBtn ? 'ready' : 'idle', step: 0 },
-            } satisfies FromContent);
-            break;
-          }
-
-          case 'WIZARD_NEXT': {
-            pauseAutoDetect(); // wizard owns navigation
-            const adapter = matchAdapter(new URL(location.href), document);
-            await fillStep();
-            const next = adapter?.findNextButton?.(document);
-            if (next) {
-              next.click();
-              await waitForDomSettle();
-            }
-            // Broadcast the NEW step's fields so the side panel's listener updates state
-            const r = await resolveAll();
-            lastFields = r.fields;
-            broadcast({
-              type: 'DETECTED',
-              fields: r.fields,
-              adapterId: r.adapterId,
-              multiStep: r.multiStep,
-            });
-            resumeAutoDetect(false); // resume watching, don't double-detect
-            sendResponse({
-              type: 'STATUS',
-              status: { phase: 'ready', step: 0 },
-            } satisfies FromContent);
-            break;
-          }
-
-          case 'WIZARD_RUN': {
-            pauseAutoDetect(); // wizard owns the entire multi-step run
-            const adapter = matchAdapter(new URL(location.href), document);
-            if (!adapter) {
-              resumeAutoDetect(false);
+              resumeAutoDetect(false); // resume watching, don't double-detect
               sendResponse({
                 type: 'STATUS',
-                status: { phase: 'error', message: 'no adapter' },
+                status: { phase: 'ready', step: 0 },
               } satisfies FromContent);
               break;
             }
-            // Acknowledge immediately, then drive the (possibly minutes-long, multi-step)
-            // run via STATUS/DETECTED broadcasts. Holding the message port open across
-            // steps risks "port closed" if the page navigates mid-run (finding #10).
-            sendResponse({
-              type: 'STATUS',
-              status: { phase: 'filling', step: 0 },
-            } satisfies FromContent);
-            void runWizard(
-              adapter,
-              (status) => broadcast({ type: 'STATUS', status }),
-              fillStep,
-            ).then(() => {
-              inFlight = false;
-              resumeAutoDetect(true);
-              broadcast({ type: 'STATUS', status: { phase: 'idle' } });
-            }).catch(() => {
-              inFlight = false;
-              resumeAutoDetect(true);
-              broadcast({ type: 'STATUS', status: { phase: 'error', message: 'wizard failed' } });
-            });
-            break;
+
+            case 'WIZARD_RUN': {
+              pauseAutoDetect(); // wizard owns the entire multi-step run
+              const adapter = matchAdapter(new URL(location.href), document);
+              if (!adapter) {
+                resumeAutoDetect(false);
+                sendResponse({
+                  type: 'STATUS',
+                  status: { phase: 'error', message: 'no adapter' },
+                } satisfies FromContent);
+                break;
+              }
+              // Acknowledge immediately, then drive the (possibly minutes-long, multi-step)
+              // run via STATUS/DETECTED broadcasts. Holding the message port open across
+              // steps risks "port closed" if the page navigates mid-run (finding #10).
+              sendResponse({
+                type: 'STATUS',
+                status: { phase: 'filling', step: 0 },
+              } satisfies FromContent);
+              void runWizard(adapter, (status) => broadcast({ type: 'STATUS', status }), fillStep)
+                .then(() => {
+                  inFlight = false;
+                  resumeAutoDetect(true);
+                  broadcast({ type: 'STATUS', status: { phase: 'idle' } });
+                })
+                .catch(() => {
+                  inFlight = false;
+                  resumeAutoDetect(true);
+                  broadcast({
+                    type: 'STATUS',
+                    status: { phase: 'error', message: 'wizard failed' },
+                  });
+                });
+              break;
+            }
           }
-        }
         } finally {
           // WIZARD_RUN sets inFlight but runs async — release lock in its .then/.catch
           if (msg.type !== 'WIZARD_RUN') inFlight = false;
@@ -286,8 +337,12 @@ async function fillMany(
       broadcast({ type: 'FIELD_FILLED', uid: r.uid, ok: true });
       filled.push(f);
       // Track if this fill might reveal conditional fields
-      if (f.kind === 'select-native' || f.kind === 'select-custom' ||
-          f.kind === 'radio-group' || f.kind === 'checkbox') {
+      if (
+        f.kind === 'select-native' ||
+        f.kind === 'select-custom' ||
+        f.kind === 'radio-group' ||
+        f.kind === 'checkbox'
+      ) {
         hasConditionalFill = true;
       }
     } catch (e) {
@@ -340,7 +395,12 @@ function findGenericNextButton(doc: Document): HTMLElement | null {
 const SKIP_FILL_RE = /search|filter|keyword|find.*job|query|autocomplete.*search|nav/i;
 
 function shouldSkipFill(f: DetectedField): boolean {
-  const label = (f.signals.label || f.signals.placeholder || f.signals.ariaLabel || '').toLowerCase();
+  const label = (
+    f.signals.label ||
+    f.signals.placeholder ||
+    f.signals.ariaLabel ||
+    ''
+  ).toLowerCase();
 
   // Skip search/filter/navigation inputs
   if (SKIP_FILL_RE.test(label)) return true;
@@ -359,7 +419,11 @@ function shouldSkipFill(f: DetectedField): boolean {
       if (/search|find|filter/i.test(action)) return true;
     }
     // Skip if inside a navigation, header, or sidebar element
-    if (el.closest('nav, header, [role=navigation], [role=search], [class*=search-bar], [class*=navbar]')) {
+    if (
+      el.closest(
+        'nav, header, [role=navigation], [role=search], [class*=search-bar], [class*=navbar]',
+      )
+    ) {
       return true;
     }
   }

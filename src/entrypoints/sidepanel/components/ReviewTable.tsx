@@ -10,11 +10,21 @@ interface Props {
   threshold: number;
   answerBank: SavedAnswer[];
   onChange: (uid: string, value: string) => void;
+  onCommit?: (field: DetectedField, value: string) => void;
   onDraft: (field: DetectedField) => void;
   onSaveAnswer?: (question: string, answer: string) => void;
 }
 
-export function ReviewTable({ fields, filledMap, threshold, answerBank, onChange, onDraft, onSaveAnswer }: Props) {
+export function ReviewTable({
+  fields,
+  filledMap,
+  threshold,
+  answerBank,
+  onChange,
+  onCommit,
+  onDraft,
+  onSaveAnswer,
+}: Props) {
   if (fields.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
@@ -37,7 +47,8 @@ export function ReviewTable({ fields, filledMap, threshold, answerBank, onChange
     <div className="flex flex-1 flex-col overflow-hidden">
       {reviewCount > 0 && (
         <div className="mx-3 mt-2 flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 text-[11px] text-amber-700">
-          <span className="font-bold">{reviewCount}</span> field{reviewCount > 1 ? 's' : ''} need review
+          <span className="font-bold">{reviewCount}</span> field{reviewCount > 1 ? 's' : ''} need
+          review
         </div>
       )}
       <ul className="flex-1 overflow-y-auto mt-1">
@@ -56,6 +67,7 @@ export function ReviewTable({ fields, filledMap, threshold, answerBank, onChange
               error={filledMap[f.uid]?.error}
               suggestions={suggestions}
               onChange={onChange}
+              onCommit={onCommit}
               onDraft={onDraft}
               onSaveAnswer={onSaveAnswer}
             />

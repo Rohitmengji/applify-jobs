@@ -1,9 +1,9 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme {
   --color-conf-high: #16a34a; /* green  95–100% */
-  --color-conf-med: #ca8a04;  /* amber  70–94% */
-  --color-conf-low: #dc2626;  /* red    <70% */
+  --color-conf-med: #ca8a04; /* amber  70–94% */
+  --color-conf-low: #dc2626; /* red    <70% */
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
