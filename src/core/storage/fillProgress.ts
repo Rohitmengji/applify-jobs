@@ -23,6 +23,18 @@ async function getMap(): Promise<ProgressMap> {
   return (raw[KEY] as ProgressMap | undefined) ?? {};
 }
 
+// Serialize read-modify-write so two tabs saving progress in the same context can't
+// interleave and clobber each other's entry.
+let writeChain: Promise<void> = Promise.resolve();
+function withLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = writeChain.then(fn);
+  writeChain = run.then(
+    () => {},
+    () => {},
+  );
+  return run;
+}
+
 // Drop entries older than MAX_AGE so the session store doesn't grow unbounded across
 // many jobs in one browsing session.
 function prune(map: ProgressMap): ProgressMap {
@@ -34,15 +46,17 @@ function prune(map: ProgressMap): ProgressMap {
 
 export async function saveFillProgress(url: string, fields: DetectedField[]): Promise<void> {
   const key = normalizeUrl(url);
-  const map = prune(await getMap());
-  map[key] = {
-    url: key,
-    fields: fields
-      .filter((f) => f.value != null)
-      .map((f) => ({ uid: f.uid, value: f.value, mappedKey: f.mappedKey })),
-    savedAt: Date.now(),
-  };
-  await chrome.storage.session.set({ [KEY]: map });
+  await withLock(async () => {
+    const map = prune(await getMap());
+    map[key] = {
+      url: key,
+      fields: fields
+        .filter((f) => f.value != null)
+        .map((f) => ({ uid: f.uid, value: f.value, mappedKey: f.mappedKey })),
+      savedAt: Date.now(),
+    };
+    await chrome.storage.session.set({ [KEY]: map });
+  });
 }
 
 export async function loadFillProgress(url: string): Promise<FillProgress | null> {
@@ -56,19 +70,44 @@ export async function loadFillProgress(url: string): Promise<FillProgress | null
 // Clear one job's progress (pass its URL) or ALL progress (no argument).
 export async function clearFillProgress(url?: string): Promise<void> {
   if (!url) {
-    await chrome.storage.session.remove(KEY);
+    await withLock(async () => {
+      await chrome.storage.session.remove(KEY);
+    });
     return;
   }
-  const map = await getMap();
-  delete map[normalizeUrl(url)];
-  await chrome.storage.session.set({ [KEY]: map });
+  await withLock(async () => {
+    const map = await getMap();
+    delete map[normalizeUrl(url)];
+    await chrome.storage.session.set({ [KEY]: map });
+  });
 }
+
+// Tracking/marketing params that don't identify the job — stripped so the same posting is
+// keyed consistently. The REST of the query is KEPT: many ATSs identify the specific job
+// only in the query (e.g. ?gh_jid=123, ?jobId=...), so dropping it would collide distinct jobs.
+const TRACKING = new Set([
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_content',
+  'utm_term',
+  'source',
+  'ref',
+  'fbclid',
+  'gclid',
+  'mc_cid',
+  'mc_eid',
+]);
 
 function normalizeUrl(raw: string): string {
   try {
     const u = new URL(raw);
     u.hash = '';
-    return u.origin + u.pathname;
+    for (const p of [...u.searchParams.keys()]) {
+      if (TRACKING.has(p.toLowerCase())) u.searchParams.delete(p);
+    }
+    const qs = u.searchParams.toString();
+    return u.origin + u.pathname + (qs ? `?${qs}` : '');
   } catch {
     return raw;
   }

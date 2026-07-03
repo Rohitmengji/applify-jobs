@@ -97,7 +97,9 @@ export default defineContentScript({
           } satisfies FromContent);
           return;
         }
-        inFlight = true;
+        // GET_PAGE_INFO is a read that runs even during a WIZARD_RUN; it must NOT take or
+        // release the lock, or it would clear inFlight mid-run and let a concurrent op in.
+        if (msg.type !== 'GET_PAGE_INFO') inFlight = true;
         try {
           switch (msg.type) {
             case 'GET_PAGE_INFO': {
@@ -274,6 +276,10 @@ export default defineContentScript({
               pauseAutoDetect(); // wizard owns the entire multi-step run
               const adapter = matchAdapter(new URL(location.href), document);
               if (!adapter) {
+                // The finally clause skips WIZARD_RUN (the run releases the lock in its
+                // .then/.catch), but we bail BEFORE starting the run — so release it here or
+                // the content script deadlocks on every later message.
+                inFlight = false;
                 resumeAutoDetect(false);
                 sendResponse({
                   type: 'STATUS',
@@ -305,9 +311,17 @@ export default defineContentScript({
               break;
             }
           }
+        } catch (e) {
+          // Never leave the channel open (we `return true`) if a case throws before
+          // responding — that would leak the port and hang the side panel.
+          sendResponse({
+            type: 'STATUS',
+            status: { phase: 'error', message: String(e) },
+          } satisfies FromContent);
         } finally {
-          // WIZARD_RUN sets inFlight but runs async — release lock in its .then/.catch
-          if (msg.type !== 'WIZARD_RUN') inFlight = false;
+          // WIZARD_RUN sets inFlight but runs async — release lock in its .then/.catch.
+          // GET_PAGE_INFO never took the lock, so it must never release it either.
+          if (msg.type !== 'WIZARD_RUN' && msg.type !== 'GET_PAGE_INFO') inFlight = false;
         }
       })();
       return true; // keep the channel open for the async sendResponse

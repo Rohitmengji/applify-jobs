@@ -82,7 +82,9 @@ export const ProfileSchema = z.object({
     .object({
       current: z.string().optional(), // current CTC/salary e.g. "1212000"
       expected: z.string().optional(), // expected/desired salary e.g. "2475000"
-      currency: z.string().default('INR'), // home currency
+      // Optional (NOT defaulted): an unset currency must be distinguishable from a chosen
+      // one, so we never assume INR and mis-convert a non-INR user's salary.
+      currency: z.string().optional(), // home currency
       period: z.string().default('year'), // year | month | hour
     })
     .default({}),

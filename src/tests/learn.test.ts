@@ -124,6 +124,16 @@ describe('applyLearned', () => {
     expect(manual.value).toBe('typed'); // manual untouched
   });
 
+  it('never auto-fills a protected/EEO field from the learned store (read-side guard)', () => {
+    const f = fld('Gender', { kind: 'text' });
+    const learned: LearnedMap = {
+      [scopeKey(null, fieldFingerprint(f))]: { key: null, value: 'Male', uses: 5, updatedAt: 0 },
+    };
+    applyLearned([f], learned, profile);
+    expect(f.value).toBeNull(); // protected → not filled even with a matching learned entry
+    expect(f.source).toBe('none');
+  });
+
   it('prefers an ATS-scoped answer over the global one, and falls back to global', () => {
     const f = () => fld('How did you hear about us?', { kind: 'text' });
     const fp = fieldFingerprint(f());

@@ -1,5 +1,5 @@
 import { classifyKind, extractSignals } from './signals';
-import { fieldFingerprint } from './learn';
+import { fieldFingerprint, shouldLearn } from './learn';
 import type { DetectedField } from '../types';
 
 // Passive interaction observer — watches the user fill fields manually (typing, selecting,
@@ -87,6 +87,11 @@ function recordField(el: HTMLElement) {
 
   const field = elementToDetectedField(el);
   if (!field) return;
+
+  // Apply the SAME protected-field filter the sidebar path uses, so EEO / DOB / SSN /
+  // financial answers the user types on the page are never persisted to the learned store.
+  field.value = value;
+  if (!shouldLearn(field)) return;
 
   const fingerprint = fieldFingerprint(field);
   const label = fingerprint.split('|')[1] ?? '';

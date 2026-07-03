@@ -8,28 +8,48 @@ import type { ProfileKey } from '../profile.schema';
 // same question can carry an ATS-specific answer while still being reusable elsewhere.
 
 const KEY = 'learnedFields';
+const MAX_ENTRIES = 4000; // ~2 keys/answer (global + per-ATS) → ~2000 learned answers
 
 export async function getLearned(): Promise<LearnedMap> {
   const raw = await chrome.storage.local.get(KEY);
   return (raw[KEY] as LearnedMap | undefined) ?? {};
 }
 
+// Bound growth: when over cap, evict the stalest (least-recently-updated, then least-used).
+function capMap(map: LearnedMap): void {
+  const keys = Object.keys(map);
+  if (keys.length <= MAX_ENTRIES) return;
+  keys.sort((a, b) => map[a].updatedAt - map[b].updatedAt || map[a].uses - map[b].uses);
+  for (const k of keys.slice(0, keys.length - MAX_ENTRIES)) delete map[k];
+}
+
+// Serialize writes within this JS context so concurrent recordLearned calls (e.g. several
+// blur auto-saves in a row) don't read-modify-write over each other and drop entries/uses.
+// (Cross-context writes — panel + background — are rare; the passive observer routes through
+// the background, and the panel's own saves are chained here.)
+let writeChain: Promise<void> = Promise.resolve();
+
 export async function recordLearned(
   entries: { fingerprint: string; key: ProfileKey | null; value: string }[],
   adapterId: string | null = null,
 ): Promise<void> {
   if (entries.length === 0) return;
-  const map = await getLearned();
-  const now = Date.now();
-  const write = (k: string, key: ProfileKey | null, value: string) => {
-    const prev = map[k];
-    map[k] = { key, value, uses: (prev?.uses ?? 0) + 1, updatedAt: now };
-  };
-  for (const { fingerprint, key, value } of entries) {
-    if (adapterId) write(scopeKey(adapterId, fingerprint), key, value); // per-ATS
-    write(scopeKey(null, fingerprint), key, value); // global fallback
-  }
-  await chrome.storage.local.set({ [KEY]: map });
+  const run = writeChain.then(async () => {
+    const map = await getLearned();
+    const now = Date.now();
+    const write = (k: string, key: ProfileKey | null, value: string) => {
+      const prev = map[k];
+      map[k] = { key, value, uses: (prev?.uses ?? 0) + 1, updatedAt: now };
+    };
+    for (const { fingerprint, key, value } of entries) {
+      if (adapterId) write(scopeKey(adapterId, fingerprint), key, value); // per-ATS
+      write(scopeKey(null, fingerprint), key, value); // global fallback
+    }
+    capMap(map);
+    await chrome.storage.local.set({ [KEY]: map });
+  });
+  writeChain = run.catch(() => {}); // keep the chain alive even if one write fails
+  return run;
 }
 
 export async function clearLearned(): Promise<void> {

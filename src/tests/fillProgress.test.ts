@@ -43,7 +43,7 @@ function field(uid: string, value: string): DetectedField {
   };
 }
 
-const JOB_A = 'https://boards.greenhouse.io/acme/jobs/1?utm=x';
+const JOB_A = 'https://boards.greenhouse.io/acme/jobs/1?utm_source=x';
 const JOB_B = 'https://jobs.lever.co/globex/2';
 
 beforeEach(() => {
@@ -61,10 +61,18 @@ describe('fillProgress — per-URL isolation (multi-tab)', () => {
     expect(b?.fields[0].value).toBe('Grace');
   });
 
-  it('normalizes the URL (query/hash ignored) so the same job matches', async () => {
+  it('strips tracking params + hash but KEEPS job-identifying query', async () => {
+    // Tracking params and hash vary but it's the same job → matches.
     await saveFillProgress(JOB_A, [field('a1', 'Ada')]);
     const loaded = await loadFillProgress('https://boards.greenhouse.io/acme/jobs/1#apply');
     expect(loaded?.fields[0].value).toBe('Ada');
+
+    // Two postings on the SAME path but different job query must NOT collide.
+    await saveFillProgress('https://x.com/apply?gh_jid=42', [field('p1', 'FortyTwo')]);
+    expect(
+      (await loadFillProgress('https://x.com/apply?utm_source=li&gh_jid=42'))?.fields[0].value,
+    ).toBe('FortyTwo');
+    expect(await loadFillProgress('https://x.com/apply?gh_jid=99')).toBeNull();
   });
 
   it('clearFillProgress(url) clears only that job; the other survives', async () => {

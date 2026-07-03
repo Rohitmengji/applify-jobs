@@ -1,4 +1,10 @@
-import { ProfileSchema, type Profile } from '../profile.schema';
+import {
+  ProfileSchema,
+  ExperienceSchema,
+  EducationSchema,
+  AnswerSchema,
+  type Profile,
+} from '../profile.schema';
 
 // IMPLEMENTATION.md §9 — JSON profile in chrome.storage.local.
 // Never put the résumé here (use Dexie); never use chrome.storage.sync (~100 KB ceiling).
@@ -30,7 +36,7 @@ export const EMPTY: Profile = {
   experience: [],
   education: [],
   skills: [],
-  salary: { currency: 'INR', period: 'year' },
+  salary: { period: 'year' }, // currency intentionally unset — user picks it (no INR assumption)
   documents: {},
   answerBank: [],
   settings: { llmEnabled: true, autoAdvanceWizard: true, confidenceThreshold: 0.75 },
@@ -103,7 +109,20 @@ function repair(raw: unknown): Profile {
   const parsed = ProfileSchema.safeParse(merged);
   if (parsed.success) return parsed.data;
 
-  // If merge still fails (e.g., a field was renamed), log and return EMPTY
-  console.warn('Profile repair failed, starting fresh:', parsed.error);
+  // Salvage rather than wipe: one corrupt row shouldn't cost the user their whole profile.
+  // Drop only the individual array elements that fail their element schema, then re-parse.
+  const keep = <T>(v: unknown, schema: { safeParse: (x: unknown) => { success: boolean } }): T[] =>
+    Array.isArray(v) ? (v.filter((e) => schema.safeParse(e).success) as T[]) : [];
+  merged.experience = keep(merged.experience, ExperienceSchema);
+  merged.education = keep(merged.education, EducationSchema);
+  merged.answerBank = keep(merged.answerBank, AnswerSchema);
+  if (Array.isArray(merged.skills))
+    merged.skills = merged.skills.filter((s) => typeof s === 'string');
+
+  const salvaged = ProfileSchema.safeParse(merged);
+  if (salvaged.success) return salvaged.data;
+
+  // Still invalid (e.g. a required personal field is corrupt) — start fresh as a last resort.
+  console.warn('Profile repair failed, starting fresh:', salvaged.error);
   return EMPTY;
 }

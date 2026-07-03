@@ -89,11 +89,14 @@ export const indeed: SiteAdapter = {
   },
 
   isReviewStep(doc) {
-    // Indeed shows a review/submit page at the end
+    // Review = a submit/review indicator is present AND no Next/Continue step remains. The old
+    // second clause ("no enabled button exists") was self-contradictory: an enabled Submit
+    // button satisfied clause 1 but also failed clause 2, so the guard never fired on the very
+    // page it targets (matches the icims/oracle/successfactors pattern now).
     return (
       !!doc.querySelector(
-        'button[type="submit"]:not([disabled]), [data-testid*="review"], [data-testid*="submit"]',
-      ) && !doc.querySelector('button:not([disabled])')
+        'button[type="submit"], [data-testid*="review"], [data-testid*="submit"]',
+      ) && !this.findNextButton?.(doc)
     );
   },
 

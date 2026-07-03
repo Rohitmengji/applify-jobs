@@ -18,7 +18,8 @@ const DA_MAP: Record<string, ProfileKey> = {
   legalNameSection_middleName: 'personal.middleName',
   email: 'personal.email',
   'phone-number': 'personal.phone',
-  'phone-device-type': 'personal.phone',
+  // NOTE: no 'phone-device-type' — it's a Mobile/Home/Work dropdown, NOT the number. Mapping
+  // it to personal.phone guaranteed a fill error; leave it for heuristic/needs-review.
   addressSection_addressLine1: 'personal.address.line1',
   addressSection_addressLine2: 'personal.address.line2',
   addressSection_city: 'personal.address.city',

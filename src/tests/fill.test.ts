@@ -5,6 +5,7 @@ import {
   setRadioGroup,
   setCheckbox,
   setSearchMultiSelect,
+  setDate,
 } from '@/core/engine/fill';
 
 // jsdom has no layout, so offsetParent is always null and the visibility filter would drop
@@ -120,6 +121,23 @@ describe('setSearchMultiSelect (Workday-style skills)', () => {
     const added = await setSearchMultiSelect(() => input, 'SQL, sql', '[role=option]');
     expect(added).toBe(1);
     expect(clicked).toEqual(['SQL']);
+  });
+});
+
+describe('setDate', () => {
+  it('truncates to YYYY-MM for a month input (a full date would be rejected)', () => {
+    const i = document.createElement('input');
+    i.type = 'month';
+    document.body.append(i);
+    setDate(i, '2020-06-15');
+    expect(i.value).toBe('2020-06');
+  });
+  it('pads to YYYY-MM-DD for a date input', () => {
+    const i = document.createElement('input');
+    i.type = 'date';
+    document.body.append(i);
+    setDate(i, '2020-6-5');
+    expect(i.value).toBe('2020-06-05');
   });
 });
 

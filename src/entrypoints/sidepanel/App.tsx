@@ -621,9 +621,13 @@ export function App() {
       }
 
       // Learning engine: remember how the user resolved custom/corrected fields so the
-      // next form with that field auto-fills (source 'learned') without re-asking —
-      // scoped to this ATS, with a global fallback.
-      await recordLearned(learnableEntries(fields), adapterId);
+      // next form with that field auto-fills (source 'learned') without re-asking — scoped to
+      // this ATS, with a global fallback. Skip fields already auto-saved on blur this session
+      // (committedRef) so their `uses` count isn't double-incremented by this Fill.
+      const notYetLearned = fields.filter(
+        (f) => committedRef.current.get(f.uid) !== (f.value ?? '').trim(),
+      );
+      await recordLearned(learnableEntries(notYetLearned), adapterId);
 
       // Application tracker + progress cleanup, keyed to THIS job's URL so clearing one
       // job's saved progress never wipes another open tab's job (#multitab).

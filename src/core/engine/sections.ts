@@ -1,6 +1,7 @@
 import type { Profile, Experience, Education } from '../profile.schema';
 import { setReactInputValue, setCheckbox, setCustomDropdown, setNativeSelect, sleep } from './fill';
 import { extractSignals } from './signals';
+import { isProtectedLabel } from './learn';
 
 // IMPLEMENTATION.md §14 — repeatable sections (Work Experience, Education).
 //
@@ -132,17 +133,25 @@ function findAddButton(container: ParentNode): HTMLElement | null {
   );
 }
 
-// The common ancestor of a section's panels (or an explicit wrapper), used to scope the Add
-// button. Falls back to document so a missing wrapper doesn't disable adding — the row-count
-// timeout still guards against hangs.
-function sectionScope(doc: Document, wrapperSel: string, panelSel: string): ParentNode {
+// The container of a section (explicit wrapper, common ancestor of its panels, or — on a
+// fresh form with neither — the region under a matching section heading). Returns null rather
+// than falling back to the whole document, so findAddButton can't click a DIFFERENT section's
+// "Add" (which would add a stray panel elsewhere and then time out waiting for our row).
+function sectionScope(
+  doc: Document,
+  wrapperSel: string,
+  panelSel: string,
+  headingRe: RegExp,
+): ParentNode | null {
   const explicit = doc.querySelector<HTMLElement>(wrapperSel);
   if (explicit) return explicit;
   const panels = Array.from(doc.querySelectorAll<HTMLElement>(panelSel));
-  if (!panels.length) return doc;
-  let anc: HTMLElement | null = panels[0].parentElement;
-  while (anc && !panels.every((p) => anc!.contains(p))) anc = anc.parentElement;
-  return anc ?? doc;
+  if (panels.length) {
+    let anc: HTMLElement | null = panels[0].parentElement;
+    while (anc && !panels.every((p) => anc!.contains(p))) anc = anc.parentElement;
+    return anc;
+  }
+  return findSectionContainer(headingRe); // heading-based, or null if the section isn't here
 }
 
 function workdayExperienceSpec(): SectionSpec<ExpData> {
@@ -151,7 +160,10 @@ function workdayExperienceSpec(): SectionSpec<ExpData> {
     '[data-automation-id="workExperienceSection"], [data-automation-id="Work-Experience"]';
   return {
     rows: (doc) => Array.from(doc.querySelectorAll<HTMLElement>(PANEL)),
-    addButton: (doc) => findAddButton(sectionScope(doc, WRAPPER, PANEL)),
+    addButton: (doc) => {
+      const scope = sectionScope(doc, WRAPPER, PANEL, EXP_HEADING);
+      return scope ? findAddButton(scope) : null;
+    },
     fillRow: async (row, d) => {
       const title = qIn(row, '[data-automation-id="jobTitle"]');
       if (title instanceof HTMLInputElement && d.title) setReactInputValue(title, d.title);
@@ -197,7 +209,10 @@ function workdayEducationSpec(): SectionSpec<EduData> {
   const WRAPPER = '[data-automation-id="educationSection"], [data-automation-id="Education"]';
   return {
     rows: (doc) => Array.from(doc.querySelectorAll<HTMLElement>(PANEL)),
-    addButton: (doc) => findAddButton(sectionScope(doc, WRAPPER, PANEL)),
+    addButton: (doc) => {
+      const scope = sectionScope(doc, WRAPPER, PANEL, EDU_HEADING);
+      return scope ? findAddButton(scope) : null;
+    },
     fillRow: async (row, d) => {
       const school = qIn(row, '[data-automation-id="school"]');
       if (school instanceof HTMLInputElement && d.school) setReactInputValue(school, d.school);
@@ -275,9 +290,8 @@ function toEduData(e: Education): EduData | null {
 // ---------------------------------------------------------------------------
 
 const EXP_HEADING =
-  /work experience|employment history|professional experience|work history|employment background|previous employment/i;
-const EDU_HEADING =
-  /education|academic background|academic history|educational background|qualifications?/i;
+  /\bexperience\b|\bemployment\b|work history|professional experience|previous employment/i;
+const EDU_HEADING = /\beducation\b|academic (background|history)|educational|qualifications?/i;
 
 // Order matters: more specific / checkbox-ish keys are tested before generic ones so
 // "end date" isn't captured by the "date"-ish start rule, etc. First match wins per control.
@@ -302,19 +316,43 @@ const EDU_SUBKEYS: { key: keyof EduData; re: RegExp }[] = [
 const HEADING_SEL =
   'h1,h2,h3,h4,h5,h6,legend,[role="heading"],[class*="section-title"],[class*="sectionTitle"],[class*="section-header"]';
 
-// Find the container of a titled section: a short heading matching `re`, then its nearest
-// ancestor that actually holds form controls. Returns null when no such section exists.
-function findSectionContainer(re: RegExp): HTMLElement | null {
+// Find a titled section: a short heading matching `re`, plus its nearest ancestor holding
+// form controls. Returns the heading too so the filler can bound itself to that heading's own
+// range (so an over-broad ancestor can't swallow later, unrelated fields).
+function findSection(re: RegExp): { container: HTMLElement; heading: HTMLElement } | null {
   const headings = Array.from(document.querySelectorAll<HTMLElement>(HEADING_SEL));
   for (const h of headings) {
     const txt = (h.textContent ?? '').replace(/\s+/g, ' ').trim();
-    if (!txt || txt.length > 40 || !re.test(txt)) continue;
+    if (!txt || txt.length > 60 || !re.test(txt)) continue;
     let anc: HTMLElement | null = h.parentElement;
     for (let i = 0; i < 6 && anc; i++, anc = anc.parentElement) {
-      if (anc.querySelector('input:not([type=hidden]), select, textarea')) return anc;
+      if (anc.querySelector('input:not([type=hidden]), select, textarea'))
+        return { container: anc, heading: h };
     }
   }
   return null;
+}
+
+// Thin wrapper for callers that only need the container (sectionScope).
+function findSectionContainer(re: RegExp): HTMLElement | null {
+  return findSection(re)?.container ?? null;
+}
+
+// The highest ancestor of `anchor` (within `section`) that still contains exactly ONE anchor
+// — i.e. the element representing one row. Lets us align sub-fields by DOM containment when
+// rows are wrapped, instead of a fragile per-key occurrence index.
+function rowContainerOf(
+  anchor: HTMLElement,
+  section: HTMLElement,
+  anchors: HTMLElement[],
+): HTMLElement {
+  let node: HTMLElement = anchor;
+  let parent = node.parentElement;
+  while (parent && parent !== section && anchors.filter((a) => parent!.contains(a)).length <= 1) {
+    node = parent;
+    parent = node.parentElement;
+  }
+  return node;
 }
 
 function controlIsShown(el: HTMLElement): boolean {
@@ -342,61 +380,94 @@ function fillTextLike(el: HTMLElement, value: string): void {
     setReactInputValue(el, value);
 }
 
-// Bucket a section's controls by sub-field (in DOM order), then fill row-by-row aligned on
-// the anchor field. Synchronous and loop-free over static DOM → cannot hang.
+// Classify a control's label into a sub-field key (first match wins; "current" only for a
+// checkbox). Returns null if nothing matches or the label is protected/search.
+function classifySub<T>(el: HTMLElement, subkeys: { key: keyof T; re: RegExp }[]): keyof T | null {
+  const label = controlLabel(el);
+  if (!label || isProtectedLabel(label)) return null;
+  for (const { key, re } of subkeys) {
+    if (!re.test(label)) continue;
+    if (
+      key === ('current' as keyof T) &&
+      !(el instanceof HTMLInputElement && el.type === 'checkbox')
+    )
+      continue;
+    return key;
+  }
+  return null;
+}
+
+// Fill a titled section by label, aligning sub-fields by DOM containment when rows are
+// wrapped (falling back to positional index for flat layouts). Only touches controls within
+// the heading's own range, skips protected/search fields, never clicks "Add" (loop-free over
+// static DOM → cannot hang). Returns found=true when the section exists so the panel can warn.
 function fillGenericSection<T extends ExpData | EduData>(
   kind: 'experience' | 'education',
   items: T[],
 ): { filled: number; found: boolean } {
-  const container = findSectionContainer(kind === 'experience' ? EXP_HEADING : EDU_HEADING);
-  if (!container) return { filled: 0, found: false }; // no such section → don't warn
+  const sec = findSection(kind === 'experience' ? EXP_HEADING : EDU_HEADING);
+  if (!sec) return { filled: 0, found: false }; // no such section → don't warn
+  const { container, heading } = sec;
 
   const subkeys = (kind === 'experience' ? EXP_SUBKEYS : EDU_SUBKEYS) as {
     key: keyof T;
     re: RegExp;
   }[];
-  const buckets = new Map<keyof T, HTMLElement[]>();
+
+  // Bound to the heading's range: after THIS heading and before the NEXT heading, so an
+  // over-broad container can't leak into unrelated fields.
+  const allHeadings = Array.from(document.querySelectorAll<HTMLElement>(HEADING_SEL));
+  const nextHeading = allHeadings.find(
+    (h) =>
+      h !== heading && !!(heading.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING),
+  );
+  const inRange = (el: HTMLElement): boolean => {
+    const afterHeading = !!(heading.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const beforeNext =
+      !nextHeading || !(nextHeading.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+    return afterHeading && beforeNext;
+  };
+
   const controls = Array.from(
     container.querySelectorAll<HTMLElement>(
       'input:not([type=hidden]):not([type=button]):not([type=submit]):not([type=reset]), select, textarea',
     ),
-  ).filter(controlIsShown);
+  ).filter((el) => controlIsShown(el) && inRange(el));
 
+  const buckets = new Map<keyof T, HTMLElement[]>();
   for (const el of controls) {
-    const label = controlLabel(el);
-    if (!label) continue;
-    for (const { key, re } of subkeys) {
-      if (!re.test(label)) continue;
-      // "current" only applies to a checkbox — never a "Current Company" text field.
-      if (
-        key === ('current' as keyof T) &&
-        !(el instanceof HTMLInputElement && el.type === 'checkbox')
-      )
-        break;
-      const list = buckets.get(key) ?? [];
-      list.push(el);
-      buckets.set(key, list);
-      break;
-    }
+    const key = classifySub<T>(el, subkeys);
+    if (!key) continue;
+    const list = buckets.get(key) ?? [];
+    list.push(el);
+    buckets.set(key, list);
   }
 
-  // Anchor row count on the most distinctive field so we don't create phantom rows.
-  const anchor =
-    kind === 'experience'
+  // Anchors define rows (most distinctive field first).
+  const anchors =
+    (kind === 'experience'
       ? (buckets.get('company' as keyof T) ?? buckets.get('title' as keyof T))
-      : (buckets.get('school' as keyof T) ?? buckets.get('degree' as keyof T));
-  if (!anchor?.length) return { filled: 0, found: true }; // section present but unrecognized fields
+      : (buckets.get('school' as keyof T) ?? buckets.get('degree' as keyof T))) ?? [];
+  if (!anchors.length) return { filled: 0, found: true }; // section present but unrecognized
 
-  const rowCount = Math.min(anchor.length, items.length, HARD_ROW_CAP);
+  const rowCount = Math.min(anchors.length, items.length, HARD_ROW_CAP);
   let filled = 0;
   for (let i = 0; i < rowCount; i++) {
+    const rowEl = rowContainerOf(anchors[i], container, anchors);
     const data = items[i] as ExpData & EduData;
+    // Pick a row's control for a sub-field: prefer one inside the row's wrapper (containment
+    // alignment); if the row has no wrapper (flat layout), fall back to the i-th occurrence.
+    const pick = (key: keyof T): HTMLElement | undefined => {
+      const bucket = buckets.get(key) ?? [];
+      return (
+        bucket.find((b) => rowEl.contains(b)) ?? (rowEl === anchors[i] ? bucket[i] : undefined)
+      );
+    };
     let any = false;
     for (const { key } of subkeys) {
-      const bucket = buckets.get(key);
-      if (!bucket || i >= bucket.length) continue;
-      const el = bucket[i];
-      if (key === 'current') {
+      const el = pick(key);
+      if (!el) continue;
+      if (key === ('current' as keyof T)) {
         if (data.current) {
           const cb =
             el instanceof HTMLInputElement && el.type === 'checkbox'
@@ -409,11 +480,12 @@ function fillGenericSection<T extends ExpData | EduData>(
         }
         continue;
       }
-      if (key === 'endDate' && data.current) continue; // current role → leave end date blank
+      if (key === ('endDate' as keyof T) && data.current) continue; // current → leave end blank
       const raw = data[key as keyof (ExpData & EduData)] as string | undefined;
       if (!raw) continue;
       const value =
-        (key === 'startDate' || key === 'endDate') && el instanceof HTMLInputElement
+        (key === ('startDate' as keyof T) || key === ('endDate' as keyof T)) &&
+        el instanceof HTMLInputElement
           ? dateForInput(el, raw)
           : raw;
       fillTextLike(el, value);
