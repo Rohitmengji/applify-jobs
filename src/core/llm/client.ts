@@ -41,8 +41,10 @@ async function getConfig(): Promise<{ key: string; base: string; provider: LlmPr
     llmBaseUrl = '',
     llmProvider = '',
   } = await chrome.storage.local.get(['llmApiKey', 'llmBaseUrl', 'llmProvider']);
-  const provider = detectProvider(llmApiKey, llmProvider);
-  return { key: llmApiKey, base: safeBase(llmBaseUrl, provider), provider };
+  const key = (llmApiKey as string).trim();
+  if (!key) throw new Error('No API key configured — add one in Settings.');
+  const provider = detectProvider(key, llmProvider);
+  return { key, base: safeBase(llmBaseUrl, provider), provider };
 }
 
 async function callLLM(system: string, user: string, maxTokens = 1024): Promise<string> {
@@ -103,13 +105,16 @@ export async function mapFieldsWithLLM(
   const text = await callLLM(mappingSystemPrompt(), JSON.stringify(unresolved));
   const clean = text.replace(/```json|```/g, '').trim();
   try {
-    const parsed = JSON.parse(clean) as { uid: string; key: string | null; confidence: number }[];
+    const parsed = JSON.parse(clean) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed.map((m) => ({
-      uid: String(m.uid),
-      key: m.key && VALID_KEYS.has(m.key) ? (m.key as ProfileKey) : null,
-      confidence: typeof m.confidence === 'number' ? m.confidence : 0,
-    }));
+    // Skip malformed rows instead of letting one null/non-object discard the whole batch.
+    return parsed
+      .filter((m): m is Record<string, unknown> => m != null && typeof m === 'object')
+      .map((m) => ({
+        uid: String(m.uid),
+        key: typeof m.key === 'string' && VALID_KEYS.has(m.key) ? (m.key as ProfileKey) : null,
+        confidence: typeof m.confidence === 'number' ? m.confidence : 0,
+      }));
   } catch {
     return [];
   }

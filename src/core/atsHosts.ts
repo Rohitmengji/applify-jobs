@@ -44,7 +44,7 @@ export const ATS_MATCH_PATTERNS: string[] = [
   'https://*.naukri.com/*',
   'https://*.join.com/*',
   'https://*.zohorecruit.com/*',
-  'https://*.zoho.com/*', // recruit.zoho.com
+  'https://recruit.zoho.com/*', // ONLY the recruit subdomain — not mail/crm/the whole Zoho suite
   'https://*.keka.com/*',
   'https://*.dice.com/*',
   'https://*.ziprecruiter.com/*',

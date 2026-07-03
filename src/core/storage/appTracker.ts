@@ -76,25 +76,35 @@ export function extractRole(doc: Document): string {
   return title;
 }
 
-/** Log an application. Deduplicates by normalized URL within 24h. */
-export async function logApplication(opts: {
-  company: string;
-  role: string;
-  url: string;
-  atsType: string;
-}): Promise<TrackedApplication | null> {
+/**
+ * Log an application. Deduplicates by normalized URL within the SAME window findDuplicate
+ * warns on (30 days), so re-filling a job you already applied to updates the existing entry
+ * instead of creating a second history row.
+ */
+export async function logApplication(
+  opts: {
+    company: string;
+    role: string;
+    url: string;
+    atsType: string;
+  },
+  withinDays = 30,
+): Promise<TrackedApplication | null> {
   const normalizedUrl = normalizeUrl(opts.url);
   const now = Date.now();
-  const dayAgo = now - 24 * 60 * 60 * 1000;
+  const cutoff = now - withinDays * 24 * 60 * 60 * 1000;
 
-  // Check for duplicate (same URL within last 24h)
+  // Same URL within the dedup window → touch the existing entry, don't insert a duplicate.
   const existing = await db.applications
     .where('url')
     .equals(normalizedUrl)
-    .filter((a) => a.appliedAt > dayAgo)
+    .filter((a) => a.appliedAt > cutoff)
     .first();
 
-  if (existing) return null; // already logged recently
+  if (existing) {
+    await db.applications.update(existing.id, { updatedAt: now });
+    return existing;
+  }
 
   const app: TrackedApplication = {
     id: crypto.randomUUID(),

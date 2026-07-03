@@ -36,16 +36,35 @@ const ID_MAP: Record<string, ProfileKey> = {
   jv_linkedin: 'links.linkedin',
 };
 
+// Split an attribute value into word tokens (camelCase + separators), e.g. "jv_first_name" or
+// "firstName" → ["jv","first","name"]. Used for whole-token matching so a short pattern like
+// "city" can't match inside an unrelated word like "ethni-city" / "ethnicity".
+function tokens(s: string): string[] {
+  return s
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+function attrMatches(attr: string, pattern: string): boolean {
+  const collapsed = attr.replace(/[^a-z0-9]/g, '');
+  const pcol = pattern.replace(/[^a-z0-9]/g, '');
+  if (collapsed === pcol) return true;
+  // Multi-word patterns (first-name, phone-number): allow a contiguous collapsed match.
+  if (/[-_]/.test(pattern)) return collapsed.includes(pcol);
+  // Single-word patterns: must appear as a WHOLE token (not a substring of a longer word).
+  return tokens(attr).includes(pattern);
+}
+
 function mapField(f: DetectedField): ProfileKey | null {
-  // Check name attribute
   const name = f.signals.name.toLowerCase();
   for (const [pattern, key] of Object.entries(NAME_MAP)) {
-    if (name === pattern || name.includes(pattern)) return key;
+    if (attrMatches(name, pattern)) return key;
   }
-  // Check id attribute
   const id = f.signals.id.toLowerCase();
   for (const [pattern, key] of Object.entries(ID_MAP)) {
-    if (id === pattern || id.includes(pattern)) return key;
+    if (attrMatches(id, pattern)) return key;
   }
   return null;
 }

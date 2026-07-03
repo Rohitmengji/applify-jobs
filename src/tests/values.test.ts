@@ -56,6 +56,19 @@ describe('valueForKey', () => {
     );
   });
 
+  it('composes the full name for an autocomplete="name" field (not just first name)', () => {
+    const f = fld('personal.firstName');
+    f.signals.autocomplete = 'name';
+    expect(valueForKey(profile, 'personal.firstName', f)).toBe('Ada Lovelace');
+  });
+
+  it('does NOT convert salary when the home currency is unset (no INR assumption)', () => {
+    const p = { ...profile, salary: { expected: '100000', period: 'year' } } as Profile;
+    const f = fld('salary.expected');
+    f.signals.label = 'Expected salary (USD)'; // field names a currency, but home is unknown
+    expect(valueForKey(p, 'salary.expected', f)).toBe('100000'); // raw amount, not divided by ~83
+  });
+
   it('joins skills with commas', () => {
     expect(valueForKey(profile, 'skills', fld('skills'))).toBe('React, TypeScript');
   });

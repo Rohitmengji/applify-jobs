@@ -63,23 +63,24 @@ function deriveSalary(profile: Profile, field: DetectedField): string | null {
   const amount = parseInt(raw.replace(/[^0-9]/g, ''), 10);
   if (!amount || isNaN(amount)) return null;
 
-  const homeCurrency = (profile.salary?.currency ?? 'INR').toUpperCase();
-  // Default to HOME currency — only convert if the field explicitly asks for a different currency
-  const targetCurrency = detectCurrency(labelText) ?? homeCurrency;
+  // Home currency is only known if the user set it — we DON'T assume INR, or a non-INR
+  // user's number would be mis-converted. When unknown, never convert (fill the raw amount).
+  const homeCurrency = profile.salary?.currency?.toUpperCase();
+  const targetCurrency = detectCurrency(labelText);
 
-  // Detect LPA (Lakhs Per Annum) — Indian format
+  // Detect LPA (Lakhs Per Annum) — Indian format, only when the user is explicitly INR.
   if (/\blpa\b|\blakhs?\b/i.test(labelText) && homeCurrency === 'INR') {
     const lpa = Math.round((amount / 100000) * 100) / 100;
     return String(lpa);
   }
 
-  if (homeCurrency === targetCurrency) return String(amount);
-
-  // Convert: home → USD → target
-  const homeRate = RATES_TO_USD[homeCurrency] ?? 1;
-  const targetRate = RATES_TO_USD[targetCurrency] ?? 1;
-  const converted = Math.round((amount * homeRate) / targetRate);
-  return String(converted);
+  // Convert only when we KNOW the home currency AND the field asks for a different one.
+  if (homeCurrency && targetCurrency && homeCurrency !== targetCurrency) {
+    const homeRate = RATES_TO_USD[homeCurrency] ?? 1;
+    const targetRate = RATES_TO_USD[targetCurrency] ?? 1;
+    return String(Math.round((amount * homeRate) / targetRate));
+  }
+  return String(amount);
 }
 
 // Context-aware work authorization. When the question names a country (e.g. "authorized
@@ -145,8 +146,13 @@ export function valueForKey(
       return deriveSalary(profile, field);
 
     default: {
-      // Lever-style single "Full name" input (name="name"): compose first + last.
-      if (key === 'personal.firstName' && field.signals.name === 'name') {
+      // Single "Full name" input: compose first + last. Triggered by name="name" (Lever) OR
+      // autocomplete="name" (the standard full-name token — heuristic maps it to firstName;
+      // autocomplete="given-name" carries a different token so it won't wrongly compose).
+      if (
+        key === 'personal.firstName' &&
+        (field.signals.name === 'name' || field.signals.autocomplete === 'name')
+      ) {
         const composed = [profile.personal.firstName, profile.personal.lastName]
           .filter(Boolean)
           .map(capitalize)

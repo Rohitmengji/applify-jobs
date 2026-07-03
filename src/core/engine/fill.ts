@@ -63,31 +63,29 @@ function pickOption<T>(
     (o) => text(o).toLowerCase().trim() === t || value(o).toLowerCase().trim() === t,
   );
   if (exact) return exact;
-  if (t.length < MIN_SUBSTR) {
-    // Short tokens: try alias normalization (handles "US" → "United States", "CA" → "California")
-    const aliasMatch = matchByAlias(
-      target,
-      options.map((o) => text(o)),
-    );
-    if (aliasMatch) return options.find((o) => text(o) === aliasMatch) ?? null;
-    return null;
-  }
-  // Substring match
-  const substr =
-    options.find((o) => {
-      const ot = text(o).toLowerCase().trim();
-      return ot.length >= MIN_SUBSTR && (ot.includes(t) || t.includes(ot));
-    }) ?? null;
-  if (substr) return substr;
 
-  // Final fallback: country/state alias normalization
+  // Country/state alias normalization runs BEFORE the loose substring fallback, so a valid
+  // alias ("USA" → "United States of America") wins over a reverse-substring collision (e.g.
+  // target "United States of America" loosely containing an unrelated short option).
   const aliasMatch = matchByAlias(
     target,
     options.map((o) => text(o)),
   );
-  if (aliasMatch) return options.find((o) => text(o) === aliasMatch) ?? null;
+  if (aliasMatch) {
+    const hit = options.find((o) => text(o) === aliasMatch);
+    if (hit) return hit;
+  }
 
-  return null;
+  // Short tokens never substring-match (so "No" ≠ "Norway"); alias above already tried.
+  if (t.length < MIN_SUBSTR) return null;
+
+  // Substring fallback (last resort).
+  return (
+    options.find((o) => {
+      const ot = text(o).toLowerCase().trim();
+      return ot.length >= MIN_SUBSTR && (ot.includes(t) || t.includes(ot));
+    }) ?? null
+  );
 }
 
 // §12.2 — native <select>
@@ -183,16 +181,16 @@ export function setCheckbox(el: HTMLInputElement, checked: boolean): void {
   if (el.checked !== checked) el.click(); // click drives React + fires change
 }
 
-export function setRadioGroup(name: string, value: string): boolean {
+export function setRadioGroup(name: string, value: string, root: ParentNode = document): boolean {
   const target = value.toLowerCase().trim();
   if (!target) return false;
+  // Scope to the field's root node so radios inside a shadow root are found (and their
+  // labels resolved) instead of querying only the top-level document.
   const radios = Array.from(
-    document.querySelectorAll<HTMLInputElement>(`input[type=radio][name="${cssEscape(name)}"]`),
+    root.querySelectorAll<HTMLInputElement>(`input[type=radio][name="${cssEscape(name)}"]`),
   );
   const entries = radios.map((r) => {
-    const lbl = r.id
-      ? document.querySelector(`label[for="${cssEscape(r.id)}"]`)
-      : r.closest('label');
+    const lbl = r.id ? root.querySelector(`label[for="${cssEscape(r.id)}"]`) : r.closest('label');
     return {
       r,
       text: (lbl?.textContent ?? r.value).toLowerCase().trim(),
@@ -238,9 +236,14 @@ export function fileFromB64(b64: string, name: string, mime: string): File {
   return new File([bytes], name, { type: mime });
 }
 
-// §12.6 — date fields. Profile dates are ISO; adapters override for masked/segmented UIs.
+// §12.6 — date fields. Profile dates are ISO-ish (YYYY | YYYY-MM | YYYY-MM-DD). Format to the
+// input's type: <input type="month"> rejects a full YYYY-MM-DD, <input type="date"> needs one.
 export function setDate(el: HTMLInputElement, isoOrYmd: string): void {
-  setReactInputValue(el, isoOrYmd);
+  const [y, m = '01', d = '01'] = isoOrYmd.split('-');
+  let value = isoOrYmd;
+  if (el.type === 'month') value = `${y}-${m.padStart(2, '0')}`;
+  else if (el.type === 'date') value = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  setReactInputValue(el, value);
 }
 
 // §12.6b — phone fields. Some inputs use input masks (e.g., (___) ___-____) that reject
@@ -429,11 +432,15 @@ export async function fillOne(
         ['yes', 'true', '1', 'on'].includes((field.value ?? '').toLowerCase()),
       );
       break;
-    case 'radio-group':
+    case 'radio-group': {
       if (!field.signals.name) throw new Error('radio group has no name attribute');
-      if (!setRadioGroup(field.signals.name, field.value ?? ''))
+      // Scope to the element's root so radios in a shadow root are found (el.getRootNode()
+      // is the shadow root for shadow-DOM controls, else the document).
+      const root = (el.getRootNode() as ParentNode) ?? document;
+      if (!setRadioGroup(field.signals.name, field.value ?? '', root))
         throw new Error('no radio matched');
       break;
+    }
     case 'date':
       setDate(el as HTMLInputElement, field.value ?? '');
       break;

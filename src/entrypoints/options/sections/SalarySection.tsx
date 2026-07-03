@@ -9,7 +9,7 @@ const PERIODS = [
 ];
 
 export function SalarySection({ draft, setDraft }: SectionProps) {
-  const s = draft.salary ?? { currency: 'INR', period: 'year' };
+  const s = draft.salary ?? { period: 'year' };
   const setS = (patch: Partial<Profile['salary']>) =>
     setDraft((d) => ({ ...d, salary: { ...d.salary, ...patch } }));
 
@@ -30,7 +30,7 @@ export function SalarySection({ draft, setDraft }: SectionProps) {
   const expectedAmt = parseInt((s.expected ?? '').replace(/[^0-9]/g, ''), 10);
   const currentAmt = parseInt((s.current ?? '').replace(/[^0-9]/g, ''), 10);
   const amount = expectedAmt || currentAmt;
-  const homeRate = rates[s.currency] ?? 1;
+  const homeRate = rates[s.currency ?? ''] ?? 1;
 
   return (
     <Section
@@ -54,10 +54,11 @@ export function SalarySection({ draft, setDraft }: SectionProps) {
         </Field>
         <Field label="Currency">
           <select
-            value={s.currency}
-            onChange={(e) => setS({ currency: e.target.value })}
+            value={s.currency ?? ''}
+            onChange={(e) => setS({ currency: e.target.value || undefined })}
             className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
           >
+            <option value="">— select —</option>
             {CURRENCIES.map((c) => (
               <option key={c} value={c}>
                 {c}
@@ -100,9 +101,9 @@ export function SalarySection({ draft, setDraft }: SectionProps) {
 
       {(currentAmt > 0 || expectedAmt > 0) && (
         <p className="text-xs text-gray-400 mt-1">
-          {currentAmt > 0 && `Current: ${s.currency} ${currentAmt.toLocaleString()}`}
+          {currentAmt > 0 && `Current: ${s.currency ?? ''} ${currentAmt.toLocaleString()}`}
           {currentAmt > 0 && expectedAmt > 0 && ' | '}
-          {expectedAmt > 0 && `Expected: ${s.currency} ${expectedAmt.toLocaleString()}`}
+          {expectedAmt > 0 && `Expected: ${s.currency ?? ''} ${expectedAmt.toLocaleString()}`}
           {s.currency === 'INR' && expectedAmt > 0 && ` (${(expectedAmt / 100000).toFixed(1)} LPA)`}
           {` / ${s.period}`}
         </p>

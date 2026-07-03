@@ -71,12 +71,14 @@ function enrichRadioOptions(el: HTMLElement, kind: FieldKind): FieldSignals {
   const signals = extractSignals(el);
   if (kind === 'radio-group') {
     const name = el.getAttribute('name') ?? '';
-    const radios = document.querySelectorAll<HTMLInputElement>(
+    // Scope to the element's root node so radios/labels inside a shadow root are found.
+    const root = el.getRootNode() as ParentNode;
+    const radios = root.querySelectorAll<HTMLInputElement>(
       `input[type=radio][name="${cssEscape(name)}"]`,
     );
     signals.options = Array.from(radios).map((r) => {
       const id = r.id;
-      const lbl = id ? document.querySelector(`label[for="${cssEscape(id)}"]`) : r.closest('label');
+      const lbl = id ? root.querySelector(`label[for="${cssEscape(id)}"]`) : r.closest('label');
       return (lbl?.textContent ?? r.value).replace(/\s+/g, ' ').trim();
     });
     // label of the *group* is usually a fieldset legend

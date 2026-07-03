@@ -106,6 +106,9 @@ export function applyLearned(
 
   for (const f of fields) {
     if (f.source === 'adapter' || f.source === 'manual') continue;
+    // Never auto-fill a protected/EEO field from the learned store (and never let a fuzzy
+    // match bleed a stored answer into a protected question). Mirrors the write-side guard.
+    if (isProtectedOrSearch(f)) continue;
 
     // Try all fingerprints (primary + secondary) for exact match
     const fps = fieldFingerprints(f);
@@ -170,11 +173,11 @@ const PROTECTED_LABEL =
   /gender|\bsex\b|sexual orientation|\brace\b|ethnicity|hispanic|latino|veteran|military|disabilit|criminal|felony|conviction|background check|drug test|password|date of birth|\bdob\b|birth ?date|\bssn\b|social security|social insurance|\bsin\b|national insurance|national id|tax id|\bein\b|passport|driver'?s? licen[cs]e|bank account|routing number|sort code|\biban\b/i;
 const SEARCH_LABEL = /search|filter|keyword|\bquery\b|find jobs?/i;
 
-// Whether a field's answer is safe + meaningful to remember for future fills.
-export function shouldLearn(field: DetectedField): boolean {
-  if (field.value == null || field.value.trim() === '') return false; // blank/whitespace
-  if (field.kind === 'file') return false; // files aren't learned
-  if (field.mappedKey && field.mappedKey.startsWith('eeo.')) return false; // protected class
+// A protected/sensitive or non-answer (search) field — must never be persisted to the
+// learned store NOR auto-filled FROM it. Independent of the field's current value so it can
+// gate both the write side (shouldLearn) and the read side (applyLearned).
+export function isProtectedOrSearch(field: DetectedField): boolean {
+  if (field.mappedKey && field.mappedKey.startsWith('eeo.')) return true; // protected class
   const label = (
     field.signals.label ||
     field.signals.ariaLabel ||
@@ -182,9 +185,21 @@ export function shouldLearn(field: DetectedField): boolean {
     field.signals.name ||
     ''
   ).toLowerCase();
-  if (PROTECTED_LABEL.test(label)) return false;
-  if (SEARCH_LABEL.test(label)) return false;
-  return true;
+  return PROTECTED_LABEL.test(label) || SEARCH_LABEL.test(label);
+}
+
+// Label-only protected/search check, for callers that only have a label string (e.g. the
+// generic section filler operating on raw DOM controls).
+export function isProtectedLabel(label: string): boolean {
+  const l = label.toLowerCase();
+  return PROTECTED_LABEL.test(l) || SEARCH_LABEL.test(l);
+}
+
+// Whether a field's answer is safe + meaningful to remember for future fills.
+export function shouldLearn(field: DetectedField): boolean {
+  if (field.value == null || field.value.trim() === '') return false; // blank/whitespace
+  if (field.kind === 'file') return false; // files aren't learned
+  return !isProtectedOrSearch(field);
 }
 
 // Which of the just-filled fields are worth remembering: the user's own edits, accepted
