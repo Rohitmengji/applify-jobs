@@ -10,6 +10,7 @@ import { saveFillProgress, loadFillProgress, clearFillProgress } from '@/core/st
 import { learnableEntries } from '@/core/engine/learn';
 import { findAnswer } from '@/core/llm/answerBank';
 import { valueForKey } from '@/core/engine/values';
+import { coerceValueForField, extractNumber } from '@/core/engine/fill';
 import {
   sendToFrame,
   sendToBackground,
@@ -28,6 +29,18 @@ import { analyzeJobDescription, type JdAnalysis } from '@/core/engine/jdAnalysis
 
 type FilledMap = Record<string, { ok: boolean; error?: string }>;
 type LlmPatch = { key: ProfileKey; confidence: number; value: string | null };
+
+// A question that wants a NUMBER, not prose (e.g. LinkedIn "How many years of experience…").
+// Type-based always counts; for a single-line text input we also accept common numeric labels
+// so a text field asking for years/count gets "3", not "I have 3 years…".
+const NUMERIC_Q = /how many|number of|\byears?\b|\bmonths?\b|total\s*experience|\bage\b|gpa|cgpa/i;
+function isNumericQuestion(field: DetectedField): boolean {
+  if (field.kind === 'number' || field.signals.inputType === 'number') return true;
+  if (field.kind !== 'text') return false; // never treat a textarea as numeric
+  return NUMERIC_Q.test(
+    field.signals.label || field.signals.ariaLabel || field.signals.placeholder || '',
+  );
+}
 
 // Turn a terse wizard error into something a stranded user can act on. The content script
 // emits short machine strings ('wizard failed', 'no adapter', 'busy', …); map the ones we
@@ -451,10 +464,7 @@ export function App() {
       if (!question) return;
 
       // NUMBER fields (years of experience, etc.) — compute directly, don't call LLM
-      if (
-        field.kind === 'number' ||
-        /^(\d+|how many|years?|months?|number of)/i.test(question.trim())
-      ) {
+      if (isNumericQuestion(field)) {
         const profile = await getProfile();
         // Try to compute a numeric answer from profile
         const label = question.toLowerCase();
@@ -478,9 +488,7 @@ export function App() {
           question: `[FIELD TYPE: number - respond with ONLY a single number, no text] ${question}`,
         });
         if (res.type === 'LLM_DRAFT_RESULT' && res.answer) {
-          // Extract just the number from the response
-          const num = res.answer.match(/\d+/)?.[0] ?? res.answer;
-          applyResolved(field.uid, num, 'llm');
+          applyResolved(field.uid, extractNumber(res.answer), 'llm');
         }
         return;
       }
@@ -546,12 +554,13 @@ export function App() {
         question: `${fieldContext}${question}`,
       });
       if (res.type === 'LLM_DRAFT_RESULT' && res.answer) {
-        // Enforce maxLength at the application level (in case LLM exceeds it)
-        let answer = res.answer;
-        if (maxLength && answer.length > maxLength) {
-          answer = answer.slice(0, maxLength - 3) + '...';
-        }
-        applyResolved(field.uid, answer, res.source === 'answerBank' ? 'answerBank' : 'llm');
+        // coerceValueForField enforces maxLength (and numeric) as a safety net if the LLM
+        // ignored the prompt constraints.
+        applyResolved(
+          field.uid,
+          coerceValueForField(field, res.answer),
+          res.source === 'answerBank' ? 'answerBank' : 'llm',
+        );
       }
     },
     [applyResolved],
@@ -930,37 +939,11 @@ export function App() {
       if (freeTextFields.length === 0) return;
 
       // Draft in batches of 3 to avoid rate-limiting
+      // Delegate to onDraft so batch drafting gets the SAME handling as single "Draft with AI":
+      // numeric fields → a bare number, length-constrained prompts, and maxLength coercion.
       const draftOne = async (field: DetectedField) => {
-        const question =
-          field.signals.label || field.signals.ariaLabel || field.signals.placeholder || '';
-        const isCL =
-          /cover letter|motivation letter|why .* (this|the) (role|position|company)/i.test(
-            question,
-          );
         try {
-          if (isCL) {
-            const tabId = await activeTabGuard();
-            if (tabId == null) return;
-            const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
-            const res = await sendToBackground<FromBackground>({
-              type: 'LLM_COVER_LETTER',
-              company: info?.type === 'PAGE_INFO' ? info.company : 'the company',
-              role: info?.type === 'PAGE_INFO' ? info.role : 'this role',
-              description: info?.type === 'PAGE_INFO' ? info.description : undefined,
-            });
-            if (res.type === 'LLM_COVER_LETTER_RESULT' && res.text) {
-              applyResolved(field.uid, res.text, 'llm');
-            }
-          } else {
-            const res = await sendToBackground<FromBackground>({
-              type: 'LLM_DRAFT_ANSWER',
-              uid: field.uid,
-              question,
-            });
-            if (res.type === 'LLM_DRAFT_RESULT' && res.answer) {
-              applyResolved(field.uid, res.answer, 'llm');
-            }
-          }
+          await onDraft(field);
         } catch {
           /* single draft failed — continue with others */
         }
@@ -974,10 +957,10 @@ export function App() {
     } finally {
       setBusy(false);
     }
-  }, [fields, applyResolved]);
+  }, [fields, onDraft]);
 
   return (
-    <div className="flex h-full flex-col bg-gradient-to-b from-white to-gray-50/80 text-sm text-gray-900">
+    <div className="flex h-full flex-col bg-linear-to-b from-white to-gray-50/80 text-sm text-gray-900">
       <StatusBar
         adapterId={adapterId}
         count={fields.length}
@@ -1080,7 +1063,7 @@ export function App() {
           <button
             onClick={genCoverLetter}
             disabled={locked}
-            className="w-full rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 px-3 py-2 text-[11px] font-medium text-purple-700 transition hover:border-purple-200 hover:shadow-sm disabled:opacity-50"
+            className="w-full rounded-lg bg-linear-to-r from-purple-50 to-pink-50 border border-purple-100 px-3 py-2 text-[11px] font-medium text-purple-700 transition hover:border-purple-200 hover:shadow-sm disabled:opacity-50"
           >
             {busy ? (
               <span className="flex items-center justify-center gap-1.5">
@@ -1114,7 +1097,7 @@ export function App() {
           <button
             onClick={tailorResume}
             disabled={locked || tailorBusy}
-            className="w-full rounded-lg border border-sky-200 bg-gradient-to-r from-sky-50 to-cyan-50 px-3 py-2 text-[11px] font-medium text-sky-700 transition hover:border-sky-300 hover:shadow-sm disabled:opacity-50"
+            className="w-full rounded-lg border border-sky-200 bg-linear-to-r from-sky-50 to-cyan-50 px-3 py-2 text-[11px] font-medium text-sky-700 transition hover:border-sky-300 hover:shadow-sm disabled:opacity-50"
           >
             {tailorBusy ? (
               <span className="flex items-center justify-center gap-1.5">
@@ -1169,7 +1152,7 @@ export function App() {
             <button
               onClick={draftAllAnswers}
               disabled={locked}
-              className="w-full rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 px-3 py-2 text-[11px] font-medium text-indigo-700 transition hover:border-indigo-300 hover:shadow-sm disabled:opacity-50"
+              className="w-full rounded-lg bg-linear-to-r from-indigo-50 to-purple-50 border border-indigo-200 px-3 py-2 text-[11px] font-medium text-indigo-700 transition hover:border-indigo-300 hover:shadow-sm disabled:opacity-50"
             >
               {busy ? (
                 <span className="flex items-center justify-center gap-1.5">

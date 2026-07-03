@@ -23,7 +23,7 @@ export function FillButton({
         <button
           onClick={onFill}
           disabled={busy || !hasFields}
-          className="flex-1 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:shadow-md hover:brightness-110 disabled:opacity-50 disabled:shadow-none"
+          className="flex-1 rounded-xl bg-linear-to-r from-indigo-600 to-purple-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:shadow-md hover:brightness-110 disabled:opacity-50 disabled:shadow-none"
         >
           {busy ? (
             <span className="flex items-center justify-center gap-1.5">
@@ -38,7 +38,7 @@ export function FillButton({
           onClick={onFillAndNext}
           disabled={busy || !hasFields}
           title="Fill all fields and click Next/Continue"
-          className="rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:shadow-md hover:brightness-110 disabled:opacity-50"
+          className="rounded-xl bg-linear-to-r from-purple-500 to-pink-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:shadow-md hover:brightness-110 disabled:opacity-50"
         >
           Fill & Next →
         </button>

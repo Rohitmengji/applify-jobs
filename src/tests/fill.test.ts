@@ -6,7 +6,33 @@ import {
   setCheckbox,
   setSearchMultiSelect,
   setDate,
+  coerceValueForField,
+  extractNumber,
 } from '@/core/engine/fill';
+import type { DetectedField, FieldKind, FieldSignals } from '@/core/types';
+
+function fld(kind: FieldKind, signals: Partial<FieldSignals> = {}): DetectedField {
+  return {
+    uid: 'x',
+    kind,
+    signals: {
+      label: '',
+      name: '',
+      id: '',
+      placeholder: '',
+      ariaLabel: '',
+      autocomplete: '',
+      nearbyText: '',
+      required: false,
+      ...signals,
+    },
+    mappedKey: null,
+    confidence: 1,
+    value: null,
+    source: 'none',
+    filled: false,
+  };
+}
 
 // jsdom has no layout, so offsetParent is always null and the visibility filter would drop
 // every option. Mark elements "visible" so the search/click logic is actually exercised.
@@ -121,6 +147,41 @@ describe('setSearchMultiSelect (Workday-style skills)', () => {
     const added = await setSearchMultiSelect(() => input, 'SQL, sql', '[role=option]');
     expect(added).toBe(1);
     expect(clicked).toEqual(['SQL']);
+  });
+});
+
+describe('extractNumber', () => {
+  it('pulls the first number out of prose', () => {
+    expect(extractNumber('I have 3 years of experience')).toBe('3');
+  });
+  it('takes the first of a range', () => {
+    expect(extractNumber('3-5 years')).toBe('3');
+  });
+  it('strips thousands separators', () => {
+    expect(extractNumber('$1,200,000')).toBe('1200000');
+  });
+  it('returns the original when there is no number', () => {
+    expect(extractNumber('several')).toBe('several');
+  });
+});
+
+describe('coerceValueForField', () => {
+  it('reduces a numeric input to a bare number (LinkedIn "years" bug)', () => {
+    expect(coerceValueForField(fld('number'), 'I have 3 years of experience in React')).toBe('3');
+  });
+  it('coerces when inputType is number even if kind is text', () => {
+    expect(coerceValueForField(fld('text', { inputType: 'number' }), 'around 5+')).toBe('5');
+  });
+  it('truncates any value to maxLength', () => {
+    expect(coerceValueForField(fld('textarea', { maxLength: 5 }), 'abcdefghij')).toBe('abcde');
+  });
+  it('leaves a normal text value untouched', () => {
+    expect(coerceValueForField(fld('text'), 'Hello there')).toBe('Hello there');
+  });
+  it('does not numeric-coerce a plain text field that mentions a number', () => {
+    expect(coerceValueForField(fld('text'), 'Led a team of 3 engineers')).toBe(
+      'Led a team of 3 engineers',
+    );
   });
 });
 

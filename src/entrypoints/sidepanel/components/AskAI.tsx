@@ -57,7 +57,7 @@ export function AskAI() {
       <button
         onClick={ask}
         disabled={loading || !question.trim()}
-        className="mt-1.5 w-full rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm transition hover:shadow-md disabled:opacity-50"
+        className="mt-1.5 w-full rounded-lg bg-linear-to-r from-indigo-500 to-purple-500 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm transition hover:shadow-md disabled:opacity-50"
       >
         {loading ? (
           <span className="flex items-center justify-center gap-1.5">
