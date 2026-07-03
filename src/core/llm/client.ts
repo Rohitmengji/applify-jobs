@@ -13,7 +13,7 @@ import {
 export type LlmProvider = 'openai' | 'anthropic';
 
 const OPENAI_MODEL = 'gpt-5.4-mini';
-const ANTHROPIC_MODEL = 'claude-sonnet-4-7';
+const ANTHROPIC_MODEL = 'claude-opus-4-7';
 const VALID_KEYS = new Set<string>(PROFILE_KEYS);
 
 // Only https origins are accepted as the LLM endpoint, so the user's API key is never
@@ -147,6 +147,53 @@ export async function draftAnswerWithLLM(question: string, profile: Profile): Pr
     draftSystemPrompt(),
     `QUESTION: ${question}\n\nCANDIDATE PROFILE:\n${JSON.stringify(ctx)}`,
   );
+}
+
+// Tailor the candidate's résumé to a specific job. Returns the raw parsed JSON (or null);
+// shape is validated by normalizeTailored before rendering, so a malformed/partial or
+// hallucinated response can never produce a broken document.
+export async function tailorResumeWithLLM(
+  profile: Profile,
+  jobInfo: { company: string; role: string; description?: string },
+  baseText?: string,
+): Promise<unknown> {
+  const ctx = {
+    name: `${profile.personal.firstName} ${profile.personal.lastName}`.trim(),
+    email: profile.personal.email,
+    phone: profile.personal.phone,
+    city: profile.personal.address.city,
+    links: profile.links,
+    skills: profile.skills,
+    experience: profile.experience.map((e) => ({
+      title: e.title,
+      company: e.company,
+      location: e.location,
+      dates: `${e.startDate} - ${e.current ? 'Present' : (e.endDate ?? '')}`,
+      description: e.description,
+    })),
+    education: profile.education.map((e) => ({
+      degree: e.degree,
+      field: e.field,
+      school: e.school,
+      dates: `${e.startDate ?? ''} - ${e.endDate ?? ''}`,
+    })),
+  };
+  const user = [
+    `TARGET JOB: ${jobInfo.role || '(unspecified)'} at ${jobInfo.company || '(unspecified)'}`,
+    jobInfo.description ? `JOB DESCRIPTION:\n${jobInfo.description}\n` : '',
+    baseText ? `ORIGINAL RESUME TEXT (source of truth for wording):\n${baseText}\n` : '',
+    `CANDIDATE PROFILE (facts — do not exceed these):\n${JSON.stringify(ctx)}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  const { resumeTailorSystemPrompt } = await import('./prompts');
+  const out = await callLLM(resumeTailorSystemPrompt(), user, 3000);
+  const clean = out.replace(/```json|```/g, '').trim();
+  try {
+    return JSON.parse(clean);
+  } catch {
+    return null;
+  }
 }
 
 export async function generateCoverLetter(

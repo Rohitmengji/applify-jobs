@@ -55,6 +55,8 @@ export function App() {
   const [threshold, setThreshold] = useState(0.6);
   const [answerBank, setAnswerBank] = useState<SavedAnswer[]>([]);
   const [coverLetter, setCoverLetter] = useState<string | null>(null);
+  const [tailored, setTailored] = useState<{ text: string; file: File } | null>(null);
+  const [tailorBusy, setTailorBusy] = useState(false);
   const [jobMatch, setJobMatch] = useState<JdAnalysis | null>(null);
   const [isRunning, setIsRunning] = useState(false); // a wizard run is in flight (#1)
   const [aiReady, setAiReady] = useState(false); // llmEnabled AND an API key is saved
@@ -739,6 +741,104 @@ export function App() {
     }
   }, []);
 
+  // Tailor the user's résumé to THIS job: extract their existing résumé text (if PDF), have
+  // the LLM reorganize/emphasize their real facts for the JD, render a PDF, and show it for
+  // review. Never auto-attaches — the user explicitly downloads or attaches after reviewing.
+  const tailorResume = useCallback(async () => {
+    setTailorBusy(true);
+    setTailored(null);
+    setNotice(null);
+    try {
+      const tabId = await activeTabGuard();
+      if (tabId == null) return;
+      const profile = await getProfile();
+      if (!profile.documents.resumeBlobId) {
+        setNotice('Upload your résumé in Settings → Documents first, then tailor it.');
+        return;
+      }
+
+      // Base wording from the user's existing PDF résumé (best-effort; DOCX falls back to the
+      // structured profile, which the tailoring always includes anyway).
+      let baseText = '';
+      try {
+        const file = await getFile(profile.documents.resumeBlobId);
+        if (file) {
+          const { isPdf, extractPdfText } = await import('@/core/parser/pdf');
+          if (isPdf(file)) baseText = await extractPdfText(file);
+        }
+      } catch {
+        /* extraction is best-effort */
+      }
+
+      const info = await sendToFrame(tabId, 0, { type: 'GET_PAGE_INFO' }).catch(() => null);
+      const jobInfo = {
+        company: info?.type === 'PAGE_INFO' ? info.company : '',
+        role: info?.type === 'PAGE_INFO' ? info.role : '',
+        description: info?.type === 'PAGE_INFO' ? info.description : undefined,
+      };
+
+      const res = await sendToBackground<FromBackground>({
+        type: 'LLM_TAILOR_RESUME',
+        jobInfo,
+        baseText,
+      });
+      if (res.type !== 'LLM_TAILOR_RESULT' || !res.data) {
+        setNotice(
+          res.type === 'LLM_TAILOR_RESULT' && res.error
+            ? `Résumé tailoring: ${res.error}`
+            : 'Could not tailor résumé. Check AI settings.',
+        );
+        return;
+      }
+
+      const { normalizeTailored, tailoredToPlainText } = await import('@/core/resume/tailored');
+      const t = normalizeTailored(res.data);
+      if (!t) {
+        setNotice('The AI response could not be turned into a résumé — try again.');
+        return;
+      }
+      const { renderResumePdf } = await import('@/core/resume/renderResumePdf');
+      const base = (profile.personal.firstName || 'resume').toLowerCase();
+      const co = (jobInfo.company || 'tailored').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+      const file = renderResumePdf(t, `${base}-${co}.pdf`);
+      if (tabIdRef.current !== tabId) return; // user switched tabs while we worked
+      setTailored({ text: tailoredToPlainText(t), file });
+    } finally {
+      setTailorBusy(false);
+    }
+  }, [activeTabGuard]);
+
+  const downloadTailored = useCallback(() => {
+    if (!tailored) return;
+    const url = URL.createObjectURL(tailored.file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = tailored.file.name;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [tailored]);
+
+  const attachTailored = useCallback(async () => {
+    if (!tailored) return;
+    const tabId = await activeTabGuard();
+    if (tabId == null) return;
+    const resumeField =
+      fields.find((f) => f.mappedKey === 'documents.resume') ??
+      fields.find((f) => f.kind === 'file');
+    if (!resumeField) {
+      setNotice('No résumé upload field found on this page.');
+      return;
+    }
+    const b64 = await fileToB64(tailored.file);
+    await sendToFrame(tabId, resumeField.frameId ?? 0, {
+      type: 'FILL_FILE',
+      uid: resumeField.uid,
+      filename: tailored.file.name,
+      mime: 'application/pdf',
+      b64,
+    });
+  }, [tailored, fields, activeTabGuard]);
+
   // Save an AI-drafted answer to the answer bank so it's reused next time
   const saveToAnswerBank = useCallback(async (question: string, answer: string) => {
     if (!question || !answer) return;
@@ -998,6 +1098,53 @@ export function App() {
               >
                 📋 Copy to clipboard
               </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Résumé tailoring — generate a JD-tailored résumé from the user's stored résumé and
+          review it before downloading or attaching. Never auto-attaches. */}
+      {aiReady && (
+        <div className="border-t border-gray-100 px-3 py-2">
+          <button
+            onClick={tailorResume}
+            disabled={locked || tailorBusy}
+            className="w-full rounded-lg border border-sky-200 bg-gradient-to-r from-sky-50 to-cyan-50 px-3 py-2 text-[11px] font-medium text-sky-700 transition hover:border-sky-300 hover:shadow-sm disabled:opacity-50"
+          >
+            {tailorBusy ? (
+              <span className="flex items-center justify-center gap-1.5">
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-sky-200 border-t-sky-600" />
+                Tailoring your résumé…
+              </span>
+            ) : (
+              '📄 Tailor my résumé to this job'
+            )}
+          </button>
+          {tailored && (
+            <div className="mt-2 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+              <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap font-sans text-[11px] leading-relaxed text-gray-700">
+                {tailored.text}
+              </pre>
+              <p className="mt-2 text-[10px] text-amber-700">
+                ⚠ Review carefully — AI rephrases your experience. Verify every line is accurate
+                before attaching.
+              </p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={downloadTailored}
+                  className="rounded-md bg-gray-100 px-2 py-1 text-[10px] font-medium text-gray-700 transition hover:bg-gray-200"
+                >
+                  ⬇ Download PDF
+                </button>
+                <button
+                  onClick={attachTailored}
+                  disabled={locked}
+                  className="rounded-md bg-sky-600 px-2 py-1 text-[10px] font-medium text-white transition hover:brightness-110 disabled:opacity-50"
+                >
+                  📎 Attach to this application
+                </button>
+              </div>
             </div>
           )}
         </div>

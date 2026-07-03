@@ -40,6 +40,11 @@ export type ToBackground =
   | { type: 'LLM_DRAFT_ANSWER'; uid: string; question: string }
   | { type: 'LLM_EXTRACT_RESUME'; text: string }
   | { type: 'LLM_COVER_LETTER'; company: string; role: string; description?: string }
+  | {
+      type: 'LLM_TAILOR_RESUME';
+      jobInfo: { company: string; role: string; description?: string };
+      baseText?: string; // extracted text of the user's existing résumé (PDF), if available
+    }
   | { type: 'GET_PROFILE' };
 
 export type FromBackground =
@@ -50,6 +55,7 @@ export type FromBackground =
   | { type: 'LLM_DRAFT_RESULT'; uid: string; answer: string; source: 'answerBank' | 'llm' | 'none' }
   | { type: 'LLM_EXTRACT_RESULT'; data: unknown; error?: string } // raw JSON; validated at merge time
   | { type: 'LLM_COVER_LETTER_RESULT'; text: string; error?: string }
+  | { type: 'LLM_TAILOR_RESULT'; data: unknown; error?: string } // raw JSON; validated at render time
   | { type: 'PROFILE'; profile: unknown };
 
 // Typed helpers -----------------------------------------------------------
