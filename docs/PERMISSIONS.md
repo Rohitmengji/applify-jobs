@@ -23,12 +23,12 @@ recognizable job sites, not "all your data on all websites."
 the user triggers it. The extension does not read page content beyond form fields, does not
 touch passwords or payment fields, and never auto-submits.
 
-## `optional_host_permissions: https://*/*`
+## `optional_host_permissions: https://*/*` _(removed in v1)_
 
-Not granted at install. A power user can opt in (via a runtime prompt) to let the extension
-work on **generic / self-hosted career pages** that aren't on the enumerated list — for
-example a company that embeds a Greenhouse form on its own domain. Until granted, generic
-sites are supported on a per-tab basis via `activeTab` when the user opens the panel there.
+Removed for v1 to reduce review friction. Generic / self-hosted career pages are supported
+on a per-tab basis via `activeTab` when the user opens the panel. A future v1.1 may
+re-introduce this as an opt-in for power users who want the extension to auto-inject on any
+career page.
 
 ## What we do NOT request
 

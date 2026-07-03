@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Policy — OneClick Apply</title>
+    <style>
+      :root {
+        --max-w: 680px;
+        --fg: #1a1a2e;
+        --bg: #fafbfc;
+        --accent: #2563eb;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        color: var(--fg);
+        background: var(--bg);
+        line-height: 1.7;
+        padding: 2rem 1.5rem;
+      }
+      main {
+        max-width: var(--max-w);
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin-bottom: 0.25rem;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        margin-bottom: 0.5rem;
+        color: var(--accent);
+      }
+      p,
+      li {
+        margin-bottom: 0.75rem;
+      }
+      ul {
+        padding-left: 1.5rem;
+      }
+      .updated {
+        font-size: 0.85rem;
+        color: #666;
+        margin-bottom: 1.5rem;
+      }
+      a {
+        color: var(--accent);
+      }
+      strong {
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Privacy Policy — OneClick Apply</h1>
+      <p class="updated">Last updated: July 2, 2026</p>
+
+      <p>
+        OneClick Apply is a <strong>local-first</strong> browser extension. Your data stays on your
+        device. We do not run a server that receives your personal data, we do not sell or share
+        your data, and we do not include analytics or tracking.
+      </p>
+
+      <h2>What the extension stores, and where</h2>
+      <ul>
+        <li>
+          <strong>Your profile</strong> (name, contact details, work authorization, experience,
+          education, skills, saved answers) — stored in <code>chrome.storage.local</code>
+          <strong>on your device only</strong>. It is never synced to our servers (we have none).
+        </li>
+        <li>
+          <strong>Your résumé / cover letter files</strong> — stored as bytes in your browser's
+          IndexedDB (via Dexie), <strong>on your device only</strong>.
+        </li>
+        <li>
+          <strong>Learned answers</strong> — when you fill or correct a field, the answer is
+          remembered locally so future forms fill faster. Local only.
+        </li>
+        <li>
+          <strong>Application history</strong> — the company/role/URL of applications you fill,
+          stored locally for duplicate detection and your own analytics. Local only.
+        </li>
+      </ul>
+      <p>You can export or delete all of this at any time from the extension's Options page.</p>
+
+      <h2>What leaves your browser</h2>
+      <p>Only two things ever leave your browser, and only when you initiate them:</p>
+      <ol>
+        <li>
+          <strong>Résumé/field data → the job application page</strong> when you click
+          <strong>Fill</strong>. This goes to the employer's own application form (the page you're
+          on), exactly as if you had typed it.
+        </li>
+        <li>
+          <strong>Optional AI assist → your chosen AI provider.</strong> If — and only if — you
+          enable AI features and enter your <strong>own</strong> API key (OpenAI or Anthropic), the
+          extension may send a field's label/question plus relevant profile context to that provider
+          to draft an answer or cover letter. This call is made only from the background service
+          worker, only over HTTPS, and only for fields you ask it to help with. Your API key is
+          stored locally and never sent anywhere except your chosen provider. If you don't enable
+          AI, no external calls are made.
+        </li>
+      </ol>
+
+      <h2>Sensitive data</h2>
+      <ul>
+        <li>
+          <strong>EEO / voluntary self-identification</strong> (gender, race, veteran, disability)
+          defaults to "decline to self-identify" and is
+          <strong>never guessed and never learned.</strong>
+        </li>
+        <li>
+          Government IDs, dates of birth, and financial account numbers are
+          <strong>never learned</strong> for reuse.
+        </li>
+        <li>
+          Passwords are never stored, and the extension never creates accounts or logs in for you.
+        </li>
+      </ul>
+
+      <h2>Human-in-the-loop</h2>
+      <p>
+        The extension <strong>never submits an application for you.</strong> It stops at the review
+        step; you review every field and submit yourself.
+      </p>
+
+      <h2>Contact</h2>
+      <p>Questions: <a href="mailto:rohit.mengji@employinc.com">rohit.mengji@employinc.com</a></p>
+    </main>
+  </body>
+</html>
