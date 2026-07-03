@@ -1,14 +1,26 @@
 import { defineBackground } from 'wxt/utils/define-background';
 import { getProfile } from '@/core/storage/profileStore';
+import { getFile } from '@/core/storage/blobStore';
 import { recordLearned } from '@/core/storage/learnStore';
 import {
   mapFieldsWithLLM,
   draftAnswerWithLLM,
   extractResumeWithLLM,
   generateCoverLetter,
+  tailorResumeWithLLM,
 } from '@/core/llm/client';
 import { findAnswer } from '@/core/llm/answerBank';
-import type { ToBackground, FromBackground } from '@/core/messages';
+import type { ToBackground, FromBackground, FromContent } from '@/core/messages';
+
+// base64-encode a File, chunked to avoid the call-stack limit on large résumés (§25).
+async function fileToB64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const CHUNK = 0x8000;
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += CHUNK)
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  return btoa(bin);
+}
 
 // IMPLEMENTATION.md §16 — orchestrator + the ONLY context that talks to the LLM,
 // so API keys never enter a web page. Also wires the toolbar icon to the side panel.
@@ -19,33 +31,61 @@ const HANDLED = new Set<ToBackground['type']>([
   'LLM_DRAFT_ANSWER',
   'LLM_EXTRACT_RESUME',
   'LLM_COVER_LETTER',
+  'LLM_TAILOR_RESUME',
 ]);
 
 export default defineBackground(() => {
   // Open the side panel when the toolbar icon is clicked.
   chrome.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true }).catch(() => {});
 
-  // Keyboard shortcut: Ctrl+Shift+F → detect and fill all fields on active tab.
+  // Keyboard shortcut: Ctrl+Shift+F → detect, attach résumé, and fill all fields on the
+  // active tab — a complete one-key fill without opening the panel. Stops at review (the
+  // content script never submits).
   chrome.commands.onCommand.addListener(async (command) => {
     if (command !== 'fill-page') return;
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) return;
-    // Send DETECT first, then FILL with all resolved values
+    const tabId = tab.id;
     try {
-      const frames = await chrome.webNavigation.getAllFrames({ tabId: tab.id });
+      const profile = await getProfile();
+
+      // Prepare the résumé once (bytes live in the extension's IndexedDB, reachable here).
+      let resume: { b64: string; filename: string; mime: string } | null = null;
+      if (profile.documents.resumeBlobId) {
+        const file = await getFile(profile.documents.resumeBlobId);
+        if (file) resume = { b64: await fileToB64(file), filename: file.name, mime: file.type };
+      }
+
+      const frames = await chrome.webNavigation.getAllFrames({ tabId });
       for (const frame of frames ?? []) {
-        const res = await chrome.tabs
-          .sendMessage(tab.id, { type: 'DETECT' }, { frameId: frame.frameId })
-          .catch(() => null);
-        if (res?.type === 'DETECTED' && res.fields?.length) {
-          const fills = res.fields
-            .filter((f: { value: string | null }) => f.value != null)
-            .map((f: { uid: string; value: string }) => ({ uid: f.uid, value: f.value }));
-          if (fills.length) {
+        const res = (await chrome.tabs
+          .sendMessage(tabId, { type: 'DETECT' }, { frameId: frame.frameId })
+          .catch(() => null)) as FromContent | null;
+        if (res?.type !== 'DETECTED' || !res.fields.length) continue;
+
+        // Résumé first (most file inputs on applications ARE the résumé), then the rest.
+        if (resume) {
+          const fileField =
+            res.fields.find((f) => f.mappedKey === 'documents.resume') ??
+            res.fields.find((f) => f.kind === 'file');
+          if (fileField) {
             await chrome.tabs
-              .sendMessage(tab.id, { type: 'FILL', fields: fills }, { frameId: frame.frameId })
+              .sendMessage(
+                tabId,
+                { type: 'FILL_FILE', uid: fileField.uid, ...resume },
+                { frameId: frame.frameId },
+              )
               .catch(() => null);
           }
+        }
+
+        const fills = res.fields
+          .filter((f) => f.value != null && f.mappedKey !== 'documents.resume')
+          .map((f) => ({ uid: f.uid, value: f.value as string }));
+        if (fills.length) {
+          await chrome.tabs
+            .sendMessage(tabId, { type: 'FILL', fields: fills }, { frameId: frame.frameId })
+            .catch(() => null);
         }
       }
     } catch {
@@ -165,6 +205,23 @@ export default defineBackground(() => {
             error = 'AI assist is disabled in settings';
           }
           sendResponse({ type: 'LLM_COVER_LETTER_RESULT', text, error } satisfies FromBackground);
+          break;
+        }
+        case 'LLM_TAILOR_RESUME': {
+          const profile = await getProfile();
+          let data: unknown = null;
+          let error: string | undefined;
+          if (profile.settings.llmEnabled) {
+            try {
+              data = await tailorResumeWithLLM(profile, msg.jobInfo, msg.baseText);
+            } catch (e) {
+              error = String(e);
+              console.warn('Résumé tailoring failed', e);
+            }
+          } else {
+            error = 'AI assist is disabled in settings';
+          }
+          sendResponse({ type: 'LLM_TAILOR_RESULT', data, error } satisfies FromBackground);
           break;
         }
       }

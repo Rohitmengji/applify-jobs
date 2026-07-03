@@ -1,3 +1,6 @@
 allowBuilds:
+  # core-js's postinstall is only a funding notice; jspdf → canvg pulls it but we don't use
+  # its build. Declined explicitly so `pnpm install` doesn't error on the ignored script.
+  core-js: false
   esbuild: true
   spawn-sync: true
