@@ -121,11 +121,11 @@ Gates: tsc · eslint · prettier · vitest · wxt build.
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
-echo "🚀 Pushing to $REMOTE_NAME/$BRANCH_NAME…"
+echo "Pushing to $REMOTE_NAME/$BRANCH_NAME ..."
 git push -u "$REMOTE_NAME" "HEAD:$BRANCH_NAME"
 
-# ─── Open PR (merge only on explicit --merge) ─────────────────────────────────
-echo "📋 Opening Pull Request…"
+# --- Open PR (merge only on explicit --merge) ----------------------------------
+echo "Opening Pull Request..."
 PR_URL=$(gh pr create \
   --repo "$GITHUB_USER/$REPO_NAME" \
   --head "$BRANCH_NAME" \
