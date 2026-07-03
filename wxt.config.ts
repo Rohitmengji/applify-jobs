@@ -33,7 +33,9 @@ export default defineConfig({
     // user opens the panel there. Power users can opt into "run everywhere" by granting the
     // optional broad permission below.
     host_permissions: [...ATS_MATCH_PATTERNS],
-    optional_host_permissions: ['https://*/*'],
+    // optional_host_permissions removed for v1 store review — broad "all sites" access
+    // triggers extra scrutiny. Generic career sites unsupported until v1.1; the enumerated
+    // ATS list + activeTab covers all known ATSs. Re-add when justified in v1.1.
     action: { default_title: 'OneClick Apply' },
     commands: {
       'fill-page': {

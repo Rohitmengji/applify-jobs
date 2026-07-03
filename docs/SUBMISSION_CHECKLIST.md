@@ -4,8 +4,8 @@ Work top-to-bottom. Nothing here should be a surprise; the ✅ items are already
 
 ## Code / build
 
-- [x] `host_permissions` narrowed to enumerated ATS domains (`src/core/atsHosts.ts`); broad
-      access is `optional_host_permissions` only.
+- [x] `host_permissions` narrowed to enumerated ATS domains (`src/core/atsHosts.ts`);
+      `optional_host_permissions` removed for v1 (reduces review risk).
 - [x] No remote code; only optional call is to the user's own AI provider over HTTPS.
 - [x] Never auto-submits (verified in unit + e2e smoke).
 - [ ] Bump `version` in `wxt.config.ts`.
@@ -36,5 +36,5 @@ Work top-to-bottom. Nothing here should be a surprise; the ✅ items are already
 ## Post-submit
 
 - [ ] Test the published build on a **fresh Chrome profile** (no dev state) end-to-end.
-- [ ] Watch for review feedback on the broad `optional_host_permissions` — be ready to explain
-      the on-demand, user-triggered model.
+- [ ] If generic-site support is requested by users, plan v1.1 with
+      `optional_host_permissions` and a justification narrative.
