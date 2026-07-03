@@ -106,6 +106,7 @@ function normalizeUrl(raw: string): string {
     for (const p of [...u.searchParams.keys()]) {
       if (TRACKING.has(p.toLowerCase())) u.searchParams.delete(p);
     }
+    u.searchParams.sort(); // order-independent key: ?a=1&b=2 and ?b=2&a=1 are the same job
     const qs = u.searchParams.toString();
     return u.origin + u.pathname + (qs ? `?${qs}` : '');
   } catch {

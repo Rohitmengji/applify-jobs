@@ -1,5 +1,6 @@
 import type { SiteAdapter } from './types';
 import { detectFields } from '../detect';
+import { findButtonByText } from './util';
 import type { DetectedField } from '../../types';
 import type { ProfileKey } from '../../profile.schema';
 
@@ -89,15 +90,11 @@ export const indeed: SiteAdapter = {
   },
 
   isReviewStep(doc) {
-    // Review = a submit/review indicator is present AND no Next/Continue step remains. The old
-    // second clause ("no enabled button exists") was self-contradictory: an enabled Submit
-    // button satisfied clause 1 but also failed clause 2, so the guard never fired on the very
-    // page it targets (matches the icims/oracle/successfactors pattern now).
-    return (
-      !!doc.querySelector(
-        'button[type="submit"], [data-testid*="review"], [data-testid*="submit"]',
-      ) && !this.findNextButton?.(doc)
-    );
+    // Review = a VISIBLE, ENABLED Submit is present AND no Next/Continue step remains. Must use
+    // the visible+enabled check (findButtonByText) — a raw querySelector would also match a
+    // disabled Continue-as-submit or a hidden/persistent submit and abort the wizard early.
+    const hasSubmit = !!findButtonByText(doc, /^submit( application)?$/i);
+    return hasSubmit && !this.findNextButton?.(doc);
   },
 
   findNextButton(doc) {

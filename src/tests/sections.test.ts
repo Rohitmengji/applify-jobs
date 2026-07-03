@@ -206,3 +206,57 @@ describe('fillRepeatableSections — generic (label-driven) filler', () => {
     expect(val(sec, 'End Date')).toBe('');
   });
 });
+
+describe('fillGenericSection — layout robustness (regressions)', () => {
+  const mount = (html: string) => {
+    document.body.innerHTML = html;
+  };
+  const vals = (label: string) =>
+    Array.from(document.querySelectorAll<HTMLInputElement>(`input[aria-label="${label}"]`)).map(
+      (i) => i.value,
+    );
+
+  it('fills a per-FIELD-wrapper flat layout (both rows, all fields)', async () => {
+    mount(`<section><h3>Work Experience</h3>
+      <div><input aria-label="Company"/></div>
+      <div><input aria-label="Job Title"/></div>
+      <div><input aria-label="Company"/></div>
+      <div><input aria-label="Job Title"/></div>
+    </section>`);
+    const res = await fillRepeatableSections(
+      profileWith(
+        [exp({ company: 'Acme', title: 'Lead' }), exp({ company: 'Globex', title: 'Dev' })],
+        [],
+      ),
+      'icims',
+    );
+    expect(res.experience).toBe(2);
+    expect(vals('Company')).toEqual(['Acme', 'Globex']);
+    expect(vals('Job Title')).toEqual(['Lead', 'Dev']); // NOT skipped despite per-field wrappers
+  });
+
+  it('fills per-row <fieldset><legend> rows without an inner legend truncating the section', async () => {
+    mount(`<section><h2>Work Experience</h2>
+      <fieldset><legend>Position 1</legend><input aria-label="Company"/><input aria-label="Job Title"/></fieldset>
+      <fieldset><legend>Position 2</legend><input aria-label="Company"/><input aria-label="Job Title"/></fieldset>
+    </section>`);
+    const res = await fillRepeatableSections(
+      profileWith(
+        [exp({ company: 'Acme', title: 'Lead' }), exp({ company: 'Globex', title: 'Dev' })],
+        [],
+      ),
+      'icims',
+    );
+    expect(res.experience).toBe(2);
+    expect(vals('Company')).toEqual(['Acme', 'Globex']);
+    expect(vals('Job Title')).toEqual(['Lead', 'Dev']);
+  });
+
+  it('does NOT treat a "Years of experience" heading as the Experience section', async () => {
+    mount(`<div><h3>Years of experience</h3><input aria-label="Company"/></div>`);
+    const res = await fillRepeatableSections(profileWith([exp({ company: 'Acme' })], []), 'icims');
+    expect(res.experience).toBe(0);
+    expect(res.expFound).toBe(false); // no spurious "couldn't fill" warning on a plain form
+    expect(vals('Company')).toEqual(['']); // untouched
+  });
+});

@@ -1,7 +1,7 @@
 import type { Profile, Experience, Education } from '../profile.schema';
 import { setReactInputValue, setCheckbox, setCustomDropdown, setNativeSelect, sleep } from './fill';
 import { extractSignals } from './signals';
-import { isProtectedLabel } from './learn';
+import { isSensitiveLabel } from './learn';
 
 // IMPLEMENTATION.md §14 — repeatable sections (Work Experience, Education).
 //
@@ -289,9 +289,14 @@ function toEduData(e: Education): EduData | null {
 //   • Only fields whose label clearly matches a sub-field are touched; capped at HARD_ROW_CAP.
 // ---------------------------------------------------------------------------
 
+// Anchored to the START of the (trimmed) heading so a standalone "Experience"/"Employment"
+// heading matches but a qualified phrase like "Years of experience" (a plain question on a
+// non-section form) does NOT — which would otherwise make the generic filler treat a normal
+// form as the Experience section and mis-fill it.
 const EXP_HEADING =
-  /\bexperience\b|\bemployment\b|work history|professional experience|previous employment/i;
-const EDU_HEADING = /\beducation\b|academic (background|history)|educational|qualifications?/i;
+  /^(work |professional |previous )?experience\b|^employment( history| background)?\b|^work history\b/i;
+const EDU_HEADING =
+  /^education\b|^academic (background|history)\b|^educational\b|^qualifications?\b/i;
 
 // Order matters: more specific / checkbox-ish keys are tested before generic ones so
 // "end date" isn't captured by the "date"-ish start rule, etc. First match wins per control.
@@ -381,10 +386,12 @@ function fillTextLike(el: HTMLElement, value: string): void {
 }
 
 // Classify a control's label into a sub-field key (first match wins; "current" only for a
-// checkbox). Returns null if nothing matches or the label is protected/search.
+// checkbox). Returns null if nothing matches or the label is genuinely sensitive. We use the
+// protected-ONLY check (not the search-box heuristic) so a "Search company" typeahead — which
+// IS the company field — still classifies, while EEO/DOB/financial labels are still blocked.
 function classifySub<T>(el: HTMLElement, subkeys: { key: keyof T; re: RegExp }[]): keyof T | null {
   const label = controlLabel(el);
-  if (!label || isProtectedLabel(label)) return null;
+  if (!label || isSensitiveLabel(label)) return null;
   for (const { key, re } of subkeys) {
     if (!re.test(label)) continue;
     if (
@@ -414,12 +421,16 @@ function fillGenericSection<T extends ExpData | EduData>(
     re: RegExp;
   }[];
 
-  // Bound to the heading's range: after THIS heading and before the NEXT heading, so an
-  // over-broad container can't leak into unrelated fields.
+  // Bound to the heading's range: after THIS heading and before the next SECTION heading, so
+  // an over-broad container can't leak into unrelated fields. The boundary must be OUTSIDE the
+  // container — otherwise a per-row <legend>/sub-heading inside the section would truncate the
+  // range to zero and leave the whole section unfilled.
   const allHeadings = Array.from(document.querySelectorAll<HTMLElement>(HEADING_SEL));
   const nextHeading = allHeadings.find(
     (h) =>
-      h !== heading && !!(heading.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING),
+      h !== heading &&
+      !container.contains(h) &&
+      !!(heading.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING),
   );
   const inRange = (el: HTMLElement): boolean => {
     const afterHeading = !!(heading.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
@@ -454,14 +465,17 @@ function fillGenericSection<T extends ExpData | EduData>(
   let filled = 0;
   for (let i = 0; i < rowCount; i++) {
     const rowEl = rowContainerOf(anchors[i], container, anchors);
+    // A real per-ROW wrapper holds more than one of this section's controls; a flat layout
+    // (fields directly under the section, or one wrapper PER FIELD) does not. Only in the flat
+    // case do we fall back to positional index — in a real row wrapper a containment miss
+    // means the field is genuinely absent, so we must NOT grab another row's control.
+    const rowIsWrapper = controls.filter((c) => rowEl.contains(c)).length > 1;
     const data = items[i] as ExpData & EduData;
-    // Pick a row's control for a sub-field: prefer one inside the row's wrapper (containment
-    // alignment); if the row has no wrapper (flat layout), fall back to the i-th occurrence.
+    // Prefer the control inside this row's wrapper (containment alignment); for flat layouts
+    // fall back to the i-th occurrence of the sub-field.
     const pick = (key: keyof T): HTMLElement | undefined => {
       const bucket = buckets.get(key) ?? [];
-      return (
-        bucket.find((b) => rowEl.contains(b)) ?? (rowEl === anchors[i] ? bucket[i] : undefined)
-      );
+      return bucket.find((b) => rowEl.contains(b)) ?? (rowIsWrapper ? undefined : bucket[i]);
     };
     let any = false;
     for (const { key } of subkeys) {

@@ -22,6 +22,7 @@ function normalizeUrl(raw: string): string {
       'mc_eid',
     ];
     for (const p of strip) u.searchParams.delete(p);
+    u.searchParams.sort(); // order-independent key (matches fillProgress normalization)
     u.hash = '';
     return u.toString().replace(/\/+$/, '');
   } catch {

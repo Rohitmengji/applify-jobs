@@ -195,6 +195,14 @@ export function isProtectedLabel(label: string): boolean {
   return PROTECTED_LABEL.test(l) || SEARCH_LABEL.test(l);
 }
 
+// Protected/sensitive ONLY (EEO / DOB / gov-id / financial) — NOT the search-box heuristic.
+// Used where a labeled sub-field legitimately contains "search" (e.g. a "Search company"
+// typeahead that IS the company field): we still block truly sensitive labels but don't drop
+// a real answer field just because its placeholder says "Search…".
+export function isSensitiveLabel(label: string): boolean {
+  return PROTECTED_LABEL.test(label.toLowerCase());
+}
+
 // Whether a field's answer is safe + meaningful to remember for future fills.
 export function shouldLearn(field: DetectedField): boolean {
   if (field.value == null || field.value.trim() === '') return false; // blank/whitespace

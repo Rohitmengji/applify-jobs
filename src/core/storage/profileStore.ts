@@ -119,6 +119,25 @@ function repair(raw: unknown): Profile {
   if (Array.isArray(merged.skills))
     merged.skills = merged.skills.filter((s) => typeof s === 'string');
 
+  // Also drop any invalid optional link (all four are optional url-or-''), so a single bad
+  // URL doesn't fail the parse and wipe the whole profile.
+  if (merged.links && typeof merged.links === 'object' && !Array.isArray(merged.links)) {
+    const links = merged.links as Record<string, unknown>;
+    const validLink = (v: unknown): boolean => {
+      if (v === '') return true;
+      if (typeof v !== 'string') return false;
+      try {
+        new URL(v);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    for (const k of ['linkedin', 'github', 'portfolio', 'website']) {
+      if (k in links && !validLink(links[k])) delete links[k];
+    }
+  }
+
   const salvaged = ProfileSchema.safeParse(merged);
   if (salvaged.success) return salvaged.data;
 
