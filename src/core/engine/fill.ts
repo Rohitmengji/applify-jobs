@@ -384,6 +384,32 @@ export async function setSearchMultiSelect(
   return added;
 }
 
+// Pull the first number out of a string ("I have 3+ years" → "3", "3-5" → "3"); returns the
+// original if there's no number. Used to keep numeric inputs numeric even when the LLM (or a
+// saved answer) wraps the number in prose.
+export function extractNumber(value: string): string {
+  const m = value.match(/-?\d[\d,]*(\.\d+)?/);
+  return m ? m[0].replace(/,/g, '') : value;
+}
+
+// A control that only accepts a number (by input type). Label-based numeric detection lives in
+// the draft path (App.tsx) where prose is being generated; here we stay strict to avoid
+// mangling a text field that merely mentions a number.
+export function isNumericInput(field: DetectedField): boolean {
+  return field.kind === 'number' || field.signals.inputType === 'number';
+}
+
+// Coerce a value to satisfy a field's hard constraints — the last-line safety net applied to
+// EVERY value source at fill time: numeric inputs get a bare number; over-long values are cut
+// to maxLength.
+export function coerceValueForField(field: DetectedField, value: string): string {
+  let v = value;
+  if (isNumericInput(field)) v = extractNumber(v);
+  const max = field.signals.maxLength;
+  if (max && max > 0 && v.length > max) v = v.slice(0, max);
+  return v;
+}
+
 // §12.7 — the dispatcher. An optional adapter `override` (SiteAdapter.fillField) gets
 // first crack at tricky custom controls; returning true means it handled the field and
 // the generic path is skipped. Throwing/returning false falls through to the default.
@@ -408,14 +434,19 @@ export async function fillOne(
     case 'email':
     case 'url':
     case 'number':
-    case 'textarea':
+    case 'textarea': {
+      // Enforce the field's hard constraints regardless of where the value came from (LLM,
+      // answer bank, learned, manual): a numeric input gets a bare number, and any value is
+      // truncated to maxLength (JS .value bypasses the browser's own maxLength limit).
+      const v = coerceValueForField(field, field.value ?? '');
       // Skills mapped to a text/textarea input → use tag input (type, Enter, repeat)
-      if (field.mappedKey === 'skills' && (field.value ?? '').includes(',')) {
-        await setTagInput(el as HTMLInputElement, field.value ?? '');
+      if (field.mappedKey === 'skills' && v.includes(',')) {
+        await setTagInput(el as HTMLInputElement, v);
       } else {
-        setReactInputValue(el as HTMLInputElement, field.value ?? '');
+        setReactInputValue(el as HTMLInputElement, v);
       }
       break;
+    }
     case 'tel':
       await setPhoneValue(el as HTMLInputElement, field.value ?? '');
       break;

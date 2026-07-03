@@ -8,7 +8,7 @@ interface Props {
 
 export function StatusBar({ adapterId, count, busy, learnedCount = 0, onRedetect }: Props) {
   return (
-    <header className="flex items-center justify-between gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-3 text-white shadow-md">
+    <header className="flex items-center justify-between gap-2 bg-linear-to-r from-indigo-600 to-purple-600 px-4 py-3 text-white shadow-md">
       <div className="flex items-center gap-2">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">
           OC
