@@ -53,8 +53,10 @@ function attrMatches(attr: string, pattern: string): boolean {
   if (collapsed === pcol) return true;
   // Multi-word patterns (first-name, phone-number): allow a contiguous collapsed match.
   if (/[-_]/.test(pattern)) return collapsed.includes(pcol);
-  // Single-word patterns: must appear as a WHOLE token (not a substring of a longer word).
-  return tokens(attr).includes(pattern);
+  // Single-word patterns: a token that EQUALS or STARTS WITH the pattern. Prefix admits glued
+  // names like "zipcode"→zip, "address1"→address, "emailaddress"→email, while still rejecting
+  // a suffix collision like "city" inside "ethnicity".
+  return tokens(attr).some((t) => t === pattern || t.startsWith(pattern));
 }
 
 function mapField(f: DetectedField): ProfileKey | null {
