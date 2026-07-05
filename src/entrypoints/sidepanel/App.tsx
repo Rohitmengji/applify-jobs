@@ -32,6 +32,7 @@ import { FillButton } from './components/FillButton';
 import { AskAI } from './components/AskAI';
 import { JobMatchCard } from './components/JobMatchCard';
 import { BatchQueue } from './components/BatchQueue';
+import { ReportBug } from './components/ReportBug';
 import { analyzeJobDescription, type JdAnalysis } from '@/core/engine/jdAnalysis';
 
 type FilledMap = Record<string, { ok: boolean; error?: string }>;
@@ -87,6 +88,7 @@ export function App() {
   // Profile variant switcher
   const [variants, setVariants] = useState<ProfileVariant[]>([]);
   const [activeVariantId, setActiveVariantId] = useState<string | null>(null);
+  const [showReport, setShowReport] = useState(false);
   // Result of the last section fill (Work Experience / Education), for the post-fill summary.
   const [sections, setSections] = useState<{
     exp: number;
@@ -1397,6 +1399,35 @@ export function App() {
           chrome.tabs.update({ url });
         }}
       />
+
+      {/* Bug report */}
+      <div className="px-3 py-2">
+        {showReport ? (
+          <ReportBug
+            adapterId={adapterId}
+            fieldsDetected={fields.length}
+            fieldsFilled={Object.values(filledMap).filter((f) => f.ok).length}
+            failedFields={Object.entries(filledMap)
+              .filter(([, v]) => !v.ok)
+              .map(([uid, v]) => {
+                const f = fields.find((x) => x.uid === uid);
+                return {
+                  label: f?.signals.label || f?.signals.ariaLabel || uid,
+                  mappedKey: f?.mappedKey ?? null,
+                  error: v.error,
+                };
+              })}
+            onClose={() => setShowReport(false)}
+          />
+        ) : (
+          <button
+            onClick={() => setShowReport(true)}
+            className="w-full rounded-lg border border-dashed border-slate-600 px-3 py-1.5 text-[10px] text-slate-500 transition hover:border-red-500/50 hover:text-red-400"
+          >
+            🐛 Report a bug
+          </button>
+        )}
+      </div>
     </div>
   );
 }

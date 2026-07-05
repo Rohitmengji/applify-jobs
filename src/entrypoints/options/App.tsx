@@ -18,6 +18,7 @@ import { ApplicationsSection } from './sections/ApplicationsSection';
 import { SalarySection } from './sections/SalarySection';
 import { TrainingSection } from './sections/TrainingSection';
 import { AnalyticsSection } from './sections/AnalyticsSection';
+import { BugReportsSection } from './sections/BugReportsSection';
 import { ReferencesSection } from './sections/ReferencesSection';
 import { CoverLetterTemplatesSection } from './sections/CoverLetterTemplatesSection';
 import { ProjectsSection } from './sections/ProjectsSection';
@@ -48,6 +49,7 @@ const TABS: { id: string; label: string; C: ComponentType<SectionProps> | null }
   { id: 'training', label: 'Training', C: TrainingSection },
   { id: 'applications', label: 'Applications', C: null }, // standalone component
   { id: 'analytics', label: 'Analytics', C: null }, // standalone component
+  { id: 'bugReports', label: 'Bug Reports', C: null }, // standalone component
   { id: 'settings', label: 'Settings', C: SettingsSection },
 ];
 
@@ -314,6 +316,8 @@ export function App() {
             <ApplicationsSection />
           ) : active === 'analytics' ? (
             <AnalyticsSection />
+          ) : active === 'bugReports' ? (
+            <BugReportsSection />
           ) : (
             <ActiveSection draft={draft} setDraft={update} />
           )}
