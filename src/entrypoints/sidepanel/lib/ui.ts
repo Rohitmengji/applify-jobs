@@ -2,13 +2,13 @@ import type { DetectedField, FillSource } from '@/core/types';
 
 // Source badge palette (IMPLEMENTATION.md §17).
 export const SOURCE_BADGE: Record<FillSource, { label: string; cls: string }> = {
-  adapter: { label: 'adapter', cls: 'bg-green-100 text-green-800' },
-  heuristic: { label: 'heuristic', cls: 'bg-blue-100 text-blue-800' },
-  answerBank: { label: 'saved', cls: 'bg-teal-100 text-teal-800' },
-  llm: { label: 'AI', cls: 'bg-purple-100 text-purple-800' },
-  learned: { label: 'learned', cls: 'bg-fuchsia-100 text-fuchsia-800' },
-  manual: { label: 'you', cls: 'bg-amber-100 text-amber-800' },
-  none: { label: '—', cls: 'bg-gray-100 text-gray-500' },
+  adapter: { label: 'adapter', cls: 'bg-green-900/50 text-green-300' },
+  heuristic: { label: 'heuristic', cls: 'bg-blue-900/50 text-blue-300' },
+  answerBank: { label: 'saved', cls: 'bg-teal-900/50 text-teal-300' },
+  llm: { label: 'AI', cls: 'bg-purple-900/50 text-purple-300' },
+  learned: { label: 'learned', cls: 'bg-fuchsia-900/50 text-fuchsia-300' },
+  manual: { label: 'you', cls: 'bg-amber-900/50 text-amber-300' },
+  none: { label: '—', cls: 'bg-slate-700 text-slate-400' },
 };
 
 // Confidence overlay (§17 / vision §5): 🟢 95–100 · 🟡 70–94 · 🔴 <70.

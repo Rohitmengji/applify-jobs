@@ -1112,44 +1112,44 @@ export function App() {
       <JobMatchCard analysis={jobMatch} loading={busy} onAnalyze={analyzeMatch} />
 
       {status?.phase === 'review' && (
-        <div className="mx-3 mt-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-[11px] text-green-700 flex items-center gap-1.5">
-          <span className="text-green-500">✓</span> Reached the review step — check the page and
+        <div className="mx-3 mt-2 rounded-lg bg-green-900/30 border border-green-700/50 px-3 py-2 text-[11px] text-green-300 flex items-center gap-1.5">
+          <span className="text-green-400">✓</span> Reached the review step — check the page and
           submit.
         </div>
       )}
       {status?.phase === 'error' && (
-        <div className="mx-3 mt-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[11px] text-red-700">
+        <div className="mx-3 mt-2 rounded-lg bg-red-900/30 border border-red-700/50 px-3 py-2 text-[11px] text-red-300">
           <div className="font-medium">Multi-step run stopped</div>
-          <div className="mt-0.5 text-red-600">{wizardErrorHelp(status.message)}</div>
+          <div className="mt-0.5 text-red-400">{wizardErrorHelp(status.message)}</div>
         </div>
       )}
       {duplicate && (
-        <div className="mx-3 mt-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-700 flex items-center gap-1.5">
+        <div className="mx-3 mt-2 rounded-lg bg-amber-900/30 border border-amber-700/50 px-3 py-2 text-[11px] text-amber-300 flex items-center gap-1.5">
           <span>⚠️</span> {duplicate}
         </div>
       )}
 
       {/* Post-fill summary — makes the fill self-diagnosing: what landed, what didn't. */}
       {showSummary && !busy && (
-        <div className="mx-3 mt-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[11px] shadow-sm">
-          <div className="text-gray-700">
-            <span className="font-medium text-green-700">
+        <div className="mx-3 mt-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-[11px]">
+          <div className="text-slate-200">
+            <span className="font-medium text-green-400">
               ✓ Filled {okCount} field{okCount === 1 ? '' : 's'}
             </span>
             {failCount > 0 && (
-              <span className="text-amber-700">
+              <span className="text-amber-400">
                 {' '}
                 · {failCount} need{failCount === 1 ? 's' : ''} attention
               </span>
             )}
             {sections && sections.exp > 0 && (
-              <span className="text-gray-600">
+              <span className="text-slate-400">
                 {' '}
                 · {sections.exp} experience row{sections.exp === 1 ? '' : 's'}
               </span>
             )}
             {sections && sections.edu > 0 && (
-              <span className="text-gray-600"> · {sections.edu} education</span>
+              <span className="text-slate-400"> · {sections.edu} education</span>
             )}
           </div>
           {/* Warn only when a section was actually PRESENT on the page but nothing filled —

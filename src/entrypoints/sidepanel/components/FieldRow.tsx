@@ -81,7 +81,7 @@ export function FieldRow({
       {isFreeText && isCoverLetter && !field.value && (
         <button
           onClick={() => onDraft(field)}
-          className="mt-1 w-full rounded-lg bg-linear-to-r from-purple-50 to-pink-50 border border-purple-200 px-3 py-2 text-[11px] font-medium text-purple-700 transition hover:border-purple-300 hover:shadow-sm"
+          className="mt-1 w-full rounded-lg bg-linear-to-r from-purple-900/40 to-pink-900/40 border border-purple-600/50 px-3 py-2 text-[11px] font-medium text-purple-300 transition hover:border-purple-500 hover:shadow-sm"
         >
           ✨ Generate Cover Letter from Job Description
         </button>
@@ -89,7 +89,7 @@ export function FieldRow({
       {isFreeText && !isCoverLetter && (
         <button
           onClick={() => onDraft(field)}
-          className="self-start text-[11px] text-purple-700 hover:underline"
+          className="self-start text-[11px] text-purple-400 hover:underline"
         >
           ✨ Draft with AI
         </button>

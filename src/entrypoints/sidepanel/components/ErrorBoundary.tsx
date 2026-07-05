@@ -40,12 +40,12 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
           <div className="text-4xl">⚠️</div>
-          <h2 className="text-sm font-semibold text-gray-800">Something went wrong</h2>
-          <p className="max-w-xs text-xs text-gray-500">
+          <h2 className="text-sm font-semibold text-slate-200">Something went wrong</h2>
+          <p className="max-w-xs text-xs text-slate-400">
             The panel hit an unexpected error. Your data is safe — click below to reload.
           </p>
           {this.state.error && (
-            <pre className="max-w-xs overflow-auto rounded bg-gray-100 p-2 text-[10px] text-red-600">
+            <pre className="max-w-xs overflow-auto rounded bg-slate-800 p-2 text-[10px] text-red-400">
               {this.state.error.message}
             </pre>
           )}
