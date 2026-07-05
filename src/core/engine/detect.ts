@@ -32,6 +32,16 @@ const SELECTOR = [
   '[contenteditable=true][role=textbox]',
   // Rich-text editors (Quill, TipTap, ProseMirror, Draft.js) — often don't have role=textbox
   '[contenteditable=true]:not([role=button]):not([role=option]):not([role=menuitem]):not([contenteditable=false] *)',
+  // Internal/custom career sites: common patterns for forms not using standard ARIA
+  '[class*="form-control"]',
+  '[class*="form-input"]',
+  '[class*="MuiInput"] input',
+  '[class*="MuiSelect"] [role=button]',
+  '[class*="ant-input"]',
+  '[class*="ant-select"]',
+  '[class*="chakra-input"]',
+  '[class*="el-input"] input',
+  '[class*="el-select"]',
 ].join(',');
 
 // Radios share a name; collapse them into one DetectedField per group.

@@ -181,9 +181,9 @@ export function App() {
 
     const noContent = () => {
       setNotice(
-        'Open a job application page, then re-detect. (This panel can’t read browser pages.)',
+        'No form fields found. If this is an internal career site: make sure the form is visible, wait for it to fully load, then click Detect again. If the form is inside a popup, open it first.',
       );
-      setFields([]);
+
       setAdapterId(null);
       setMultiStep(false);
     };
@@ -236,9 +236,20 @@ export function App() {
       let got = await detectFrames();
       // Generic / self-hosted career site: the content script isn't auto-injected there
       // (we narrowed `matches` to known ATS domains for store review). Inject on demand via
-      // activeTab, then retry once. Falls through to the notice if injection isn't allowed.
+      // activeTab, then retry. SPA career pages may render forms late, so we retry with
+      // increasing delays to catch lazy-loaded forms.
       if (got.length === 0 && (await injectContentScript(tabId))) {
         await new Promise((r) => setTimeout(r, 400));
+        got = await detectFrames();
+      }
+      // Second attempt with longer delay for SPAs that render forms after initial load
+      if (got.length === 0) {
+        await new Promise((r) => setTimeout(r, 1500));
+        got = await detectFrames();
+      }
+      // Third attempt — some internal career sites take 3-5s to render after navigation
+      if (got.length === 0) {
+        await new Promise((r) => setTimeout(r, 2500));
         got = await detectFrames();
       }
       if (got.length === 0) {
