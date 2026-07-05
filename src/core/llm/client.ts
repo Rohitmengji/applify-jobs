@@ -5,6 +5,7 @@ import {
   resumeExtractSystemPrompt,
   PROFILE_KEYS,
 } from './prompts';
+import { llmLimiter } from './rateLimiter';
 
 // IMPLEMENTATION.md §19 — called ONLY from the background worker, so API keys never
 // enter a web page. Supports OpenAI or Anthropic (auto-detected from key prefix or
@@ -47,51 +48,65 @@ async function getConfig(): Promise<{ key: string; base: string; provider: LlmPr
   return { key, base: safeBase(llmBaseUrl, provider), provider };
 }
 
-async function callLLM(system: string, user: string, maxTokens = 1024): Promise<string> {
-  const { key, base, provider } = await getConfig();
+const LLM_TIMEOUT_MS = 30_000;
 
-  if (provider === 'openai') {
-    const res = await fetch(`${base}/v1/chat/completions`, {
+async function callLLM(system: string, user: string, maxTokens = 1024): Promise<string> {
+  if (!llmLimiter.tryAcquire()) {
+    const retry = Math.ceil(llmLimiter.retryAfterMs() / 1000);
+    throw new Error(`Rate limited — too many AI calls. Try again in ${retry}s.`);
+  }
+  const { key, base, provider } = await getConfig();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+
+  try {
+    if (provider === 'openai') {
+      const res = await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model: OPENAI_MODEL,
+          max_completion_tokens: maxTokens,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+        }),
+      });
+      if (!res.ok) throw new Error(`LLM ${res.status}: ${await res.text().catch(() => '')}`);
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content ?? '';
+    }
+
+    // Anthropic
+    const res = await fetch(`${base}/v1/messages`, {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'content-type': 'application/json',
-        authorization: `Bearer ${key}`,
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: OPENAI_MODEL,
-        max_completion_tokens: maxTokens,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: user },
-        ],
+        model: ANTHROPIC_MODEL,
+        max_tokens: maxTokens,
+        system,
+        messages: [{ role: 'user', content: user }],
       }),
     });
     if (!res.ok) throw new Error(`LLM ${res.status}: ${await res.text().catch(() => '')}`);
     const data = await res.json();
-    return data.choices?.[0]?.message?.content ?? '';
+    return (data.content ?? [])
+      .filter((b: { type: string }) => b.type === 'text')
+      .map((b: { text: string }) => b.text)
+      .join('\n');
+  } finally {
+    clearTimeout(timer);
   }
-
-  // Anthropic
-  const res = await fetch(`${base}/v1/messages`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: ANTHROPIC_MODEL,
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: 'user', content: user }],
-    }),
-  });
-  if (!res.ok) throw new Error(`LLM ${res.status}: ${await res.text().catch(() => '')}`);
-  const data = await res.json();
-  return (data.content ?? [])
-    .filter((b: { type: string }) => b.type === 'text')
-    .map((b: { text: string }) => b.text)
-    .join('\n');
 }
 
 export async function mapFieldsWithLLM(

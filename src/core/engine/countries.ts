@@ -28,12 +28,7 @@ const COUNTRIES: Record<string, string[]> = {
   Switzerland: ['switzerland'],
 };
 
-const norm = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/[^a-z0-9. ]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+import { normCountry as norm } from './util';
 
 // Build [alias, canonical] pairs sorted by alias length desc, so "united states" wins
 // over the bare "us", and word-boundary matching avoids matching inside other words.

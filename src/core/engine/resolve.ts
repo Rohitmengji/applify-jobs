@@ -5,6 +5,7 @@ import { getProfile } from '../storage/profileStore';
 import { getLearned } from '../storage/learnStore';
 import { applyLearned } from './learn';
 import { valueForKey } from './values';
+import { normLabel as norm } from './util';
 import type { DetectedField } from '../types';
 import type { Profile } from '../profile.schema';
 
@@ -74,12 +75,6 @@ export async function resolveAll(): Promise<{
 
 // Auto-compute values for fields that have deterministic answers based on context,
 // even without a profile key mapping. These are common questions with obvious answers.
-const norm = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/[^a-z0-9 ]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
 
 function autoComputeValue(
   field: DetectedField,

@@ -135,6 +135,22 @@ export function valueForKey(
     case 'freeText':
       return null;
 
+    // References: return the first reference's field (most forms ask for one at a time).
+    case 'references.name':
+      return profile.references?.[0]?.name ?? null;
+    case 'references.email':
+      return profile.references?.[0]?.email ?? null;
+    case 'references.phone':
+      return profile.references?.[0]?.phone ?? null;
+    case 'references.company':
+      return profile.references?.[0]?.company ?? null;
+    case 'references.relationship':
+      return profile.references?.[0]?.relationship ?? null;
+
+    // Projects: return the first project URL (portfolio/sample work fields).
+    case 'projects.url':
+      return profile.projects?.[0]?.url ?? null;
+
     case 'workAuth.authorizedToWork':
       return deriveWorkAuth(profile, field, 'authorized');
     case 'workAuth.needsSponsorship':

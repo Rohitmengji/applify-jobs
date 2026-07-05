@@ -2,7 +2,7 @@
   "name": "oneclick-apply",
   "private": true,
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "A Manifest V3 Chrome extension that fills job application forms across every major ATS with one click — human-in-the-loop.",
   "packageManager": "pnpm@11.9.0",
   "engines": {

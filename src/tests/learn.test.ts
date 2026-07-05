@@ -10,7 +10,7 @@ import { ProfileSchema, type Profile } from '@/core/profile.schema';
 import type { DetectedField, FieldKind, FillSource } from '@/core/types';
 
 const profile: Profile = ProfileSchema.parse({
-  schemaVersion: 1,
+  schemaVersion: 2,
   personal: {
     firstName: 'Ada',
     lastName: 'Lovelace',
@@ -24,7 +24,7 @@ const profile: Profile = ProfileSchema.parse({
   experience: [],
   education: [],
   skills: [],
-  documents: {},
+  documents: { resumes: [], coverLetters: [] },
   answerBank: [],
   settings: {},
 });

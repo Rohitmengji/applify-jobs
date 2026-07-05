@@ -45,12 +45,14 @@ export function AnalyticsSection() {
   }
   const maxDay = Math.max(...dayCounts, 1);
 
-  // Estimated time saved (15 min per app manually, 30 sec with extension)
-  const timeSavedMin = Math.round(apps.length * 14.5); // 14.5 min saved per app
-  const timeSavedHrs = Math.round((timeSavedMin / 60) * 10) / 10;
+  // Funnel: applied → interview → offer
+  const interviews = statusCounts['interview'] ?? 0;
+  const offers = statusCounts['offer'] ?? 0;
+  const positiveResponses = interviews + offers;
+  const responseRate = apps.length > 0 ? Math.round((positiveResponses / apps.length) * 100) : 0;
 
   return (
-    <Section title="Analytics" description="Your application activity and time saved.">
+    <Section title="Analytics" description="Your application activity.">
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3 mb-4">
         <StatCard label="This week" value={String(thisWeek.length)} sub="applications" />
@@ -58,18 +60,28 @@ export function AnalyticsSection() {
         <StatCard label="Total" value={String(apps.length)} sub="all time" />
       </div>
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <StatCard label="Time saved" value={`${timeSavedHrs}h`} sub={`${timeSavedMin} min total`} />
-        <StatCard
-          label="Response rate"
-          value={`${apps.length > 0 ? Math.round(((statusCounts['interview'] ?? 0) / apps.length) * 100) : 0}%`}
-          sub="got interviews"
-        />
+        <StatCard label="Interviews" value={String(interviews)} sub="callbacks" />
+        <StatCard label="Response rate" value={`${responseRate}%`} sub="interview + offer" />
         <StatCard
           label="Avg/day"
           value={String(Math.round((thisWeek.length / 7) * 10) / 10)}
           sub="this week"
         />
       </div>
+
+      {/* Funnel */}
+      {apps.length > 0 && (
+        <div className="mb-4 rounded border border-gray-100 p-3">
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">Funnel</h3>
+          <div className="flex items-center gap-2 text-xs text-gray-600">
+            <span className="font-medium">{apps.length} applied</span>
+            <span className="text-gray-300">→</span>
+            <span className="font-medium">{interviews} interviews</span>
+            <span className="text-gray-300">→</span>
+            <span className="font-medium text-green-600">{offers} offers</span>
+          </div>
+        </div>
+      )}
 
       {/* Weekly bar chart */}
       <h3 className="text-sm font-semibold text-gray-700 mb-2">Last 7 days</h3>

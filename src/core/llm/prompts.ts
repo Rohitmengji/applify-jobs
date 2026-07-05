@@ -30,6 +30,12 @@ export const PROFILE_KEYS: ProfileKey[] = [
   'salary.expected',
   'documents.resume',
   'documents.coverLetter',
+  'references.name',
+  'references.email',
+  'references.phone',
+  'references.company',
+  'references.relationship',
+  'projects.url',
   'skills',
   'freeText',
 ];

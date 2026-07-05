@@ -273,3 +273,106 @@ describe('matchAdapter registry', () => {
     expect(matchAdapter(new URL('https://www.dice.com/apply/x'), document)?.id).toBe('dice');
   });
 });
+
+// --- matches() coverage stubs for untested adapters ---
+// These verify the adapter's hostname regex matches its canonical URL and rejects spoofs.
+import { bamboohr } from '@/core/engine/adapters/bamboohr';
+import { breezyhr } from '@/core/engine/adapters/breezyhr';
+import { comeet } from '@/core/engine/adapters/comeet';
+import { indeed } from '@/core/engine/adapters/indeed';
+import { jobvite } from '@/core/engine/adapters/jobvite';
+import { joincom } from '@/core/engine/adapters/joincom';
+import { keka } from '@/core/engine/adapters/keka';
+import { linkedin } from '@/core/engine/adapters/linkedin';
+import { naukri } from '@/core/engine/adapters/naukri';
+import { personio } from '@/core/engine/adapters/personio';
+import { pinpoint } from '@/core/engine/adapters/pinpoint';
+import { recruitee } from '@/core/engine/adapters/recruitee';
+import { rippling } from '@/core/engine/adapters/rippling';
+import { teamtailor } from '@/core/engine/adapters/teamtailor';
+import { wellfound } from '@/core/engine/adapters/wellfound';
+import { ziprecruiter } from '@/core/engine/adapters/ziprecruiter';
+import { zohorecruit } from '@/core/engine/adapters/zohorecruit';
+
+describe('adapter matches() coverage', () => {
+  const doc = document; // minimal DOM
+
+  const cases: [string, { matches: (u: URL, d: Document) => boolean }, string, string][] = [
+    [
+      'bamboohr',
+      bamboohr,
+      'https://acme.bamboohr.com/careers/123',
+      'https://bamboohr.com.evil.com/x',
+    ],
+    ['breezyhr', breezyhr, 'https://acme.breezy.hr/p/abc123', 'https://breezy.hr.evil.com/x'],
+    ['comeet', comeet, 'https://www.comeet.com/jobs/acme/1', 'https://comeet.com.evil.com/x'],
+    ['indeed', indeed, 'https://www.indeed.com/viewjob?jk=abc', 'https://indeed.com.evil.com/x'],
+    ['jobvite', jobvite, 'https://jobs.jobvite.com/acme/job/x', 'https://jobvite.com.evil.com/x'],
+    ['joincom', joincom, 'https://join.com/companies/acme/jobs/1', 'https://join.com.evil.com/x'],
+    ['keka', keka, 'https://acme.keka.com/careers/jobdetails/1', 'https://keka.com.evil.com/x'],
+    [
+      'linkedin',
+      linkedin,
+      'https://www.linkedin.com/jobs/view/123',
+      'https://linkedin.com.evil.com/x',
+    ],
+    ['naukri', naukri, 'https://www.naukri.com/job-listings-x', 'https://naukri.com.evil.com/x'],
+    [
+      'personio',
+      personio,
+      'https://acme.jobs.personio.com/job/1',
+      'https://personio.com.evil.com/x',
+    ],
+    [
+      'pinpoint',
+      pinpoint,
+      'https://acme.pinpointhq.com/postings/1',
+      'https://pinpointhq.com.evil.com/x',
+    ],
+    [
+      'recruitee',
+      recruitee,
+      'https://acme.recruitee.com/o/job',
+      'https://recruitee.com.evil.com/x',
+    ],
+    [
+      'rippling',
+      rippling,
+      'https://ats.rippling.com/acme/jobs/1',
+      'https://rippling.com.evil.com/x',
+    ],
+    [
+      'teamtailor',
+      teamtailor,
+      'https://acme.teamtailor.com/jobs/1',
+      'https://teamtailor.com.evil.com/x',
+    ],
+    [
+      'wellfound',
+      wellfound,
+      'https://wellfound.com/l/acme/jobs/1',
+      'https://wellfound.com.evil.com/x',
+    ],
+    [
+      'ziprecruiter',
+      ziprecruiter,
+      'https://www.ziprecruiter.com/jobs/x',
+      'https://ziprecruiter.com.evil.com/x',
+    ],
+    [
+      'zohorecruit',
+      zohorecruit,
+      'https://acme.zohorecruit.com/jobs/Careers/1',
+      'https://zohorecruit.com.evil.com/x',
+    ],
+  ];
+
+  for (const [name, adapter, validUrl, spoofUrl] of cases) {
+    it(`${name} matches its canonical URL`, () => {
+      expect(adapter.matches(new URL(validUrl), doc)).toBe(true);
+    });
+    it(`${name} rejects spoofed hostname`, () => {
+      expect(adapter.matches(new URL(spoofUrl), doc)).toBe(false);
+    });
+  }
+});

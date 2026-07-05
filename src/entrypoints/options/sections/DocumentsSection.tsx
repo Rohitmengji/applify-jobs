@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { putBlob, deleteBlob } from '@/core/storage/blobStore';
 import { parseResumeText, applyParsedResume, mergeExtractedResume } from '@/core/parser/resume';
 import type { FromBackground } from '@/core/messages';
+import type { StoredDoc } from '@/core/profile.schema';
 import { Section, TextArea, Button, type SectionProps } from '../components/ui';
 
 export function DocumentsSection({ draft, setDraft }: SectionProps) {
@@ -9,28 +10,21 @@ export function DocumentsSection({ draft, setDraft }: SectionProps) {
   const [resumeText, setResumeText] = useState('');
   const [pdfMsg, setPdfMsg] = useState('');
 
-  const storeDoc = async (kind: 'resume' | 'coverLetter', file: File) => {
-    const id = await putBlob(file);
-    setDraft((d) => ({
-      ...d,
-      documents:
-        kind === 'resume'
-          ? { ...d.documents, resumeBlobId: id, resumeFilename: file.name }
-          : { ...d.documents, coverLetterBlobId: id, coverLetterFilename: file.name },
-    }));
-  };
-
-  // Résumé upload: store the blob, and if it's a PDF, extract its text and seed the
-  // profile (basic pass) + prefill the box so the user can also run the AI pass (§M8).
-  const onResume = async (file: File | undefined) => {
+  const addResume = async (file: File | undefined) => {
     if (!file) return;
-    await storeDoc('resume', file);
+    const blobId = await putBlob(file);
+    const id = crypto.randomUUID();
+    const doc: StoredDoc = { id, blobId, filename: file.name, createdAt: Date.now() };
+    setDraft((d) => {
+      const resumes = [...d.documents.resumes, doc];
+      const defaultResumeId = d.documents.defaultResumeId ?? id; // first upload becomes default
+      return { ...d, documents: { ...d.documents, resumes, defaultResumeId } };
+    });
+    // PDF extraction for profile seeding
     const looksPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     if (!looksPdf) return;
     setPdfMsg('Reading PDF…');
     try {
-      // Lazy-load pdf.js (heavy) only when a PDF is actually uploaded — code-split out
-      // of the main options bundle.
       const { extractPdfText } = await import('@/core/parser/pdf');
       const text = await extractPdfText(file);
       if (text) {
@@ -47,19 +41,42 @@ export function DocumentsSection({ draft, setDraft }: SectionProps) {
     }
   };
 
-  const removeResume = async () => {
-    if (docs.resumeBlobId) await deleteBlob(docs.resumeBlobId);
-    setDraft((d) => ({
-      ...d,
-      documents: { ...d.documents, resumeBlobId: undefined, resumeFilename: undefined },
-    }));
+  const removeResume = async (doc: StoredDoc) => {
+    await deleteBlob(doc.blobId);
+    setDraft((d) => {
+      const resumes = d.documents.resumes.filter((r) => r.id !== doc.id);
+      const defaultResumeId =
+        d.documents.defaultResumeId === doc.id ? resumes[0]?.id : d.documents.defaultResumeId;
+      return { ...d, documents: { ...d.documents, resumes, defaultResumeId } };
+    });
   };
-  const removeCover = async () => {
-    if (docs.coverLetterBlobId) await deleteBlob(docs.coverLetterBlobId);
-    setDraft((d) => ({
-      ...d,
-      documents: { ...d.documents, coverLetterBlobId: undefined, coverLetterFilename: undefined },
-    }));
+
+  const setDefaultResume = (id: string) => {
+    setDraft((d) => ({ ...d, documents: { ...d.documents, defaultResumeId: id } }));
+  };
+
+  const addCoverLetter = async (file: File | undefined) => {
+    if (!file) return;
+    const blobId = await putBlob(file);
+    const id = crypto.randomUUID();
+    const doc: StoredDoc = { id, blobId, filename: file.name, createdAt: Date.now() };
+    setDraft((d) => {
+      const coverLetters = [...d.documents.coverLetters, doc];
+      const defaultCoverLetterId = d.documents.defaultCoverLetterId ?? id;
+      return { ...d, documents: { ...d.documents, coverLetters, defaultCoverLetterId } };
+    });
+  };
+
+  const removeCoverLetter = async (doc: StoredDoc) => {
+    await deleteBlob(doc.blobId);
+    setDraft((d) => {
+      const coverLetters = d.documents.coverLetters.filter((c) => c.id !== doc.id);
+      const defaultCoverLetterId =
+        d.documents.defaultCoverLetterId === doc.id
+          ? coverLetters[0]?.id
+          : d.documents.defaultCoverLetterId;
+      return { ...d, documents: { ...d.documents, coverLetters, defaultCoverLetterId } };
+    });
   };
 
   return (
@@ -67,18 +84,24 @@ export function DocumentsSection({ draft, setDraft }: SectionProps) {
       title="Documents"
       description="Stored locally in your browser (IndexedDB) — never uploaded."
     >
-      <DocSlot
-        title="Résumé"
-        filename={docs.resumeFilename}
-        onPick={onResume}
+      <DocList
+        title="Résumés"
+        docs={docs.resumes}
+        defaultId={docs.defaultResumeId}
+        onAdd={addResume}
         onRemove={removeResume}
+        onSetDefault={setDefaultResume}
       />
       {pdfMsg && <p className="text-xs text-indigo-600">{pdfMsg}</p>}
-      <DocSlot
-        title="Cover letter"
-        filename={docs.coverLetterFilename}
-        onPick={(f) => f && void storeDoc('coverLetter', f)}
-        onRemove={removeCover}
+      <DocList
+        title="Cover Letters"
+        docs={docs.coverLetters}
+        defaultId={docs.defaultCoverLetterId}
+        onAdd={addCoverLetter}
+        onRemove={removeCoverLetter}
+        onSetDefault={(id) =>
+          setDraft((d) => ({ ...d, documents: { ...d.documents, defaultCoverLetterId: id } }))
+        }
       />
 
       <ResumeTextImport
@@ -161,35 +184,62 @@ function ResumeTextImport({
   );
 }
 
-function DocSlot({
+function DocList({
   title,
-  filename,
-  onPick,
+  docs,
+  defaultId,
+  onAdd,
   onRemove,
+  onSetDefault,
 }: {
   title: string;
-  filename?: string;
-  onPick: (file: File | undefined) => void;
-  onRemove: () => void;
+  docs: StoredDoc[];
+  defaultId?: string;
+  onAdd: (file: File | undefined) => void;
+  onRemove: (doc: StoredDoc) => void;
+  onSetDefault: (id: string) => void;
 }) {
   return (
     <div className="rounded-lg border border-gray-200 p-4">
       <h3 className="mb-2 text-sm font-semibold text-gray-700">{title}</h3>
-      {filename ? (
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">📄 {filename}</span>
-          <Button variant="danger" onClick={onRemove}>
-            Remove
-          </Button>
-        </div>
-      ) : (
+      {docs.length === 0 && (
+        <p className="mb-2 text-xs text-gray-400">No {title.toLowerCase()} uploaded yet.</p>
+      )}
+      <ul className="space-y-2">
+        {docs.map((doc) => (
+          <li
+            key={doc.id}
+            className="flex items-center justify-between rounded border border-gray-100 px-3 py-2"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">📄 {doc.label || doc.filename}</span>
+              {doc.id === defaultId && (
+                <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">
+                  Default
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {doc.id !== defaultId && (
+                <Button variant="ghost" onClick={() => onSetDefault(doc.id)}>
+                  Set default
+                </Button>
+              )}
+              <Button variant="danger" onClick={() => onRemove(doc)}>
+                Remove
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-2">
         <input
           type="file"
           accept=".pdf,.doc,.docx"
-          onChange={(e) => onPick(e.target.files?.[0])}
+          onChange={(e) => onAdd(e.target.files?.[0])}
           className="text-sm"
         />
-      )}
+      </div>
     </div>
   );
 }
