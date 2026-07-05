@@ -121,6 +121,11 @@ export const ProfileSchema = z.object({
       // one, so we never assume INR and mis-convert a non-INR user's salary.
       currency: z.string().optional(), // home currency
       period: z.string().default('year'), // year | month | hour
+      // Per-market salary expectations: when a form asks in a different currency, use
+      // the market-specific amount the user set (not a raw conversion). Key = currency code.
+      marketExpectations: z
+        .record(z.string(), z.string()) // e.g. { USD: "95600", GBP: "72000", EUR: "82500" }
+        .default({}),
     })
     .default({}),
   documents: z

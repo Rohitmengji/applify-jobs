@@ -40,7 +40,7 @@ export const EMPTY: Profile = {
   experience: [],
   education: [],
   skills: [],
-  salary: { period: 'year' }, // currency intentionally unset — user picks it (no INR assumption)
+  salary: { period: 'year', marketExpectations: {} }, // currency intentionally unset — user picks it (no INR assumption)
   documents: { resumes: [], coverLetters: [] },
   answerBank: [],
   references: [],

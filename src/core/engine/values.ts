@@ -74,6 +74,17 @@ function deriveSalary(profile: Profile, field: DetectedField): string | null {
     return String(lpa);
   }
 
+  // Market-specific expectation: if the user set an explicit amount for this currency,
+  // use it directly instead of converting. This lets someone in India set "$95,600" for
+  // US jobs without relying on conversion math.
+  if (targetCurrency && !isCurrent) {
+    const marketAmt = profile.salary?.marketExpectations?.[targetCurrency];
+    if (marketAmt) {
+      const parsed = parseInt(marketAmt.replace(/[^0-9]/g, ''), 10);
+      if (parsed && !isNaN(parsed)) return String(parsed);
+    }
+  }
+
   // Convert only when we KNOW the home currency AND the field asks for a different one.
   if (homeCurrency && targetCurrency && homeCurrency !== targetCurrency) {
     const homeRate = RATES_TO_USD[homeCurrency] ?? 1;
