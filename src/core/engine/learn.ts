@@ -1,6 +1,7 @@
 import type { DetectedField } from '../types';
 import type { Profile, ProfileKey } from '../profile.schema';
 import { valueForKey } from './values';
+import { normLabel as norm } from './util';
 
 // IMPLEMENTATION.md "Learning Engine" / "Knowledge Graph" — remember how the user
 // resolved a field (by a stable, site-independent fingerprint) so the next form with
@@ -16,12 +17,6 @@ export interface LearnedEntry {
   updatedAt: number;
 }
 export type LearnedMap = Record<string, LearnedEntry>;
-
-const norm = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
 
 // A field's identity, independent of volatile ids — `kind | best-label`. Site-independent
 // on purpose: a "Visa status" question learned on one ATS fills on the next.
@@ -186,13 +181,6 @@ export function isProtectedOrSearch(field: DetectedField): boolean {
     ''
   ).toLowerCase();
   return PROTECTED_LABEL.test(label) || SEARCH_LABEL.test(label);
-}
-
-// Label-only protected/search check, for callers that only have a label string (e.g. the
-// generic section filler operating on raw DOM controls).
-export function isProtectedLabel(label: string): boolean {
-  const l = label.toLowerCase();
-  return PROTECTED_LABEL.test(l) || SEARCH_LABEL.test(l);
 }
 
 // Protected/sensitive ONLY (EEO / DOB / gov-id / financial) — NOT the search-box heuristic.

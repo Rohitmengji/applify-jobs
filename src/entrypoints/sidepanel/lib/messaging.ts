@@ -67,6 +67,29 @@ export async function injectContentScript(tabId: number): Promise<boolean> {
   }
 }
 
+/**
+ * Heartbeat check: ping a frame's content script; if it doesn't respond within 1s,
+ * re-inject and retry once. Returns true if the frame is alive after the check.
+ */
+export async function ensureContentScript(tabId: number, frameId = 0): Promise<boolean> {
+  const ping = () =>
+    chrome.tabs
+      .sendMessage(tabId, { type: 'PING' }, { frameId })
+      .then((r) => r?.type === 'PONG')
+      .catch(() => false);
+
+  if (await withTimeout(ping(), 1000)) return true;
+  // Content script dead — reinject and retry
+  const injected = await injectContentScript(tabId);
+  if (!injected) return false;
+  await new Promise((r) => setTimeout(r, 500));
+  return withTimeout(ping(), 1000);
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | false> {
+  return Promise.race([p, new Promise<false>((r) => setTimeout(() => r(false), ms))]);
+}
+
 // base64-encode a File, chunked to avoid the call-stack limit on large résumés (§25).
 export async function fileToB64(file: File): Promise<string> {
   const bytes = new Uint8Array(await file.arrayBuffer());

@@ -37,10 +37,4 @@ export const greenhouse: SiteAdapter = {
     }
     return fields;
   },
-
-  async fillField(_field, _value) {
-    // Greenhouse résumé is a drag-zone with a hidden input near #resume / "Attach".
-    // Handled by attachFile/dropFileOnZone in the content script; nothing special here.
-    return false; // fall back to the default dispatcher for everything else
-  },
 };

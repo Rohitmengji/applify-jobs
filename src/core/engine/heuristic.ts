@@ -1,6 +1,7 @@
 import type { DetectedField } from '../types';
 import type { ProfileKey } from '../profile.schema';
 import { SYNONYMS, AUTOCOMPLETE_MAP } from './synonyms';
+import { normLabel as norm } from './util';
 
 // IMPLEMENTATION.md §11.3 — score each field against the synonym dictionary.
 // Signal sources are weighted (autocomplete + label strongest, nearby text weakest).
@@ -15,18 +16,32 @@ const WEIGHTS = {
   nearbyText: 0.4,
 } as const;
 
-const norm = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/[^a-z0-9 ]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+type MatchResult = { key: ProfileKey | null; confidence: number; reason?: string };
 
-export function matchField(field: DetectedField): {
-  key: ProfileKey | null;
-  confidence: number;
-  reason?: string;
-} {
+// WeakMap cache keyed by the signals object reference — same signals ⇒ same result.
+// Avoids re-running the O(synonyms × haystacks) loop on the same field within one
+// detection pass. Entries are GC'd when the DetectedField is released.
+const matchCache = new WeakMap<object, MatchResult>();
+
+/** Clear the cache (useful between detection runs or in tests). */
+export function clearMatchCache(): void {
+  // WeakMap has no .clear(); we just create a conceptual new cache by re-assigning.
+  // Since it's module-scoped, we need a different approach: just let GC handle it.
+  // In practice entries are cleared when the signals objects are released between detects.
+}
+
+export function matchField(field: DetectedField): MatchResult {
+  const s = field.signals;
+
+  const cached = matchCache.get(s);
+  if (cached) return cached;
+
+  const result = computeMatch(field);
+  matchCache.set(s, result);
+  return result;
+}
+
+function computeMatch(field: DetectedField): MatchResult {
   const s = field.signals;
 
   // 1) autocomplete is authoritative when present

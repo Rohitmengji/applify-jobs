@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Section, Button, type SectionProps } from '../components/ui';
 import { getProfile, saveProfile } from '@/core/storage/profileStore';
-import { recordLearned } from '@/core/storage/learnStore';
+import { recordLearned, exportLearned, importLearned } from '@/core/storage/learnStore';
 
 // The 50 most common job application questions across all ATS platforms.
 // Answer these ONCE and they auto-fill everywhere via the learning engine.
@@ -383,6 +383,52 @@ export function TrainingSection({ draft }: SectionProps) {
             )}
           </div>
         ))}
+      </div>
+
+      {/* Export/Import learned data */}
+      <div className="mt-6 rounded-lg border border-dashed border-gray-300 p-4">
+        <h3 className="mb-1 text-sm font-semibold text-gray-700">Learned Data</h3>
+        <p className="mb-3 text-xs text-gray-400">
+          Export your learned answers to transfer to another device, or import a backup.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="ghost"
+            onClick={async () => {
+              const data = await exportLearned();
+              const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'oneclick-apply-learned.json';
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            Export learned data
+          </Button>
+          <label className="cursor-pointer rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50">
+            Import learned data
+            <input
+              type="file"
+              accept=".json"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try {
+                  const text = await file.text();
+                  const data = JSON.parse(text);
+                  const count = await importLearned(data);
+                  alert(`Imported ${count} learned entries.`);
+                } catch {
+                  alert('Invalid file — expected a JSON export from OneClick Apply.');
+                }
+                e.target.value = '';
+              }}
+            />
+          </label>
+        </div>
       </div>
     </Section>
   );

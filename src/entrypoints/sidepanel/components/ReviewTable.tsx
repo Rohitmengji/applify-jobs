@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { DetectedField } from '@/core/types';
 import type { SavedAnswer } from '@/core/profile.schema';
 import { FieldRow } from './FieldRow';
@@ -25,6 +26,9 @@ export function ReviewTable({
   onDraft,
   onSaveAnswer,
 }: Props) {
+  const [filter, setFilter] = useState('');
+  const [onlyReview, setOnlyReview] = useState(false);
+
   if (fields.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
@@ -43,16 +47,52 @@ export function ReviewTable({
   );
   const reviewCount = fields.filter((f) => needsReview(f, threshold)).length;
 
+  const displayed = sorted.filter((f) => {
+    if (onlyReview && !needsReview(f, threshold)) return false;
+    if (filter) {
+      const label = (
+        f.signals.label ||
+        f.signals.ariaLabel ||
+        f.signals.placeholder ||
+        ''
+      ).toLowerCase();
+      if (!label.includes(filter.toLowerCase())) return false;
+    }
+    return true;
+  });
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {reviewCount > 0 && (
+      {/* Filter bar */}
+      <div className="mx-3 mt-2 flex items-center gap-2">
+        <input
+          type="text"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filter fields…"
+          className="flex-1 rounded border border-gray-200 px-2 py-1 text-[11px] text-gray-600 placeholder:text-gray-300 focus:border-indigo-300 focus:outline-none"
+        />
+        {reviewCount > 0 && (
+          <button
+            onClick={() => setOnlyReview(!onlyReview)}
+            className={`shrink-0 rounded px-2 py-1 text-[10px] font-medium transition ${
+              onlyReview
+                ? 'bg-amber-100 text-amber-700 border border-amber-300'
+                : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-amber-50'
+            }`}
+          >
+            {onlyReview ? `⚠ ${reviewCount}` : `⚠ ${reviewCount}`}
+          </button>
+        )}
+      </div>
+      {reviewCount > 0 && !onlyReview && (
         <div className="mx-3 mt-2 flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 text-[11px] text-amber-700">
           <span className="font-bold">{reviewCount}</span> field{reviewCount > 1 ? 's' : ''} need
           review
         </div>
       )}
       <ul className="flex-1 overflow-y-auto mt-1">
-        {sorted.map((f) => {
+        {displayed.map((f) => {
           const label = f.signals.label || f.signals.ariaLabel || f.signals.placeholder || '';
           const isFreeText =
             f.mappedKey === 'freeText' ||

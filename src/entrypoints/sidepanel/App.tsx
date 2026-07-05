@@ -2,13 +2,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DetectedField, FillSource, WizardStatus } from '@/core/types';
 import type { FromContent, FromBackground, ResolvedFill } from '@/core/messages';
 import type { ProfileKey, SavedAnswer } from '@/core/profile.schema';
-import { getProfile } from '@/core/storage/profileStore';
-import { getFile } from '@/core/storage/blobStore';
+import { getProfile, saveProfile } from '@/core/storage/profileStore';
+import { getFile, putBlob } from '@/core/storage/blobStore';
 import { recordLearned, countLearned } from '@/core/storage/learnStore';
 import { logApplication, findDuplicate } from '@/core/storage/appTracker';
 import { saveFillProgress, loadFillProgress, clearFillProgress } from '@/core/storage/fillProgress';
+import {
+  getVariants,
+  switchVariant,
+  getActiveVariantId,
+  type ProfileVariant,
+} from '@/core/storage/profileVariants';
 import { learnableEntries } from '@/core/engine/learn';
-import { findAnswer } from '@/core/llm/answerBank';
+import { findDuplicateAnswer } from '@/core/llm/answerBank';
 import { valueForKey } from '@/core/engine/values';
 import { coerceValueForField, extractNumber } from '@/core/engine/fill';
 import {
@@ -25,6 +31,7 @@ import { ReviewTable } from './components/ReviewTable';
 import { FillButton } from './components/FillButton';
 import { AskAI } from './components/AskAI';
 import { JobMatchCard } from './components/JobMatchCard';
+import { BatchQueue } from './components/BatchQueue';
 import { analyzeJobDescription, type JdAnalysis } from '@/core/engine/jdAnalysis';
 
 type FilledMap = Record<string, { ok: boolean; error?: string }>;
@@ -73,7 +80,13 @@ export function App() {
   const [jobMatch, setJobMatch] = useState<JdAnalysis | null>(null);
   const [isRunning, setIsRunning] = useState(false); // a wizard run is in flight (#1)
   const [aiReady, setAiReady] = useState(false); // llmEnabled AND an API key is saved
+  // Multi-resume: list + currently selected resume for this fill session
+  const [resumeOptions, setResumeOptions] = useState<{ id: string; label: string }[]>([]);
+  const [selectedResumeId, setSelectedResumeId] = useState<string | undefined>(undefined);
   const [learnedCount, setLearnedCount] = useState(0); // answers remembered (shown in header)
+  // Profile variant switcher
+  const [variants, setVariants] = useState<ProfileVariant[]>([]);
+  const [activeVariantId, setActiveVariantId] = useState<string | null>(null);
   // Result of the last section fill (Work Experience / Education), for the post-fill summary.
   const [sections, setSections] = useState<{
     exp: number;
@@ -109,12 +122,21 @@ export function App() {
       const out = new Map<string, LlmPatch>();
       const profile = await getProfile();
       if (!profile.settings.llmEnabled) return out;
-      const unmapped = current.filter((f) => f.mappedKey === null && f.kind !== 'file');
-      if (unmapped.length === 0) return out;
+      const threshold = profile.settings.confidenceThreshold ?? 0.6;
+
+      // Send to LLM: unmapped fields AND low-confidence fields (between 0.3 and threshold).
+      // High-confidence fields stay deterministic. Capped at 10 per batch to control cost.
+      const candidates = current.filter(
+        (f) =>
+          f.kind !== 'file' &&
+          (f.mappedKey === null || (f.confidence >= 0.3 && f.confidence < threshold)),
+      );
+      if (candidates.length === 0) return out;
+      const batch = candidates.slice(0, 10); // cap per-detection LLM batch
 
       const res = await sendToBackground<FromBackground>({
         type: 'LLM_MAP_FIELDS',
-        unresolved: unmapped.map((f) => ({ uid: f.uid, signals: f.signals })),
+        unresolved: batch.map((f) => ({ uid: f.uid, signals: f.signals })),
       });
       if (res.type !== 'LLM_MAP_RESULT') return out;
 
@@ -122,6 +144,8 @@ export function App() {
       for (const f of current) {
         const m = byUid.get(f.uid);
         if (!m || !m.key) continue;
+        // Only adopt LLM result if it improves confidence over the current heuristic
+        if (f.mappedKey && m.confidence <= f.confidence) continue;
         const key = m.key as ProfileKey;
         const value = key === 'freeText' ? f.value : (valueForKey(profile, key, f) ?? f.value);
         out.set(f.uid, { key, confidence: m.confidence, value });
@@ -170,8 +194,22 @@ export function App() {
       const profile = await getProfile();
       setThreshold(profile.settings.confidenceThreshold);
       setAnswerBank(profile.answerBank ?? []);
+      // Populate resume picker from the multi-doc array
+      const resOpts = (profile.documents.resumes ?? []).map((r) => ({
+        id: r.id,
+        label: r.label || r.filename,
+      }));
+      setResumeOptions(resOpts);
+      setSelectedResumeId(profile.documents.defaultResumeId ?? resOpts[0]?.id);
       void countLearned().then((n) => {
         if (!stale()) setLearnedCount(n);
+      });
+      // Load profile variants for the switcher
+      void Promise.all([getVariants(), getActiveVariantId()]).then(([vs, activeId]) => {
+        if (!stale()) {
+          setVariants(vs);
+          setActiveVariantId(activeId);
+        }
       });
 
       // AI features are only usable when the user enabled them AND saved an API key.
@@ -580,8 +618,13 @@ export function App() {
         fields.find((f) => f.mappedKey === 'documents.resume') ??
         fields.find((f) => f.kind === 'file'); // fallback: first file input = resume
       let attachedResume = false;
-      if (resumeField && profile.documents.resumeBlobId) {
-        const file = await getFile(profile.documents.resumeBlobId);
+      // Resolve the blob to attach: use the side-panel-selected resume (multi-doc) first,
+      // then fall back to the default, then to legacy resumeBlobId (migration compat).
+      const pickId = selectedResumeId ?? profile.documents.defaultResumeId;
+      const resumeDoc = profile.documents.resumes?.find((r) => r.id === pickId);
+      const resumeBlobId = resumeDoc?.blobId ?? profile.documents.resumeBlobId;
+      if (resumeField && resumeBlobId) {
+        const file = await getFile(resumeBlobId);
         if (file) {
           const b64 = await fileToB64(file);
           await sendToFrame(tabId, resumeField.frameId ?? 0, {
@@ -656,10 +699,31 @@ export function App() {
       } catch {
         /* page info extraction failed — non-critical */
       }
+
+      // Post-fill verification: after a delay, read back DOM values to detect fills that
+      // silently reverted (React re-render, framework override). Non-blocking; just warns.
+      const filledUids = fields
+        .filter((f) => f.value != null && f.kind !== 'file')
+        .map((f) => f.uid);
+      if (filledUids.length > 0 && tabIdRef.current != null) {
+        const verifyTabId = tabIdRef.current;
+        setTimeout(async () => {
+          try {
+            const vr = await sendToFrame(verifyTabId, 0, { type: 'VERIFY', uids: filledUids });
+            if (vr?.type === 'VERIFY_RESULT' && vr.mismatches.length > 0) {
+              setNotice(
+                `${vr.mismatches.length} field${vr.mismatches.length === 1 ? '' : 's'} may not have stuck — review the page.`,
+              );
+            }
+          } catch {
+            /* frame gone or extension reloaded — non-critical */
+          }
+        }, 1500);
+      }
     } finally {
       setBusy(false);
     }
-  }, [fields, adapterId]);
+  }, [fields, adapterId, selectedResumeId]);
 
   const runStep = useCallback(async () => {
     setBusy(true);
@@ -765,7 +829,11 @@ export function App() {
       const tabId = await activeTabGuard();
       if (tabId == null) return;
       const profile = await getProfile();
-      if (!profile.documents.resumeBlobId) {
+      // Use the selected resume or default for tailoring
+      const pickId = selectedResumeId ?? profile.documents.defaultResumeId;
+      const resumeDoc = profile.documents.resumes?.find((r) => r.id === pickId);
+      const tailorBlobId = resumeDoc?.blobId ?? profile.documents.resumeBlobId;
+      if (!tailorBlobId) {
         setNotice('Upload your résumé in Settings → Documents first, then tailor it.');
         return;
       }
@@ -774,7 +842,7 @@ export function App() {
       // structured profile, which the tailoring always includes anyway).
       let baseText = '';
       try {
-        const file = await getFile(profile.documents.resumeBlobId);
+        const file = await getFile(tailorBlobId);
         if (file) {
           const { isPdf, extractPdfText } = await import('@/core/parser/pdf');
           if (isPdf(file)) baseText = await extractPdfText(file);
@@ -819,7 +887,7 @@ export function App() {
     } finally {
       setTailorBusy(false);
     }
-  }, [activeTabGuard]);
+  }, [activeTabGuard, selectedResumeId]);
 
   const downloadTailored = useCallback(() => {
     if (!tailored) return;
@@ -852,6 +920,29 @@ export function App() {
     });
   }, [tailored, fields, activeTabGuard]);
 
+  // Save a tailored résumé into the user's stored résumé set (multi-doc Phase 1).
+  const saveTailoredToResumes = useCallback(async () => {
+    if (!tailored) return;
+    const blobId = await putBlob(tailored.file);
+    const id = crypto.randomUUID();
+    const profile = await getProfile();
+    const doc = {
+      id,
+      blobId,
+      filename: tailored.file.name,
+      label: tailored.file.name.replace(/\.pdf$/i, ''),
+      createdAt: Date.now(),
+    };
+    const resumes = [...profile.documents.resumes, doc];
+    await saveProfile({
+      ...profile,
+      documents: { ...profile.documents, resumes },
+    });
+    // Update side-panel picker
+    setResumeOptions((prev) => [...prev, { id, label: doc.label || doc.filename }]);
+    setNotice('Saved to your résumés ✓');
+  }, [tailored]);
+
   // Save an AI-drafted answer to the answer bank so it's reused next time
   const saveToAnswerBank = useCallback(async (question: string, answer: string) => {
     if (!question || !answer) return;
@@ -859,16 +950,25 @@ export function App() {
     const already = profile.answerBank.some(
       (a) => a.questionPattern.toLowerCase() === question.toLowerCase(),
     );
-    // Also skip near-identical questions (e.g. "Why this role?" vs "Why this role") so blur
-    // auto-save doesn't spam the bank with slight label variants of the same question.
-    if (already || findAnswer(question, profile.answerBank, 0.8)) return;
-    const entry = {
-      id: crypto.randomUUID(),
-      questionPattern: question,
-      answer,
-      tags: [],
-    };
-    const updated = { ...profile, answerBank: [...profile.answerBank, entry] };
+    if (already) return;
+
+    // Dedup: if a near-identical question already exists, update its answer instead of
+    // creating a duplicate entry. This keeps the bank clean across slight label variants.
+    const dup = findDuplicateAnswer(question, profile.answerBank, 0.85);
+    let updatedBank;
+    if (dup) {
+      // Merge: update the existing entry's answer (latest wins)
+      updatedBank = profile.answerBank.map((a) => (a.id === dup.id ? { ...a, answer } : a));
+    } else {
+      const entry = {
+        id: crypto.randomUUID(),
+        questionPattern: question,
+        answer,
+        tags: [],
+      };
+      updatedBank = [...profile.answerBank, entry];
+    }
+    const updated = { ...profile, answerBank: updatedBank };
     const { saveProfile } = await import('@/core/storage/profileStore');
     await saveProfile(updated);
     setAnswerBank(updated.answerBank);
@@ -959,6 +1059,36 @@ export function App() {
     }
   }, [fields, onDraft]);
 
+  // --- Keyboard shortcuts (power-user speed + accessibility) ---
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      switch (e.key.toLowerCase()) {
+        case 'd': // Ctrl/Cmd+D → Detect
+          if (!e.shiftKey) {
+            e.preventDefault();
+            detect();
+          }
+          break;
+        case 'f': // Ctrl/Cmd+Shift+F → Fill All
+          if (e.shiftKey && !locked && fields.length > 0) {
+            e.preventDefault();
+            fillAll();
+          }
+          break;
+        case 'enter': // Ctrl/Cmd+Enter → Next Step
+          if (!locked && multiStep) {
+            e.preventDefault();
+            runStep();
+          }
+          break;
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [detect, fillAll, runStep, locked, fields.length, multiStep]);
+
   return (
     <div className="flex h-full flex-col bg-linear-to-b from-white to-gray-50/80 text-sm text-gray-900">
       <StatusBar
@@ -966,6 +1096,15 @@ export function App() {
         count={fields.length}
         busy={locked}
         learnedCount={learnedCount}
+        variants={variants}
+        activeVariantId={activeVariantId}
+        onSwitchVariant={async (id) => {
+          const profile = await switchVariant(id);
+          if (profile) {
+            setActiveVariantId(id);
+            detect(); // re-detect with the new profile
+          }
+        }}
         onRedetect={detect}
       />
 
@@ -1131,6 +1270,12 @@ export function App() {
                 >
                   📎 Attach to this application
                 </button>
+                <button
+                  onClick={saveTailoredToResumes}
+                  className="rounded-md bg-emerald-100 px-2 py-1 text-[10px] font-medium text-emerald-700 transition hover:bg-emerald-200"
+                >
+                  💾 Save to my résumés
+                </button>
               </div>
             </div>
           )}
@@ -1179,6 +1324,24 @@ export function App() {
         </div>
       )}
 
+      {/* Résumé picker — shown only when the user has >1 résumé uploaded */}
+      {resumeOptions.length > 1 && (
+        <div className="mx-3 mb-1 mt-2 flex items-center gap-2">
+          <label className="text-[11px] font-medium text-gray-500">Résumé:</label>
+          <select
+            className="rounded border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-700"
+            value={selectedResumeId ?? ''}
+            onChange={(e) => setSelectedResumeId(e.target.value)}
+          >
+            {resumeOptions.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <FillButton
         busy={locked}
         hasFields={fields.length > 0}
@@ -1187,6 +1350,13 @@ export function App() {
         onFillAndNext={fillAndNext}
         onNext={runStep}
         onRun={runToReview}
+      />
+
+      {/* Batch queue — paste multiple job URLs and process them one by one */}
+      <BatchQueue
+        onNavigate={(url) => {
+          chrome.tabs.update({ url });
+        }}
       />
     </div>
   );

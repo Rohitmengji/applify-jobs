@@ -92,6 +92,13 @@ export function classifyKind(el: Element): FieldKind {
     }
   }
 
+  // Rich-text contenteditable (Quill, TipTap, ProseMirror, Draft.js).
+  // Classify as textarea only if it's reasonably sized (not a tiny inline CE widget).
+  if (el.getAttribute('contenteditable') === 'true') {
+    const rect = el.getBoundingClientRect();
+    if (rect.height >= 40 && rect.width >= 100) return 'textarea';
+  }
+
   return 'unknown';
 }
 

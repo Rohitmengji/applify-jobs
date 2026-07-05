@@ -56,6 +56,30 @@ export async function clearLearned(): Promise<void> {
   await chrome.storage.local.remove(KEY);
 }
 
+/** Export learned data as a JSON-serializable object (for backup/transfer). */
+export async function exportLearned(): Promise<LearnedMap> {
+  return getLearned();
+}
+
+/** Import learned data (merges with existing — newer entries win on conflict). */
+export async function importLearned(incoming: LearnedMap): Promise<number> {
+  const existing = await getLearned();
+  let imported = 0;
+  for (const [key, entry] of Object.entries(incoming)) {
+    if (!entry || typeof entry !== 'object') continue;
+    if (!entry.value || typeof entry.value !== 'string') continue;
+    const prev = existing[key];
+    // Keep the entry with the newer updatedAt, or import if new
+    if (!prev || (entry.updatedAt && entry.updatedAt > (prev.updatedAt ?? 0))) {
+      existing[key] = entry;
+      imported++;
+    }
+  }
+  capMap(existing);
+  await chrome.storage.local.set({ [KEY]: existing });
+  return imported;
+}
+
 // Distinct learned fields (count the global entries — one per fingerprint).
 export async function countLearned(): Promise<number> {
   const map = await getLearned();

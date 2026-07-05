@@ -3,6 +3,10 @@ import {
   ExperienceSchema,
   EducationSchema,
   AnswerSchema,
+  StoredDocSchema,
+  ReferenceSchema,
+  CoverLetterTemplateSchema,
+  ProjectSchema,
   type Profile,
 } from '../profile.schema';
 
@@ -17,7 +21,7 @@ const KEY = 'profile';
 // time (saveProfile parses); the default just needs to be a valid Profile shape with the
 // defaulted values filled in. (The spec's §9 snippet parses this and would throw at runtime.)
 export const EMPTY: Profile = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   personal: {
     firstName: '',
     lastName: '',
@@ -37,18 +41,23 @@ export const EMPTY: Profile = {
   education: [],
   skills: [],
   salary: { period: 'year' }, // currency intentionally unset — user picks it (no INR assumption)
-  documents: {},
+  documents: { resumes: [], coverLetters: [] },
   answerBank: [],
+  references: [],
+  coverLetterTemplates: [],
+  projects: [],
   settings: { llmEnabled: true, autoAdvanceWizard: true, confidenceThreshold: 0.75 },
 };
 
 export async function getProfile(): Promise<Profile> {
   const raw = await chrome.storage.local.get(KEY);
   if (!raw[KEY]) return EMPTY;
-  const parsed = ProfileSchema.safeParse(raw[KEY]);
+  // Migrate v1 → v2 before validation
+  const migrated = migrate(raw[KEY]);
+  const parsed = ProfileSchema.safeParse(migrated);
   if (!parsed.success) {
     console.warn('Profile failed validation, migrating/repairing', parsed.error);
-    return repair(raw[KEY]); // see §25 for migration strategy
+    return repair(migrated); // see §25 for migration strategy
   }
   return parsed.data;
 }
@@ -67,6 +76,52 @@ export function onProfileChange(cb: (p: Profile) => void): () => void {
   };
   chrome.storage.onChanged.addListener(handler);
   return () => chrome.storage.onChanged.removeListener(handler);
+}
+
+// Migrate v1 profile (single resumeBlobId) → v2 (resumes[]/coverLetters[] arrays).
+// Idempotent: if already v2 or not an object, returns as-is.
+export function migrate(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object') return raw;
+  const obj = raw as Record<string, unknown>;
+  if (obj.schemaVersion === 2) return obj;
+  // v1 → v2
+  const docs = (obj.documents ?? {}) as Record<string, unknown>;
+  const resumes: unknown[] = [];
+  let defaultResumeId: string | undefined;
+  if (docs.resumeBlobId && typeof docs.resumeBlobId === 'string') {
+    const id = crypto.randomUUID();
+    resumes.push({
+      id,
+      blobId: docs.resumeBlobId,
+      filename: (docs.resumeFilename as string) || 'Resume',
+      label: 'Résumé',
+      createdAt: Date.now(),
+    });
+    defaultResumeId = id;
+  }
+  const coverLetters: unknown[] = [];
+  let defaultCoverLetterId: string | undefined;
+  if (docs.coverLetterBlobId && typeof docs.coverLetterBlobId === 'string') {
+    const clId = crypto.randomUUID();
+    coverLetters.push({
+      id: clId,
+      blobId: docs.coverLetterBlobId,
+      filename: (docs.coverLetterFilename as string) || 'Cover Letter',
+      label: 'Cover Letter',
+      createdAt: Date.now(),
+    });
+    defaultCoverLetterId = clId;
+  }
+  return {
+    ...obj,
+    schemaVersion: 2,
+    documents: {
+      resumes,
+      defaultResumeId,
+      coverLetters,
+      defaultCoverLetterId,
+    },
+  };
 }
 
 // §25: When ProfileSchema changes, attempt to migrate old data instead of wiping it.
@@ -104,7 +159,7 @@ function repair(raw: unknown): Profile {
 
   const merged = deepMerge(EMPTY as unknown as Record<string, unknown>, obj);
   // Force the current schema version
-  merged.schemaVersion = 1;
+  merged.schemaVersion = 2;
 
   const parsed = ProfileSchema.safeParse(merged);
   if (parsed.success) return parsed.data;
@@ -116,8 +171,21 @@ function repair(raw: unknown): Profile {
   merged.experience = keep(merged.experience, ExperienceSchema);
   merged.education = keep(merged.education, EducationSchema);
   merged.answerBank = keep(merged.answerBank, AnswerSchema);
+  merged.references = keep(merged.references, ReferenceSchema);
+  merged.coverLetterTemplates = keep(merged.coverLetterTemplates, CoverLetterTemplateSchema);
+  merged.projects = keep(merged.projects, ProjectSchema);
   if (Array.isArray(merged.skills))
     merged.skills = merged.skills.filter((s) => typeof s === 'string');
+  // Salvage document arrays
+  if (
+    merged.documents &&
+    typeof merged.documents === 'object' &&
+    !Array.isArray(merged.documents)
+  ) {
+    const docs = merged.documents as Record<string, unknown>;
+    docs.resumes = keep(docs.resumes, StoredDocSchema);
+    docs.coverLetters = keep(docs.coverLetters, StoredDocSchema);
+  }
 
   // Also drop any invalid optional link (all four are optional url-or-''), so a single bad
   // URL doesn't fail the parse and wipe the whole profile.

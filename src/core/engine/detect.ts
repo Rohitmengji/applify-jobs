@@ -30,6 +30,8 @@ const SELECTOR = [
   // Generic ARIA patterns for custom inputs
   '[role=spinbutton]',
   '[contenteditable=true][role=textbox]',
+  // Rich-text editors (Quill, TipTap, ProseMirror, Draft.js) — often don't have role=textbox
+  '[contenteditable=true]:not([role=button]):not([role=option]):not([role=menuitem]):not([contenteditable=false] *)',
 ].join(',');
 
 // Radios share a name; collapse them into one DetectedField per group.

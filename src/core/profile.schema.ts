@@ -33,8 +33,43 @@ export const AnswerSchema = z.object({
   tags: z.array(z.string()).default([]),
 });
 
+// A stored document (résumé or cover letter) — one entry per uploaded/generated file.
+export const StoredDocSchema = z.object({
+  id: z.string().uuid(),
+  blobId: z.string(), // FK into Dexie blobStore
+  filename: z.string(),
+  label: z.string().optional(), // user-assigned label, e.g. "Frontend Résumé"
+  createdAt: z.number().optional(),
+});
+export type StoredDoc = z.infer<typeof StoredDocSchema>;
+
+// Phase 2 — professional references
+export const ReferenceSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  relationship: z.string().optional(), // "Manager", "Colleague", "Professor"
+  company: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+});
+
+// Phase 2 — reusable cover-letter templates
+export const CoverLetterTemplateSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1), // "Generic", "Startup-focused", "Enterprise"
+  body: z.string().min(1),
+});
+
+// Phase 2 — portfolio / projects
+export const ProjectSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().min(1),
+  url: z.string().optional(),
+  description: z.string().optional(),
+});
+
 export const ProfileSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   personal: z.object({
     firstName: z.string().min(1),
     middleName: z.string().optional(),
@@ -90,13 +125,21 @@ export const ProfileSchema = z.object({
     .default({}),
   documents: z
     .object({
-      resumeBlobId: z.string().optional(), // FK into Dexie blobStore
+      resumes: z.array(StoredDocSchema).default([]),
+      defaultResumeId: z.string().optional(), // id of the StoredDoc to use by default
+      coverLetters: z.array(StoredDocSchema).default([]),
+      defaultCoverLetterId: z.string().optional(),
+      // Legacy fields kept for reading old profiles during migration (not written anymore)
+      resumeBlobId: z.string().optional(),
       resumeFilename: z.string().optional(),
       coverLetterBlobId: z.string().optional(),
       coverLetterFilename: z.string().optional(),
     })
     .default({}),
   answerBank: z.array(AnswerSchema).default([]),
+  references: z.array(ReferenceSchema).default([]),
+  coverLetterTemplates: z.array(CoverLetterTemplateSchema).default([]),
+  projects: z.array(ProjectSchema).default([]),
   settings: z
     .object({
       llmEnabled: z.boolean().default(true),
@@ -110,6 +153,9 @@ export type Profile = z.infer<typeof ProfileSchema>;
 export type Experience = z.infer<typeof ExperienceSchema>;
 export type Education = z.infer<typeof EducationSchema>;
 export type SavedAnswer = z.infer<typeof AnswerSchema>;
+export type Reference = z.infer<typeof ReferenceSchema>;
+export type CoverLetterTemplate = z.infer<typeof CoverLetterTemplateSchema>;
+export type Project = z.infer<typeof ProjectSchema>;
 
 // Dot-path keys the engine maps fields to. Keep in sync with the schema.
 export type ProfileKey =
@@ -140,6 +186,12 @@ export type ProfileKey =
   | 'salary.expected'
   | 'documents.resume'
   | 'documents.coverLetter'
+  | 'references.name'
+  | 'references.email'
+  | 'references.phone'
+  | 'references.company'
+  | 'references.relationship'
+  | 'projects.url'
   | 'skills'
   | 'experience' // resolved per-row by the experience/education filler
   | 'education'

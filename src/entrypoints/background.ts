@@ -38,6 +38,30 @@ export default defineBackground(() => {
   // Open the side panel when the toolbar icon is clicked.
   chrome.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true }).catch(() => {});
 
+  // --- Service worker keep-alive for long LLM calls ---
+  // MV3 service workers are killed after 30s of inactivity. LLM calls (résumé tailoring,
+  // cover letters) can take 15-60s. Arm a periodic alarm while an LLM call is in flight
+  // so Chrome doesn't terminate us mid-request.
+  const KEEPALIVE_ALARM = 'sw-keepalive';
+  let inflightLLM = 0;
+  function armKeepAlive() {
+    inflightLLM++;
+    if (inflightLLM === 1) {
+      chrome.alarms.create(KEEPALIVE_ALARM, { periodInMinutes: 0.4 }); // ~24s ping
+    }
+  }
+  function disarmKeepAlive() {
+    inflightLLM = Math.max(0, inflightLLM - 1);
+    if (inflightLLM === 0) {
+      chrome.alarms.clear(KEEPALIVE_ALARM).catch(() => {});
+    }
+  }
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === KEEPALIVE_ALARM) {
+      // no-op — the alarm firing keeps the service worker alive
+    }
+  });
+
   // Keyboard shortcut: Ctrl+Shift+F → detect, attach résumé, and fill all fields on the
   // active tab — a complete one-key fill without opening the panel. Stops at review (the
   // content script never submits).
@@ -51,8 +75,12 @@ export default defineBackground(() => {
 
       // Prepare the résumé once (bytes live in the extension's IndexedDB, reachable here).
       let resume: { b64: string; filename: string; mime: string } | null = null;
-      if (profile.documents.resumeBlobId) {
-        const file = await getFile(profile.documents.resumeBlobId);
+      const defaultDoc =
+        profile.documents.resumes?.find((r) => r.id === profile.documents.defaultResumeId) ??
+        profile.documents.resumes?.[0];
+      const resumeBlobId = defaultDoc?.blobId ?? profile.documents.resumeBlobId;
+      if (resumeBlobId) {
+        const file = await getFile(resumeBlobId);
         if (file) resume = { b64: await fileToB64(file), filename: file.name, mime: file.type };
       }
 
@@ -125,6 +153,10 @@ export default defineBackground(() => {
     // don't hold the message channel open for messages we never answer.
     if (!msg || !HANDLED.has(msg.type)) return false;
 
+    // Keep service worker alive during LLM calls
+    const isLLM = msg.type.startsWith('LLM_');
+    if (isLLM) armKeepAlive();
+
     (async () => {
       switch (msg.type) {
         case 'GET_PROFILE': {
@@ -149,8 +181,10 @@ export default defineBackground(() => {
         }
         case 'LLM_DRAFT_ANSWER': {
           const profile = await getProfile();
-          // Resolution order (§20): answer bank → LLM draft → leave blank.
-          const saved = findAnswer(msg.question, profile.answerBank);
+          // Resolution order (§20): answer bank (threshold 0.4) → learned store → LLM → blank.
+          // Lower threshold (0.4 vs default 0.5) catches more bank hits, reducing LLM calls
+          // for repeat applicants where label wording varies slightly across ATSes.
+          const saved = findAnswer(msg.question, profile.answerBank, 0.4);
           let answer = saved?.answer ?? '';
           let source: 'answerBank' | 'llm' | 'none' = saved ? 'answerBank' : 'none';
           if (!answer && profile.settings.llmEnabled) {
@@ -225,7 +259,9 @@ export default defineBackground(() => {
           break;
         }
       }
-    })();
+    })().finally(() => {
+      if (isLLM) disarmKeepAlive();
+    });
     return true; // keep the channel open for the async sendResponse
   });
 });

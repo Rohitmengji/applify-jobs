@@ -7,6 +7,44 @@ import { matchByAlias } from './countries';
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Adaptive wait: observes the DOM for visible elements matching `selector` to appear.
+ * Resolves immediately (after minMs floor) when options are visible, or after maxMs timeout.
+ * Used by setSearchMultiSelect to avoid fixed sleeps that are either too slow or too fast.
+ */
+function waitForOptions(selector: string, minMs = 150, maxMs = 2000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const check = () =>
+      document.querySelectorAll<HTMLElement>(selector).length > 0 &&
+      Array.from(document.querySelectorAll<HTMLElement>(selector)).some(
+        (el) => el.offsetParent !== null,
+      );
+    // Already visible (common on fast pages)
+    if (check()) {
+      setTimeout(() => resolve(true), minMs);
+      return;
+    }
+    let done = false;
+    const finish = (found: boolean) => {
+      if (done) return;
+      done = true;
+      obs.disconnect();
+      clearTimeout(hardTimer);
+      resolve(found);
+    };
+    const obs = new MutationObserver(() => {
+      if (check() && Date.now() - start >= minMs) finish(true);
+    });
+    const hardTimer = setTimeout(() => finish(check()), maxMs);
+    obs.observe(document.body, { childList: true, subtree: true });
+  });
+}
+
+// Retry config for fill-and-verify
+const FILL_RETRY_ATTEMPTS = 2;
+const FILL_RETRY_DELAY_MS = 200;
+
 // §12.1 — the React value trap. `input.value = "x"` sets the DOM property but does
 // NOT notify React, so the value silently reverts on submit. Call the native setter
 // and dispatch real events. USE VERBATIM.
@@ -43,6 +81,63 @@ export function setReactInputValue(
       new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }),
     );
   }
+}
+
+/**
+ * Fill with retry: sets the value, waits briefly, reads it back. If the value didn't stick
+ * (React re-render reverted it), retries up to FILL_RETRY_ATTEMPTS times. Returns whether
+ * the final read-back matches.
+ */
+export async function setReactInputValueWithRetry(
+  el: HTMLInputElement | HTMLTextAreaElement,
+  value: string,
+): Promise<boolean> {
+  for (let attempt = 0; attempt <= FILL_RETRY_ATTEMPTS; attempt++) {
+    setReactInputValue(el, value);
+    await sleep(FILL_RETRY_DELAY_MS);
+    // Read back the live DOM value
+    if (el.value === value) return true;
+  }
+  // Final attempt failed — the value may still be there but React hasn't synced yet.
+  // Return the best-effort result.
+  return el.value === value;
+}
+
+/**
+ * Fill a contenteditable element (rich-text editors: Quill, TipTap, ProseMirror, Draft.js).
+ * Uses InputEvent with insertText — the standard way to programmatically type into CE editors.
+ */
+export function setContentEditable(el: HTMLElement, value: string): void {
+  el.focus();
+  el.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+  el.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+
+  // Clear existing content
+  const selection = window.getSelection();
+  if (selection) {
+    selection.selectAllChildren(el);
+    selection.deleteFromDocument();
+  }
+
+  // Insert via InputEvent (the standard API that ProseMirror/TipTap/Quill listen on)
+  const insertOk = el.dispatchEvent(
+    new InputEvent('beforeinput', {
+      bubbles: true,
+      cancelable: true,
+      inputType: 'insertText',
+      data: value,
+    }),
+  );
+  if (insertOk) {
+    // If beforeinput wasn't prevented, insert directly
+    el.textContent = value;
+    el.dispatchEvent(
+      new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }),
+    );
+  }
+
+  el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+  el.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
 }
 
 // Minimum length before we allow substring (not exact) matching. Short tokens like
@@ -107,6 +202,31 @@ export function setNativeSelect(el: HTMLSelectElement, value: string): boolean {
   return true;
 }
 
+/**
+ * setNativeSelect with retry: verifies the selected value stuck. Some frameworks
+ * (React, Angular) may revert programmatic selection on re-render.
+ */
+export async function setNativeSelectWithRetry(
+  el: HTMLSelectElement,
+  value: string,
+): Promise<boolean> {
+  for (let attempt = 0; attempt <= FILL_RETRY_ATTEMPTS; attempt++) {
+    const ok = setNativeSelect(el, value);
+    if (!ok) return false; // option not found — retry won't help
+    await sleep(FILL_RETRY_DELAY_MS);
+    // Verify the selection held
+    const current = el.selectedOptions[0];
+    if (
+      current &&
+      (current.text.toLowerCase().trim() === value.toLowerCase().trim() ||
+        current.value.toLowerCase().trim() === value.toLowerCase().trim())
+    ) {
+      return true;
+    }
+  }
+  return el.selectedOptions[0]?.value !== '';
+}
+
 // §12.3 — custom dropdowns (div comboboxes). Open, optionally type to filter, click
 // the matching option by text. Adapters override optionSelector for their specifics.
 export async function setCustomDropdown(
@@ -127,16 +247,28 @@ export async function setCustomDropdown(
   await sleep(200);
 
   if (opts.typeToFilter !== false) {
-    // Look for a search input inside the dropdown or the trigger itself if it's an input
+    // Look for a search input inside the dropdown or the trigger itself if it's an input.
+    // Broadened selector covers Workday, Lever, React-Select, and generic listbox patterns.
     const search =
       trigger instanceof HTMLInputElement
         ? trigger
         : document.querySelector<HTMLInputElement>(
-            'input[role=combobox], input[aria-autocomplete=list], input[aria-autocomplete=both], [class*=menu] input, [role=listbox] ~ input, input[data-automation-id*="search"]',
+            [
+              'input[role=combobox]',
+              'input[aria-autocomplete=list]',
+              'input[aria-autocomplete=both]',
+              '[class*=menu] input',
+              '[role=listbox] ~ input',
+              'input[data-automation-id*="search"]',
+              'input[data-automation-id*="Search"]',
+              '[aria-expanded=true] input',
+              '[class*=dropdown] input[type=text]',
+              '[class*=select] input[type=text]',
+            ].join(', '),
           );
     if (search) {
       setReactInputValue(search, value);
-      await sleep(300); // longer wait for async-filtered options
+      await sleep(400); // wait for async-filtered/server-fetched options to render
     }
   }
 
@@ -344,10 +476,27 @@ export async function setSearchMultiSelect(
   let added = 0;
   for (const item of items) {
     const search = getSearch();
-    if (!search || !search.isConnected) break; // widget gone (re-render/step change)
+    if (!search || !search.isConnected) {
+      // Widget gone — retry briefly in case of slow remount after adding a pill
+      let recovered = false;
+      for (let r = 0; r < 3; r++) {
+        await sleep(150);
+        const retry = getSearch();
+        if (retry?.isConnected) {
+          recovered = true;
+          break;
+        }
+      }
+      if (!recovered) break;
+    }
 
-    setReactInputValue(search, item);
-    await sleep(450); // Workday async-filters the option list
+    const s = getSearch();
+    if (!s?.isConnected) break;
+    setReactInputValue(s, item);
+
+    // Adaptive wait: observe the DOM for matching options to appear rather than a fixed sleep.
+    // Resolves fast on quick connections (~200ms) and waits up to 2s on slow/VPN networks.
+    await waitForOptions(optionSelector, 150, 2000);
 
     const target = item.toLowerCase();
     const options = Array.from(document.querySelectorAll<HTMLElement>(optionSelector)).filter(
@@ -439,6 +588,16 @@ export async function fillOne(
       // answer bank, learned, manual): a numeric input gets a bare number, and any value is
       // truncated to maxLength (JS .value bypasses the browser's own maxLength limit).
       const v = coerceValueForField(field, field.value ?? '');
+
+      // Contenteditable rich-text editors (classified as textarea but are divs, not inputs)
+      if (
+        el.getAttribute('contenteditable') === 'true' &&
+        !(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)
+      ) {
+        setContentEditable(el, v);
+        break;
+      }
+
       // Skills mapped to a text/textarea input → use tag input (type, Enter, repeat)
       if (field.mappedKey === 'skills' && v.includes(',')) {
         await setTagInput(el as HTMLInputElement, v);

@@ -1,12 +1,29 @@
+interface VariantOption {
+  id: string;
+  name: string;
+}
+
 interface Props {
   adapterId: string | null;
   count: number;
   busy: boolean;
   learnedCount?: number;
+  variants?: VariantOption[];
+  activeVariantId?: string | null;
+  onSwitchVariant?: (id: string) => void;
   onRedetect: () => void;
 }
 
-export function StatusBar({ adapterId, count, busy, learnedCount = 0, onRedetect }: Props) {
+export function StatusBar({
+  adapterId,
+  count,
+  busy,
+  learnedCount = 0,
+  variants = [],
+  activeVariantId,
+  onSwitchVariant,
+  onRedetect,
+}: Props) {
   return (
     <header className="flex items-center justify-between gap-2 bg-linear-to-r from-indigo-600 to-purple-600 px-4 py-3 text-white shadow-md">
       <div className="flex items-center gap-2">
@@ -31,6 +48,22 @@ export function StatusBar({ adapterId, count, busy, learnedCount = 0, onRedetect
         </div>
       </div>
       <div className="flex items-center gap-1.5">
+        {variants.length > 1 && onSwitchVariant && (
+          <select
+            className="rounded-lg bg-white/15 px-2 py-1 text-[11px] font-medium text-white backdrop-blur transition hover:bg-white/25"
+            value={activeVariantId ?? ''}
+            onChange={(e) => onSwitchVariant(e.target.value)}
+          >
+            <option value="" className="text-gray-800">
+              Default
+            </option>
+            {variants.map((v) => (
+              <option key={v.id} value={v.id} className="text-gray-800">
+                {v.name}
+              </option>
+            ))}
+          </select>
+        )}
         <button
           onClick={onRedetect}
           disabled={busy}

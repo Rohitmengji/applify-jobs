@@ -4,7 +4,7 @@ import { ProfileSchema, type Profile, type ProfileKey } from '@/core/profile.sch
 import type { DetectedField, FieldKind } from '@/core/types';
 
 const profile: Profile = ProfileSchema.parse({
-  schemaVersion: 1,
+  schemaVersion: 2,
   personal: {
     firstName: 'Ada',
     lastName: 'Lovelace',
@@ -18,7 +18,7 @@ const profile: Profile = ProfileSchema.parse({
   experience: [],
   education: [],
   skills: ['React', 'TypeScript'],
-  documents: {},
+  documents: { resumes: [], coverLetters: [] },
   answerBank: [],
   settings: {},
 });
@@ -182,5 +182,44 @@ describe('valueForKey — context-aware work authorization', () => {
         fldL('Are you legally authorized to work?', 'workAuth.authorizedToWork'),
       ),
     ).toBe('Yes');
+  });
+
+  it('returns reference name from the first reference', () => {
+    const p = {
+      ...profile,
+      references: [
+        {
+          id: 'r1',
+          name: 'Bob Smith',
+          email: 'bob@co.com',
+          phone: '555-0000',
+          company: 'Acme',
+          relationship: 'Manager',
+        },
+      ],
+    } as Profile;
+    expect(valueForKey(p, 'references.name', fld('references.name'))).toBe('Bob Smith');
+    expect(valueForKey(p, 'references.email', fld('references.email'))).toBe('bob@co.com');
+    expect(valueForKey(p, 'references.phone', fld('references.phone'))).toBe('555-0000');
+    expect(valueForKey(p, 'references.company', fld('references.company'))).toBe('Acme');
+    expect(valueForKey(p, 'references.relationship', fld('references.relationship'))).toBe(
+      'Manager',
+    );
+  });
+
+  it('returns null when no references exist', () => {
+    expect(valueForKey(profile, 'references.name', fld('references.name'))).toBeNull();
+  });
+
+  it('returns project URL from the first project', () => {
+    const p = {
+      ...profile,
+      projects: [{ id: 'p1', title: 'My App', url: 'https://github.com/ada/app' }],
+    } as Profile;
+    expect(valueForKey(p, 'projects.url', fld('projects.url'))).toBe('https://github.com/ada/app');
+  });
+
+  it('returns null when no projects exist', () => {
+    expect(valueForKey(profile, 'projects.url', fld('projects.url'))).toBeNull();
   });
 });

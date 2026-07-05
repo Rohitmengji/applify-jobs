@@ -19,13 +19,14 @@ export default defineConfig({
     name: 'OneClick Apply',
     description:
       'Fill job application forms across every ATS with one click. You review and submit -- the extension never auto-submits.',
-    version: '0.2.0',
+    version: '0.2.1',
     permissions: [
       'storage', // profile + settings
       'sidePanel', // the review surface
       'scripting', // on-demand injection into generic career sites (see atsHosts.ts)
       'activeTab', // host access to the current tab on user gesture (covers generic sites)
       'webNavigation', // enumerate frames so we can detect/fill inside iframes (iCIMS, §25)
+      'alarms', // keep service worker alive during long LLM calls
     ],
     // Auto-inject only on known ATS domains (atsHosts.ts) so the install-time prompt lists
     // recognizable job sites, not "all your data on all websites" (§21). Generic / self-

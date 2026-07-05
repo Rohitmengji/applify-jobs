@@ -2,7 +2,8 @@ import { ExperienceSchema, EducationSchema, type Profile } from '../profile.sche
 
 // IMPLEMENTATION.md §M8 — seed the profile from résumé text. This is the deterministic
 // layer (regex/keyword extraction over plain text) — fully testable and dependency-free.
-// PDF→text and AI-structured experience/education extraction can layer on top later.
+// PDF→text extraction lives in parser/pdf.ts; AI-structured extraction is handled by
+// the LLM_EXTRACT_RESUME message in the background worker.
 
 export interface ParsedResume {
   firstName?: string;

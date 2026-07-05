@@ -14,6 +14,7 @@ import { getProfile } from '@/core/storage/profileStore';
 import { runWizard, waitForDomSettle } from '@/core/engine/wizard';
 import { startObserver, pauseObserver, resumeObserver } from '@/core/engine/observer';
 import { startAutoDetect, pauseAutoDetect, resumeAutoDetect } from '@/core/engine/autoDetect';
+import { logError } from '@/core/errors';
 import type { ToContent, FromContent, ResolvedFill } from '@/core/messages';
 import type { DetectedField } from '@/core/types';
 
@@ -73,6 +74,7 @@ export default defineContentScript({
           broadcast({ type: 'FIELD_FILLED', uid: f.uid, ok: true });
         } catch (e) {
           broadcast({ type: 'FIELD_FILLED', uid: f.uid, ok: false, error: String(e) });
+          void logError({ component: 'fill', message: String(e), fieldUid: f.uid });
         }
       }
       resumeObserver(); // re-enable learning from user interactions
@@ -188,6 +190,32 @@ export default defineContentScript({
               await fillMany(msg.fields, lastFields, pendingFile, broadcast, adapterOverride());
               resumeAutoDetect(true); // resume + redetect to pick up any new fields post-fill
               sendResponse({ type: 'STATUS', status: { phase: 'idle' } } satisfies FromContent);
+              break;
+            }
+
+            case 'VERIFY': {
+              // Read back DOM values of filled fields to verify they stuck.
+              const mismatches: { uid: string; expected: string; actual: string }[] = [];
+              for (const uid of msg.uids) {
+                const el = document.querySelector<HTMLElement>(`[data-oca-uid="${uid}"]`);
+                if (!el) continue;
+                const filled = lastFields.find((f) => f.uid === uid);
+                if (!filled?.value) continue;
+                let actual = '';
+                if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+                  actual = el.value;
+                } else if (el instanceof HTMLSelectElement) {
+                  actual = el.selectedOptions[0]?.text ?? el.value;
+                }
+                if (
+                  actual &&
+                  actual !== filled.value &&
+                  actual.toLowerCase() !== filled.value.toLowerCase()
+                ) {
+                  mismatches.push({ uid, expected: filled.value, actual });
+                }
+              }
+              sendResponse({ type: 'VERIFY_RESULT', mismatches } satisfies FromContent);
               break;
             }
 

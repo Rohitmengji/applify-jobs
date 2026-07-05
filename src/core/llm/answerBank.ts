@@ -42,3 +42,20 @@ export function findTopAnswers(
     .sort((a, b) => b.score - a.score);
   return scored.slice(0, topN).map((x) => x.ans);
 }
+
+/**
+ * Find a near-duplicate in the bank (Jaccard ≥ threshold on the question pattern).
+ * Used before saving a new answer to prompt "Merge with existing?" instead of creating
+ * near-duplicates. Returns the duplicate entry, or null if none found.
+ */
+export function findDuplicateAnswer(
+  question: string,
+  bank: SavedAnswer[],
+  threshold = 0.85,
+): SavedAnswer | null {
+  const q = tokenize(question);
+  for (const a of bank) {
+    if (jaccard(q, tokenize(a.questionPattern)) >= threshold) return a;
+  }
+  return null;
+}

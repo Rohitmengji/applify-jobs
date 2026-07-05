@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { ProfileSchema, type Profile } from '@/core/profile.schema';
 import { getProfile, saveProfile } from '@/core/storage/profileStore';
 import { getFile } from '@/core/storage/blobStore';
@@ -18,11 +18,15 @@ import { ApplicationsSection } from './sections/ApplicationsSection';
 import { SalarySection } from './sections/SalarySection';
 import { TrainingSection } from './sections/TrainingSection';
 import { AnalyticsSection } from './sections/AnalyticsSection';
+import { ReferencesSection } from './sections/ReferencesSection';
+import { CoverLetterTemplatesSection } from './sections/CoverLetterTemplatesSection';
+import { ProjectsSection } from './sections/ProjectsSection';
 import {
   getVariants,
   saveVariant,
   switchVariant,
   deleteVariant,
+  renameVariant,
   getActiveVariantId,
   type ProfileVariant,
 } from '@/core/storage/profileVariants';
@@ -36,8 +40,11 @@ const TABS: { id: string; label: string; C: ComponentType<SectionProps> | null }
   { id: 'education', label: 'Education', C: EducationSection },
   { id: 'skills', label: 'Skills', C: SkillsSection },
   { id: 'salary', label: 'Salary', C: SalarySection },
+  { id: 'references', label: 'References', C: ReferencesSection },
+  { id: 'projects', label: 'Projects', C: ProjectsSection },
   { id: 'documents', label: 'Documents', C: DocumentsSection },
   { id: 'answers', label: 'Answer bank', C: AnswerBankSection },
+  { id: 'coverTemplates', label: 'CL Templates', C: CoverLetterTemplatesSection },
   { id: 'training', label: 'Training', C: TrainingSection },
   { id: 'applications', label: 'Applications', C: null }, // standalone component
   { id: 'analytics', label: 'Analytics', C: null }, // standalone component
@@ -65,6 +72,33 @@ export function App() {
       if (!r.onboardingDone) setShowOnboarding(true);
     });
   }, []);
+
+  // Data-loss prevention: warn before navigating away with unsaved changes
+  const savedRef = useRef(saved);
+  savedRef.current = saved;
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!savedRef.current && draft) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [draft]);
+
+  // Auto-save draft to session storage (debounced) so accidental tab close doesn't
+  // lose work-in-progress. The user still needs to click "Save" for the real persistent save.
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!draft || saved) return;
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => {
+      chrome.storage.session.set({ profileDraft: draft }).catch(() => {});
+    }, 2000);
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  }, [draft, saved]);
 
   const update = useCallback((fn: (d: Profile) => Profile) => {
     setSaved(false);
@@ -118,7 +152,11 @@ export function App() {
 
   // Import Experience/Education/Skills (+ contact) from the uploaded résumé.
   const importFromResume = useCallback(async () => {
-    const id = draft?.documents.resumeBlobId;
+    // Use default resume from multi-doc array, fall back to legacy blobId
+    const defaultDoc =
+      draft?.documents.resumes?.find((r) => r.id === draft?.documents.defaultResumeId) ??
+      draft?.documents.resumes?.[0];
+    const id = defaultDoc?.blobId ?? draft?.documents.resumeBlobId;
     if (!id) {
       setErrors(['Upload a résumé in the Documents tab first.']);
       return;
@@ -179,6 +217,7 @@ export function App() {
             setShowOnboarding(false);
             void chrome.storage.local.set({ onboardingDone: true });
           }}
+          onNavigate={(tab) => setActive(tab)}
         />
       )}
       <div className="mx-auto flex min-h-screen max-w-5xl gap-6 p-6">
@@ -224,18 +263,34 @@ export function App() {
               </button>
             </div>
             {activeVariant && (
-              <button
-                onClick={async () => {
-                  if (!confirm('Delete this profile variant?')) return;
-                  await deleteVariant(activeVariant);
-                  setVariants((prev) => prev.filter((v) => v.id !== activeVariant));
-                  setActiveVariant(null);
-                  setDraft(await getProfile());
-                }}
-                className="text-[10px] text-red-500 hover:underline"
-              >
-                Delete variant
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    const v = variants.find((x) => x.id === activeVariant);
+                    const name = prompt('Rename variant:', v?.name ?? '');
+                    if (!name?.trim()) return;
+                    await renameVariant(activeVariant, name.trim());
+                    setVariants((prev) =>
+                      prev.map((x) => (x.id === activeVariant ? { ...x, name: name.trim() } : x)),
+                    );
+                  }}
+                  className="text-[10px] text-indigo-500 hover:underline"
+                >
+                  Rename
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!confirm('Delete this profile variant?')) return;
+                    await deleteVariant(activeVariant);
+                    setVariants((prev) => prev.filter((v) => v.id !== activeVariant));
+                    setActiveVariant(null);
+                    setDraft(await getProfile());
+                  }}
+                  className="text-[10px] text-red-500 hover:underline"
+                >
+                  Delete
+                </button>
+              </div>
             )}
           </div>
 

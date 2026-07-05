@@ -112,11 +112,14 @@ const qIn = (root: ParentNode, sel: string) => root.querySelector<HTMLElement>(s
 // Set a Workday month/year date widget (two spinbutton inputs) from an ISO-ish string.
 function setWorkdayDate(scope: HTMLElement | null, iso?: string): void {
   if (!scope || !iso) return;
-  const [y, m] = iso.split('-');
+  const [y, m, d] = iso.split('-');
   const month = qIn(scope, '[data-automation-id="dateSectionMonth-input"]');
   const year = qIn(scope, '[data-automation-id="dateSectionYear-input"]');
+  const day = qIn(scope, '[data-automation-id="dateSectionDay-input"]');
   if (month instanceof HTMLInputElement && m) setReactInputValue(month, String(parseInt(m, 10)));
   if (year instanceof HTMLInputElement && y) setReactInputValue(year, y);
+  // Some Workday tenants render a day spinner — fill it when both the element and day exist
+  if (day instanceof HTMLInputElement && d) setReactInputValue(day, String(parseInt(d, 10)));
 }
 
 // Find a section's "Add" button, scoped to the section container when we can identify it so
