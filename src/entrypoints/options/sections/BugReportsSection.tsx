@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   getBugReports,
+  saveBugReport,
   updateReportStatus,
   deleteReport,
   reportToGitHubIssue,
@@ -9,12 +10,48 @@ import {
 
 export function BugReportsSection() {
   const [reports, setReports] = useState<BugReport[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
 
   useEffect(() => {
     void getBugReports().then(setReports);
   }, []);
 
   const refresh = async () => setReports(await getBugReports());
+
+  const submitReport = async () => {
+    if (!title.trim()) return;
+    const ua = navigator.userAgent;
+    const os = /Mac/.test(ua)
+      ? 'macOS'
+      : /Win/.test(ua)
+        ? 'Windows'
+        : /Linux/.test(ua)
+          ? 'Linux'
+          : 'Other';
+    const browser = /Edg/.test(ua)
+      ? 'Edge'
+      : /Chrome\/(\d+)/.test(ua)
+        ? `Chrome ${RegExp.$1}`
+        : 'Unknown';
+    const manifest = chrome.runtime.getManifest();
+    await saveBugReport({
+      title: title.trim(),
+      description: description.trim(),
+      url: 'chrome-extension://options',
+      adapterId: null,
+      fieldsDetected: 0,
+      fieldsFilled: 0,
+      browser,
+      os,
+      extensionVersion: manifest.version,
+    });
+    setTitle('');
+    setDescription('');
+    setShowForm(false);
+    await refresh();
+  };
 
   const approve = async (id: string) => {
     await updateReportStatus(id, 'approved');
@@ -59,6 +96,52 @@ export function BugReportsSection() {
           User-submitted reports. Review, approve to create GitHub issues, or dismiss.
         </p>
       </div>
+
+      {/* Quick submit form */}
+      {showForm ? (
+        <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-4 space-y-2">
+          <h3 className="text-xs font-semibold text-slate-200">Submit a Bug Report</h3>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="What went wrong?"
+            className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none"
+          />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Steps to reproduce, which page/section, what you expected..."
+            rows={3}
+            className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 resize-none focus:border-indigo-500 focus:outline-none"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={submitReport}
+              disabled={!title.trim()}
+              className="rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
+            >
+              Submit
+            </button>
+            <button
+              onClick={() => setShowForm(false)}
+              className="rounded border border-slate-600 px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-700"
+            >
+              Cancel
+            </button>
+          </div>
+          <p className="text-[10px] text-slate-500">
+            Auto-attaches: browser, OS, extension version
+          </p>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowForm(true)}
+          className="rounded-lg border border-dashed border-slate-600 px-4 py-2 text-xs text-slate-400 transition hover:border-indigo-500 hover:text-indigo-400"
+        >
+          + Submit a new bug report
+        </button>
+      )}
 
       {reports.length === 0 && <p className="text-xs text-slate-500">No bug reports yet.</p>}
 

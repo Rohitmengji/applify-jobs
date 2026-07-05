@@ -352,6 +352,15 @@ export function App() {
           </div>
         </main>
       </div>
+
+      {/* Floating bug report button — always accessible from any tab */}
+      <button
+        onClick={() => setActive('bugReports')}
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-1.5 rounded-full bg-slate-800 border border-slate-600 px-3 py-2 text-[11px] font-medium text-slate-300 shadow-lg transition hover:bg-slate-700 hover:text-white hover:border-indigo-500"
+        title="Report a bug or view reports"
+      >
+        🐛 Report Bug
+      </button>
     </>
   );
 }
