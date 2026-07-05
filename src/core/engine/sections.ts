@@ -513,13 +513,265 @@ function fillGenericSection<T extends ExpData | EduData>(
   return { filled, found: true };
 }
 
-// Registry of section fillers by adapter id. Only ATSs with genuine repeaters appear here;
-// everything else is a no-op (resume-upload ATSs like Greenhouse have no such section).
+// ---------------------------------------------------------------------------
+// Greenhouse specs. Greenhouse uses #education_section / #employment with .education and
+// .education-entry class patterns. Fields use name attributes like
+// "job_application[education][][school_name_global]" etc.
+// ---------------------------------------------------------------------------
+
+function greenhouseExperienceSpec(): SectionSpec<ExpData> {
+  return {
+    rows: (doc) => {
+      // Prefer explicit employment entries; fall back to heading-gated generic
+      const entries = Array.from(doc.querySelectorAll<HTMLElement>('#employment .field'));
+      if (entries.length) return entries;
+      return Array.from(
+        doc.querySelectorAll<HTMLElement>('[id*="employment"] fieldset, .employment-entry'),
+      );
+    },
+    addButton: (doc) => {
+      const section = doc.querySelector('#employment') ?? findSectionContainer(EXP_HEADING);
+      if (!section) return null;
+      const link = section.querySelector<HTMLElement>(
+        'a[class*="add"], button[class*="add"], [data-action*="add"]',
+      );
+      if (link) return link;
+      return findAddButton(section);
+    },
+    fillRow: async (row, d) => {
+      // Greenhouse uses inputs with name patterns; also look for label-matched inputs
+      const inputs = Array.from(row.querySelectorAll<HTMLInputElement>('input, textarea, select'));
+      for (const el of inputs) {
+        const name = (el.name || '').toLowerCase();
+        const lbl = controlLabel(el);
+        if (
+          (name.includes('title') || lbl.includes('title') || lbl.includes('position')) &&
+          d.title
+        ) {
+          setReactInputValue(el, d.title);
+        } else if (
+          (name.includes('company') || name.includes('employer') || lbl.includes('company')) &&
+          d.company
+        ) {
+          setReactInputValue(el, d.company);
+        } else if (
+          (name.includes('start') || lbl.includes('start') || lbl.includes('from')) &&
+          d.startDate
+        ) {
+          setReactInputValue(el, dateForInput(el, d.startDate));
+        } else if (
+          (name.includes('end') || lbl.includes('end') || lbl.includes('to')) &&
+          d.endDate &&
+          !d.current
+        ) {
+          setReactInputValue(el, dateForInput(el, d.endDate));
+        } else if (
+          (name.includes('description') ||
+            name.includes('summary') ||
+            lbl.includes('description')) &&
+          d.description
+        ) {
+          setReactInputValue(el, d.description);
+        }
+      }
+      // "Currently work here" checkbox
+      if (d.current) {
+        const cb = row.querySelector<HTMLInputElement>('input[type="checkbox"]');
+        if (cb && controlLabel(cb).match(/current/i)) setCheckbox(cb, true);
+      }
+    },
+  };
+}
+
+function greenhouseEducationSpec(): SectionSpec<EduData> {
+  return {
+    rows: (doc) => {
+      const entries = Array.from(doc.querySelectorAll<HTMLElement>('#education_section .field'));
+      if (entries.length) return entries;
+      return Array.from(
+        doc.querySelectorAll<HTMLElement>('[id*="education"] fieldset, .education-entry'),
+      );
+    },
+    addButton: (doc) => {
+      const section = doc.querySelector('#education_section') ?? findSectionContainer(EDU_HEADING);
+      if (!section) return null;
+      const link = section.querySelector<HTMLElement>(
+        'a[class*="add"], button[class*="add"], [data-action*="add"]',
+      );
+      return link ?? findAddButton(section);
+    },
+    fillRow: async (row, d) => {
+      const inputs = Array.from(row.querySelectorAll<HTMLInputElement>('input, textarea, select'));
+      for (const el of inputs) {
+        const name = (el.name || '').toLowerCase();
+        const lbl = controlLabel(el);
+        if (
+          (name.includes('school') ||
+            name.includes('institution') ||
+            lbl.includes('school') ||
+            lbl.includes('university')) &&
+          d.school
+        ) {
+          setReactInputValue(el, d.school);
+        } else if ((name.includes('degree') || lbl.includes('degree')) && d.degree) {
+          if (el instanceof HTMLSelectElement) setNativeSelect(el, d.degree);
+          else setReactInputValue(el, d.degree);
+        } else if (
+          (name.includes('discipline') ||
+            name.includes('major') ||
+            name.includes('field') ||
+            lbl.includes('field') ||
+            lbl.includes('major')) &&
+          d.field
+        ) {
+          setReactInputValue(el, d.field);
+        } else if (
+          (name.includes('start') || lbl.includes('start') || lbl.includes('from')) &&
+          d.startDate
+        ) {
+          setReactInputValue(el, dateForInput(el, d.startDate));
+        } else if (
+          (name.includes('end') || lbl.includes('end') || lbl.includes('to')) &&
+          d.endDate
+        ) {
+          setReactInputValue(el, dateForInput(el, d.endDate));
+        } else if ((name.includes('gpa') || lbl.includes('gpa')) && d.gpa) {
+          setReactInputValue(el, d.gpa);
+        }
+      }
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Lever specs. Lever uses data-qa attributes for repeatable sections. Experience fields
+// appear under [data-qa="workExperience-*"], education under [data-qa="education-*"].
+// ---------------------------------------------------------------------------
+
+function leverExperienceSpec(): SectionSpec<ExpData> {
+  return {
+    rows: (doc) =>
+      Array.from(
+        doc.querySelectorAll<HTMLElement>(
+          '[data-qa^="workExperience-"], .experience-entry, [class*="work-experience"] .entry',
+        ),
+      ),
+    addButton: (doc) => {
+      // Lever's "Add" is typically a link/button near the section with text "Add"
+      const scope =
+        doc.querySelector('[data-qa="workExperience"], [class*="work-experience"]') ??
+        findSectionContainer(EXP_HEADING);
+      return scope ? findAddButton(scope) : null;
+    },
+    fillRow: async (row, d) => {
+      const inputs = Array.from(row.querySelectorAll<HTMLInputElement>('input, textarea, select'));
+      for (const el of inputs) {
+        const name = (el.name || el.getAttribute('data-qa') || '').toLowerCase();
+        const lbl = controlLabel(el);
+        if (
+          (name.includes('title') || lbl.includes('title') || lbl.includes('position')) &&
+          d.title
+        ) {
+          setReactInputValue(el, d.title);
+        } else if (
+          (name.includes('company') || name.includes('org') || lbl.includes('company')) &&
+          d.company
+        ) {
+          setReactInputValue(el, d.company);
+        } else if ((name.includes('location') || lbl.includes('location')) && d.location) {
+          setReactInputValue(el, d.location);
+        } else if (
+          (name.includes('start') || lbl.includes('start') || lbl.includes('from')) &&
+          d.startDate
+        ) {
+          setReactInputValue(el, dateForInput(el, d.startDate));
+        } else if (
+          (name.includes('end') || lbl.includes('end') || lbl.includes('to')) &&
+          d.endDate &&
+          !d.current
+        ) {
+          setReactInputValue(el, dateForInput(el, d.endDate));
+        } else if (
+          (name.includes('description') ||
+            name.includes('summary') ||
+            lbl.includes('description')) &&
+          d.description
+        ) {
+          setReactInputValue(el, d.description);
+        }
+      }
+      if (d.current) {
+        const cb = row.querySelector<HTMLInputElement>('input[type="checkbox"]');
+        if (cb && controlLabel(cb).match(/current|present/i)) setCheckbox(cb, true);
+      }
+    },
+  };
+}
+
+function leverEducationSpec(): SectionSpec<EduData> {
+  return {
+    rows: (doc) =>
+      Array.from(
+        doc.querySelectorAll<HTMLElement>(
+          '[data-qa^="education-"], .education-entry, [class*="education"] .entry',
+        ),
+      ),
+    addButton: (doc) => {
+      const scope =
+        doc.querySelector('[data-qa="education"], [class*="education"]') ??
+        findSectionContainer(EDU_HEADING);
+      return scope ? findAddButton(scope) : null;
+    },
+    fillRow: async (row, d) => {
+      const inputs = Array.from(row.querySelectorAll<HTMLInputElement>('input, textarea, select'));
+      for (const el of inputs) {
+        const name = (el.name || el.getAttribute('data-qa') || '').toLowerCase();
+        const lbl = controlLabel(el);
+        if (
+          (name.includes('school') ||
+            name.includes('institution') ||
+            lbl.includes('school') ||
+            lbl.includes('university')) &&
+          d.school
+        ) {
+          setReactInputValue(el, d.school);
+        } else if ((name.includes('degree') || lbl.includes('degree')) && d.degree) {
+          if (el instanceof HTMLSelectElement) setNativeSelect(el, d.degree);
+          else setReactInputValue(el, d.degree);
+        } else if (
+          (name.includes('field') ||
+            name.includes('major') ||
+            lbl.includes('field') ||
+            lbl.includes('major')) &&
+          d.field
+        ) {
+          setReactInputValue(el, d.field);
+        } else if (
+          (name.includes('start') || lbl.includes('start') || lbl.includes('from')) &&
+          d.startDate
+        ) {
+          setReactInputValue(el, dateForInput(el, d.startDate));
+        } else if (
+          (name.includes('end') || lbl.includes('end') || lbl.includes('to')) &&
+          d.endDate
+        ) {
+          setReactInputValue(el, dateForInput(el, d.endDate));
+        } else if ((name.includes('gpa') || lbl.includes('gpa')) && d.gpa) {
+          setReactInputValue(el, d.gpa);
+        }
+      }
+    },
+  };
+}
+
+// Registry of section fillers by adapter id.
 const SPECS: Record<
   string,
   { experience: () => SectionSpec<ExpData>; education: () => SectionSpec<EduData> }
 > = {
   workday: { experience: workdayExperienceSpec, education: workdayEducationSpec },
+  greenhouse: { experience: greenhouseExperienceSpec, education: greenhouseEducationSpec },
+  lever: { experience: leverExperienceSpec, education: leverEducationSpec },
 };
 
 /**
