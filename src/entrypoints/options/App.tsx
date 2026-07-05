@@ -326,7 +326,7 @@ export function App() {
             </ul>
           )}
 
-          <div className="sticky bottom-0 flex items-center gap-3 border-t bg-white/90 py-3 backdrop-blur">
+          <div className="sticky bottom-0 flex items-center gap-3 border-t border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 py-3 backdrop-blur">
             <Button onClick={save}>Save profile</Button>
             <Button variant="ghost" onClick={exportJson}>
               Export JSON

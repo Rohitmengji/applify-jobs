@@ -50,10 +50,10 @@ export function FieldRow({
 
   return (
     <li
-      className={`flex flex-col gap-1.5 border-b border-gray-100 px-3 py-2.5 transition-colors ${review ? 'bg-amber-50/60' : 'hover:bg-gray-50/50'}`}
+      className={`flex flex-col gap-1.5 border-b border-slate-700/50 px-3 py-2.5 transition-colors ${review ? 'bg-amber-900/20' : 'hover:bg-slate-800/30'}`}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-xs font-medium text-gray-800" title={fieldLabel(field)}>
+        <span className="truncate text-xs font-medium text-slate-200" title={fieldLabel(field)}>
           {fieldLabel(field)}
           {s.required && <span className="ml-0.5 text-red-400">*</span>}
         </span>
@@ -96,12 +96,12 @@ export function FieldRow({
       )}
       {suggestions && suggestions.length > 0 && !field.value && (
         <div className="mt-1 space-y-1">
-          <span className="text-[10px] text-gray-400">Saved answers:</span>
+          <span className="text-[10px] text-slate-500">Saved answers:</span>
           {suggestions.map((s) => (
             <button
               key={s.id}
               onClick={() => onChange(field.uid, s.answer)}
-              className="block w-full truncate rounded bg-gray-50 px-2 py-1 text-left text-[11px] text-gray-700 hover:bg-indigo-50"
+              className="block w-full truncate rounded bg-slate-800 px-2 py-1 text-left text-[11px] text-slate-300 hover:bg-indigo-900/40"
               title={s.answer}
             >
               {s.answer.length > 80 ? s.answer.slice(0, 80) + '…' : s.answer}
@@ -109,7 +109,7 @@ export function FieldRow({
           ))}
         </div>
       )}
-      {/* Save to Answer Bank — shown when AI drafted an answer */}
+      {/* Save to Training — prominent prompt for new questions the user answered */}
       {field.value &&
         (field.source === 'llm' || field.source === 'manual') &&
         isFreeText &&
@@ -121,9 +121,9 @@ export function FieldRow({
                 field.value!,
               )
             }
-            className="self-start text-[10px] text-teal-600 hover:text-teal-800 hover:underline"
+            className="self-start flex items-center gap-1 rounded-md bg-teal-900/30 border border-teal-700/50 px-2 py-1 text-[10px] font-medium text-teal-300 transition hover:bg-teal-900/50"
           >
-            💾 Save to Answer Bank
+            <span>🧠</span> Save to Training — auto-fills next time
           </button>
         )}
       {error && <span className="text-[11px] text-red-600">{error}</span>}

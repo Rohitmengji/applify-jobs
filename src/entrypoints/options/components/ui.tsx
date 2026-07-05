@@ -19,8 +19,8 @@ export function Section({
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-        {description && <p className="text-sm text-gray-500">{description}</p>}
+        <h2 className="text-lg font-semibold text-slate-100">{title}</h2>
+        {description && <p className="text-sm text-slate-400">{description}</p>}
       </div>
       <div className="space-y-3">{children}</div>
     </section>
@@ -38,15 +38,15 @@ export function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-gray-700">{label}</span>
+      <span className="mb-1 block text-sm font-medium text-slate-300">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-gray-400">{hint}</span>}
+      {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
     </label>
   );
 }
 
 const inputCls =
-  'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500';
+  'w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500';
 
 type TextProps = { value: string; onChange: (v: string) => void } & Omit<
   InputHTMLAttributes<HTMLInputElement>,
@@ -96,7 +96,7 @@ export function Toggle({
   label: string;
 }) {
   return (
-    <label className="flex items-center gap-2 text-sm text-gray-700">
+    <label className="flex items-center gap-2 text-sm text-slate-300">
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       {label}
     </label>
@@ -120,8 +120,8 @@ export function Button({
     variant === 'primary'
       ? 'bg-indigo-600 text-white hover:bg-indigo-700'
       : variant === 'danger'
-        ? 'bg-red-50 text-red-700 hover:bg-red-100'
-        : 'border border-gray-300 text-gray-700 hover:bg-gray-50';
+        ? 'bg-red-900/40 text-red-300 hover:bg-red-900/60'
+        : 'border border-slate-600 text-slate-300 hover:bg-slate-700';
   return (
     <button
       type={type}
@@ -137,10 +137,10 @@ export function Button({
 // Card wrapper for one row of a repeatable list (experience / education / answers).
 export function RowCard({ children, onRemove }: { children: ReactNode; onRemove: () => void }) {
   return (
-    <div className="relative space-y-3 rounded-lg border border-gray-200 p-4">
+    <div className="relative space-y-3 rounded-lg border border-slate-700 bg-slate-800/50 p-4">
       <button
         onClick={onRemove}
-        className="absolute right-2 top-2 text-xs text-gray-400 hover:text-red-600"
+        className="absolute right-2 top-2 text-xs text-slate-500 hover:text-red-400"
         title="Remove"
       >
         ✕

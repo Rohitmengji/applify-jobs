@@ -34,7 +34,7 @@ export function ReviewTable({
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
         <div className="text-4xl mb-3">📋</div>
         <div className="text-sm font-medium text-gray-700 mb-1">No fields detected</div>
-        <div className="text-xs text-gray-400 max-w-[200px]">
+        <div className="text-xs text-gray-400 max-w-50">
           Navigate to a job application page, then click Detect to find form fields.
         </div>
       </div>
