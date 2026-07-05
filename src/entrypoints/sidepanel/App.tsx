@@ -1198,34 +1198,21 @@ export function App() {
 
       {/* Cover letter section */}
       {aiReady && (
-        <div className="border-t border-slate-700/50 px-3 py-2">
-          {/* Two buttons in one row */}
-          <div className="flex gap-2">
+        <div className="px-3 py-1.5">
+          <div className="flex gap-1.5">
             <button
               onClick={genCoverLetter}
               disabled={locked}
-              className="flex-1 rounded-lg bg-linear-to-r from-purple-900/40 to-pink-900/40 border border-purple-700/50 px-2 py-2 text-[11px] font-medium text-purple-300 transition hover:border-purple-600 hover:shadow-sm disabled:opacity-50"
+              className="flex-1 rounded-lg border border-purple-500/40 bg-purple-950/60 px-2 py-1.5 text-[10px] font-semibold text-purple-200 transition hover:bg-purple-900/60 disabled:opacity-50"
             >
-              {busy ? (
-                <span className="flex items-center justify-center gap-1.5">
-                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-purple-300/30 border-t-purple-300" />
-                </span>
-              ) : (
-                '✨ Generate Cover Letter'
-              )}
+              {busy ? '...' : '✨ Cover Letter'}
             </button>
             <button
               onClick={tailorResume}
               disabled={locked || tailorBusy}
-              className="flex-1 rounded-lg border border-sky-700/50 bg-linear-to-r from-sky-900/40 to-cyan-900/40 px-2 py-2 text-[11px] font-medium text-sky-300 transition hover:border-sky-600 hover:shadow-sm disabled:opacity-50"
+              className="flex-1 rounded-lg border border-sky-500/40 bg-sky-950/60 px-2 py-1.5 text-[10px] font-semibold text-sky-200 transition hover:bg-sky-900/60 disabled:opacity-50"
             >
-              {tailorBusy ? (
-                <span className="flex items-center justify-center gap-1.5">
-                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-sky-300/30 border-t-sky-300" />
-                </span>
-              ) : (
-                '📄 Tailor résumé'
-              )}
+              {tailorBusy ? '...' : '📄 Tailor Résumé'}
             </button>
           </div>
 
@@ -1341,20 +1328,13 @@ export function App() {
               f.mappedKey === 'documents.coverLetter') &&
             (f.signals.label || f.signals.ariaLabel || '').length > 5,
         ) && (
-          <div className="px-3 py-1.5">
+          <div className="px-3 py-1">
             <button
               onClick={draftAllAnswers}
               disabled={locked}
-              className="w-full rounded-lg bg-linear-to-r from-indigo-50 to-purple-50 border border-indigo-200 px-3 py-2 text-[11px] font-medium text-indigo-700 transition hover:border-indigo-300 hover:shadow-sm disabled:opacity-50"
+              className="w-full rounded-lg border border-indigo-500/40 bg-indigo-950/60 px-3 py-1.5 text-[10px] font-semibold text-indigo-200 transition hover:bg-indigo-900/60 disabled:opacity-50"
             >
-              {busy ? (
-                <span className="flex items-center justify-center gap-1.5">
-                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
-                  Drafting all answers...
-                </span>
-              ) : (
-                '🚀 Draft All Answers with AI'
-              )}
+              {busy ? '⏳ Drafting...' : '🚀 Draft All with AI'}
             </button>
           </div>
         )}
@@ -1362,8 +1342,8 @@ export function App() {
       {/* Pre-submit safety net (Track 3): required fields with no value would sail past
           "Fill" and get the form bounced on the page. Make them impossible to miss. */}
       {!notice && requiredEmpty.length > 0 && (
-        <div className="mx-3 mb-1 mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
-          <span className="font-medium">
+        <div className="mx-3 mb-1 mt-1 rounded-lg border border-amber-600/40 bg-amber-950/40 px-3 py-1.5 text-[10px] text-amber-300">
+          <span className="font-semibold">
             {requiredEmpty.length} required field{requiredEmpty.length === 1 ? '' : 's'} still
             empty.
           </span>{' '}
@@ -1374,10 +1354,10 @@ export function App() {
 
       {/* Résumé picker — shown only when the user has >1 résumé uploaded */}
       {resumeOptions.length > 1 && (
-        <div className="mx-3 mb-1 mt-2 flex items-center gap-2">
-          <label className="text-[11px] font-medium text-gray-500">Résumé:</label>
+        <div className="mx-3 mb-1 mt-1 flex items-center gap-2">
+          <label className="text-[10px] font-medium text-slate-400">📎</label>
           <select
-            className="rounded border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-700"
+            className="flex-1 rounded border border-slate-600 bg-slate-800 px-2 py-0.5 text-[10px] text-slate-200"
             value={selectedResumeId ?? ''}
             onChange={(e) => setSelectedResumeId(e.target.value)}
           >
