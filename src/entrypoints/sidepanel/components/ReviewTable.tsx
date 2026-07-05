@@ -33,8 +33,8 @@ export function ReviewTable({
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
         <div className="text-4xl mb-3">📋</div>
-        <div className="text-sm font-medium text-gray-700 mb-1">No fields detected</div>
-        <div className="text-xs text-gray-400 max-w-50">
+        <div className="text-sm font-medium text-slate-300 mb-1">No fields detected</div>
+        <div className="text-xs text-slate-500 max-w-50">
           Navigate to a job application page, then click Detect to find form fields.
         </div>
       </div>
@@ -70,15 +70,15 @@ export function ReviewTable({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter fields…"
-          className="flex-1 rounded border border-gray-200 px-2 py-1 text-[11px] text-gray-600 placeholder:text-gray-300 focus:border-indigo-300 focus:outline-none"
+          className="flex-1 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-[11px] text-slate-200 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
         />
         {reviewCount > 0 && (
           <button
             onClick={() => setOnlyReview(!onlyReview)}
             className={`shrink-0 rounded px-2 py-1 text-[10px] font-medium transition ${
               onlyReview
-                ? 'bg-amber-100 text-amber-700 border border-amber-300'
-                : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-amber-50'
+                ? 'bg-amber-900/50 text-amber-300 border border-amber-600/50'
+                : 'bg-slate-800 text-slate-400 border border-slate-600 hover:bg-amber-900/30'
             }`}
           >
             {onlyReview ? `⚠ ${reviewCount}` : `⚠ ${reviewCount}`}
@@ -86,7 +86,7 @@ export function ReviewTable({
         )}
       </div>
       {reviewCount > 0 && !onlyReview && (
-        <div className="mx-3 mt-2 flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 text-[11px] text-amber-700">
+        <div className="mx-3 mt-2 flex items-center gap-1.5 rounded-lg bg-amber-950/50 border border-amber-600/40 px-3 py-1.5 text-[11px] text-amber-300">
           <span className="font-bold">{reviewCount}</span> field{reviewCount > 1 ? 's' : ''} need
           review
         </div>

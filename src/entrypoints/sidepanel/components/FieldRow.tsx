@@ -149,7 +149,7 @@ function ValueEditor({
 
   if (field.kind === 'file') {
     return (
-      <div className="rounded border bg-gray-50 px-2 py-1 text-[11px] text-gray-500">
+      <div className="rounded border border-slate-600 bg-slate-800 px-2 py-1 text-[11px] text-slate-400">
         {v || 'Résumé will be attached on Fill'}
       </div>
     );
@@ -158,7 +158,7 @@ function ValueEditor({
   if (field.kind === 'checkbox') {
     const checked = TRUTHY.includes(v.toLowerCase());
     return (
-      <label className="flex items-center gap-2 text-xs text-gray-700">
+      <label className="flex items-center gap-2 text-xs text-slate-200">
         <input
           type="checkbox"
           checked={checked}
@@ -189,7 +189,7 @@ function ValueEditor({
           set(e.target.value);
           commit(e.target.value);
         }}
-        className="w-full rounded border px-2 py-1 text-xs"
+        className="w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200"
       >
         <option value="">— select —</option>
         {unmatched && <option value={v}>{v} (no exact match)</option>}
@@ -212,7 +212,7 @@ function ValueEditor({
           if (v !== focusValue.current) commit(v);
         }}
         rows={3}
-        className="w-full rounded border px-2 py-1 text-xs"
+        className="w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200"
       />
     );
   }
@@ -226,7 +226,7 @@ function ValueEditor({
       onBlur={() => {
         if (v !== focusValue.current) commit(v);
       }}
-      className="w-full rounded border px-2 py-1 text-xs"
+      className="w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200"
     />
   );
 }

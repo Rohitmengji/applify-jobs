@@ -1090,7 +1090,7 @@ export function App() {
   }, [detect, fillAll, runStep, locked, fields.length, multiStep]);
 
   return (
-    <div className="flex h-full flex-col bg-linear-to-b from-white to-gray-50/80 text-sm text-gray-900">
+    <div className="flex h-full flex-col bg-slate-900 text-sm text-slate-100">
       <StatusBar
         adapterId={adapterId}
         count={fields.length}
