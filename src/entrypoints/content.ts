@@ -36,6 +36,37 @@ export default defineContentScript({
     let lastFields: DetectedField[] = [];
     let pendingFile: File | null = null;
 
+    // Wait for form elements to appear in the DOM (for SPA/Next.js sites that hydrate late).
+    // Uses MutationObserver instead of polling — resolves immediately when any input/textarea/
+    // select appears, or after timeoutMs.
+    function waitForFormElements(timeoutMs: number): Promise<boolean> {
+      return new Promise((resolve) => {
+        const FORM_SEL =
+          'input:not([type=hidden]), textarea, select, [role=combobox], [contenteditable=true]';
+        // Already present?
+        if (document.querySelector(FORM_SEL)) {
+          resolve(true);
+          return;
+        }
+        let done = false;
+        const finish = (found: boolean) => {
+          if (done) return;
+          done = true;
+          obs.disconnect();
+          clearTimeout(timer);
+          resolve(found);
+        };
+        const obs = new MutationObserver(() => {
+          if (document.querySelector(FORM_SEL)) finish(true);
+        });
+        const timer = setTimeout(() => finish(false), timeoutMs);
+        obs.observe(document.body ?? document.documentElement, {
+          childList: true,
+          subtree: true,
+        });
+      });
+    }
+
     // Start passively observing user interactions to learn field answers for future fills
     startObserver();
 
@@ -118,7 +149,20 @@ export default defineContentScript({
             }
 
             case 'DETECT': {
-              const { fields, adapterId, multiStep } = await resolveAll();
+              let { fields, adapterId, multiStep } = await resolveAll();
+
+              // SPA/Next.js/Typeform: if 0 fields on first try, the page likely hasn't
+              // hydrated yet. Use a MutationObserver to wait up to 8s for form elements.
+              if (fields.length === 0) {
+                const found = await waitForFormElements(8000);
+                if (found) {
+                  const result = await resolveAll();
+                  fields = result.fields;
+                  adapterId = result.adapterId;
+                  multiStep = result.multiStep;
+                }
+              }
+
               lastFields = fields;
               sendResponse({
                 type: 'DETECTED',
