@@ -132,7 +132,7 @@ export function ReportBug({
           {screenshot ? '✓ Screenshot taken' : capturing ? '📸...' : '📸 Auto-capture'}
         </button>
         <label className="cursor-pointer rounded border border-slate-600 px-2 py-1 text-[10px] text-slate-300 hover:bg-slate-700">
-          📎 Upload image
+          📎 Browse
           <input
             type="file"
             accept="image/*"
@@ -149,6 +149,27 @@ export function ReportBug({
           </button>
         )}
       </div>
+      {/* Drag & drop zone */}
+      {!screenshot && (
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.add('border-indigo-500');
+          }}
+          onDragLeave={(e) => {
+            e.currentTarget.classList.remove('border-indigo-500');
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.remove('border-indigo-500');
+            const file = e.dataTransfer.files[0];
+            if (file?.type.startsWith('image/')) handleFileUpload(file);
+          }}
+          className="rounded-lg border-2 border-dashed border-slate-600 px-3 py-3 text-center text-[10px] text-slate-500 transition hover:border-slate-500"
+        >
+          Drop screenshot here
+        </div>
+      )}
       {captureError && !screenshot && <p className="text-[9px] text-red-400">{captureError}</p>}
       {screenshot && (
         <img
