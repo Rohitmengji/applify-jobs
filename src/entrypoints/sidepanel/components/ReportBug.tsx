@@ -22,9 +22,11 @@ export function ReportBug({
   const [screenshot, setScreenshot] = useState<string | undefined>();
   const [submitted, setSubmitted] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [captureError, setCaptureError] = useState('');
 
   const captureScreenshot = async () => {
     setCapturing(true);
+    setCaptureError('');
     try {
       // Use background worker to capture (side panel doesn't have direct tab capture permission)
       const res = (await chrome.runtime.sendMessage({
@@ -32,9 +34,11 @@ export function ReportBug({
       })) as FromBackground;
       if (res?.type === 'CAPTURE_TAB_RESULT' && res.dataUrl) {
         setScreenshot(res.dataUrl);
+      } else {
+        setCaptureError('Capture failed. Use "Upload image" instead.');
       }
     } catch {
-      // Capture failed — user can still upload manually
+      setCaptureError('Capture failed. Use "Upload image" instead.');
     }
     setCapturing(false);
   };
@@ -145,11 +149,12 @@ export function ReportBug({
           </button>
         )}
       </div>
+      {captureError && !screenshot && <p className="text-[9px] text-red-400">{captureError}</p>}
       {screenshot && (
         <img
           src={screenshot}
           alt="Bug screenshot"
-          className="rounded border border-slate-600 max-h-24 object-contain"
+          className="rounded border border-slate-600 max-h-32 w-full object-contain bg-slate-900"
         />
       )}
 

@@ -168,9 +168,36 @@ export default defineBackground(() => {
         case 'CAPTURE_TAB': {
           let dataUrl: string | null = null;
           try {
-            dataUrl = await chrome.tabs.captureVisibleTab({ format: 'png', quality: 80 });
+            // Try 1: explicit window ID (most reliable in MV3 with side panel)
+            const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+            const windowId = tab?.windowId;
+            if (windowId) {
+              dataUrl = await chrome.tabs.captureVisibleTab(windowId, {
+                format: 'png',
+                quality: 80,
+              });
+            }
           } catch {
-            // Fails on chrome:// pages or if no active tab
+            // Try 2: without window ID
+            try {
+              dataUrl = await chrome.tabs.captureVisibleTab(undefined as unknown as number, {
+                format: 'png',
+                quality: 80,
+              });
+            } catch {
+              // Try 3: current window
+              try {
+                const win = await chrome.windows.getCurrent();
+                if (win?.id) {
+                  dataUrl = await chrome.tabs.captureVisibleTab(win.id, {
+                    format: 'png',
+                    quality: 80,
+                  });
+                }
+              } catch {
+                // All attempts failed — user will use upload
+              }
+            }
           }
           sendResponse({ type: 'CAPTURE_TAB_RESULT', dataUrl } satisfies FromBackground);
           break;
