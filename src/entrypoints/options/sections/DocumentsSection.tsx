@@ -140,9 +140,9 @@ function ResumeTextImport({
   const [busy, setBusy] = useState(false);
 
   return (
-    <div className="rounded-lg border border-dashed border-gray-300 p-4">
-      <h3 className="mb-1 text-sm font-semibold text-gray-700">Auto-fill from résumé text</h3>
-      <p className="mb-2 text-xs text-gray-400">
+    <div className="rounded-lg border border-dashed border-slate-600 p-4">
+      <h3 className="mb-1 text-sm font-semibold text-slate-300">Auto-fill from résumé text</h3>
+      <p className="mb-2 text-xs text-slate-500">
         Upload a PDF résumé above (text is extracted automatically) or paste text here, then fill
         empty fields — nothing is overwritten. The basic pass extracts contact details, links, and
         known skills; the AI pass also adds experience &amp; education (needs AI assist in
@@ -200,19 +200,19 @@ function DocList({
   onSetDefault: (id: string) => void;
 }) {
   return (
-    <div className="rounded-lg border border-gray-200 p-4">
-      <h3 className="mb-2 text-sm font-semibold text-gray-700">{title}</h3>
+    <div className="rounded-lg border border-slate-600 p-4">
+      <h3 className="mb-2 text-sm font-semibold text-slate-300">{title}</h3>
       {docs.length === 0 && (
-        <p className="mb-2 text-xs text-gray-400">No {title.toLowerCase()} uploaded yet.</p>
+        <p className="mb-2 text-xs text-slate-500">No {title.toLowerCase()} uploaded yet.</p>
       )}
       <ul className="space-y-2">
         {docs.map((doc) => (
           <li
             key={doc.id}
-            className="flex items-center justify-between rounded border border-gray-100 px-3 py-2"
+            className="flex items-center justify-between rounded border border-slate-700 px-3 py-2"
           >
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">📄 {doc.label || doc.filename}</span>
+              <span className="text-sm text-slate-400">📄 {doc.label || doc.filename}</span>
               {doc.id === defaultId && (
                 <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">
                   Default

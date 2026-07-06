@@ -15,73 +15,28 @@ body,
   margin: 0;
 }
 
-/* System dark mode detection — comprehensive dark theme */
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
-  html:not(.light) {
-    --tw-bg-opacity: 1;
-    background-color: rgb(15 23 42); /* slate-900 */
-    color: rgb(226 232 240); /* slate-200 */
-  }
-  html:not(.light) input,
-  html:not(.light) textarea,
-  html:not(.light) select {
-    background-color: rgb(30 41 59); /* slate-800 */
-    border-color: rgb(51 65 85); /* slate-700 */
-    color: rgb(226 232 240);
-  }
-  html:not(.light) input::placeholder,
-  html:not(.light) textarea::placeholder {
-    color: rgb(100 116 139); /* slate-500 */
-  }
-  /* Borders, cards, sections */
-  html:not(.light) [class*='border-gray'] {
-    border-color: rgb(51 65 85);
-  }
-  html:not(.light) [class*='bg-gray-50'],
-  html:not(.light) [class*='bg-gray-100'] {
-    background-color: rgb(30 41 59);
-  }
-  html:not(.light) [class*='bg-white'] {
-    background-color: rgb(30 41 59);
-  }
-  /* Text overrides for dark */
-  html:not(.light) [class*='text-gray-900'] {
-    color: rgb(241 245 249); /* slate-100 */
-  }
-  html:not(.light) [class*='text-gray-700'] {
-    color: rgb(203 213 225); /* slate-300 */
-  }
-  html:not(.light) [class*='text-gray-600'] {
-    color: rgb(148 163 184); /* slate-400 */
-  }
-  html:not(.light) [class*='text-gray-500'] {
-    color: rgb(148 163 184);
-  }
-  html:not(.light) [class*='text-gray-400'] {
-    color: rgb(100 116 139);
-  }
-  /* Indigo accent adjustments for dark */
-  html:not(.light) [class*='bg-indigo-100'] {
-    background-color: rgb(49 46 129); /* indigo-900 */
-  }
-  html:not(.light) [class*='text-indigo-700'] {
-    color: rgb(165 180 252); /* indigo-300 */
-  }
-  html:not(.light) [class*='bg-amber-50'] {
-    background-color: rgb(69 52 16); /* amber bg in dark */
-  }
-  html:not(.light) [class*='bg-green-50'] {
-    background-color: rgb(20 51 35);
-  }
-  html:not(.light) [class*='bg-red-50'] {
-    background-color: rgb(69 20 20);
-  }
-  /* Hover states */
-  html:not(.light) [class*='hover:bg-gray-50']:hover,
-  html:not(.light) [class*='hover:bg-gray-100']:hover {
-    background-color: rgb(51 65 85);
-  }
+/* Force dark theme globally — the extension is always dark */
+html {
+  color-scheme: dark;
+  background-color: rgb(15 23 42); /* slate-900 */
+  color: rgb(226 232 240); /* slate-200 */
+}
+
+input,
+textarea,
+select {
+  background-color: rgb(30 41 59); /* slate-800 */
+  border-color: rgb(51 65 85); /* slate-700 */
+  color: rgb(226 232 240);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgb(100 116 139); /* slate-500 */
+}
+
+/* Native select option text (renders in OS dropdown — must be dark for readability) */
+option {
+  background-color: rgb(30 41 59);
+  color: rgb(226 232 240);
 }

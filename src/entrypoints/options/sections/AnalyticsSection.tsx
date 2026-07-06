@@ -71,9 +71,9 @@ export function AnalyticsSection() {
 
       {/* Funnel */}
       {apps.length > 0 && (
-        <div className="mb-4 rounded border border-gray-100 p-3">
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Funnel</h3>
-          <div className="flex items-center gap-2 text-xs text-gray-600">
+        <div className="mb-4 rounded border border-slate-700 p-3">
+          <h3 className="text-sm font-semibold text-slate-300 mb-2">Funnel</h3>
+          <div className="flex items-center gap-2 text-xs text-slate-400">
             <span className="font-medium">{apps.length} applied</span>
             <span className="text-gray-300">→</span>
             <span className="font-medium">{interviews} interviews</span>
@@ -84,7 +84,7 @@ export function AnalyticsSection() {
       )}
 
       {/* Weekly bar chart */}
-      <h3 className="text-sm font-semibold text-gray-700 mb-2">Last 7 days</h3>
+      <h3 className="text-sm font-semibold text-slate-300 mb-2">Last 7 days</h3>
       <div className="flex items-end gap-1 h-20 mb-4">
         {dayCounts.map((count, i) => (
           <div key={i} className="flex-1 flex flex-col items-center">
@@ -92,7 +92,7 @@ export function AnalyticsSection() {
               className="w-full bg-indigo-500 rounded-t"
               style={{ height: `${(count / maxDay) * 100}%`, minHeight: count > 0 ? '4px' : '0' }}
             />
-            <span className="text-[9px] text-gray-400 mt-1">{dayLabels[i]}</span>
+            <span className="text-[9px] text-slate-500 mt-1">{dayLabels[i]}</span>
           </div>
         ))}
       </div>
@@ -100,18 +100,18 @@ export function AnalyticsSection() {
       {/* ATS breakdown */}
       {topAts.length > 0 && (
         <>
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Top ATS platforms</h3>
+          <h3 className="text-sm font-semibold text-slate-300 mb-2">Top ATS platforms</h3>
           <div className="space-y-1 mb-4">
             {topAts.map(([ats, count]) => (
               <div key={ats} className="flex items-center gap-2">
-                <span className="text-xs text-gray-600 w-24 truncate">{ats}</span>
-                <div className="flex-1 bg-gray-100 rounded h-3">
+                <span className="text-xs text-slate-400 w-24 truncate">{ats}</span>
+                <div className="flex-1 bg-slate-800 rounded h-3">
                   <div
                     className="bg-indigo-400 rounded h-3"
                     style={{ width: `${(count / apps.length) * 100}%` }}
                   />
                 </div>
-                <span className="text-xs text-gray-500 w-8 text-right">{count}</span>
+                <span className="text-xs text-slate-400 w-8 text-right">{count}</span>
               </div>
             ))}
           </div>
@@ -119,10 +119,10 @@ export function AnalyticsSection() {
       )}
 
       {/* Status breakdown */}
-      <h3 className="text-sm font-semibold text-gray-700 mb-2">Application status</h3>
+      <h3 className="text-sm font-semibold text-slate-300 mb-2">Application status</h3>
       <div className="flex flex-wrap gap-2">
         {Object.entries(statusCounts).map(([status, count]) => (
-          <span key={status} className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">
+          <span key={status} className="rounded bg-slate-800 px-2 py-1 text-xs text-slate-300">
             {status}: <strong>{count}</strong>
           </span>
         ))}
@@ -135,8 +135,8 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub: st
   return (
     <div className="rounded border p-3 text-center">
       <div className="text-lg font-bold text-indigo-700">{value}</div>
-      <div className="text-[11px] font-medium text-gray-700">{label}</div>
-      <div className="text-[10px] text-gray-400">{sub}</div>
+      <div className="text-[11px] font-medium text-slate-300">{label}</div>
+      <div className="text-[10px] text-slate-500">{sub}</div>
     </div>
   );
 }

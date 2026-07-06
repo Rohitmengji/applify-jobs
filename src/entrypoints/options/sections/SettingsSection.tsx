@@ -66,8 +66,8 @@ export function SettingsSection({ draft, setDraft }: SectionProps) {
         />
       </Field>
 
-      <h3 className="pt-2 text-sm font-semibold text-gray-700">AI provider</h3>
-      <p className="text-xs text-gray-400">
+      <h3 className="pt-2 text-sm font-semibold text-slate-300">AI provider</h3>
+      <p className="text-xs text-slate-500">
         Stored only in this browser (chrome.storage.local). Leave the key blank to use a proxy URL
         that holds the key server-side.
       </p>
@@ -75,7 +75,7 @@ export function SettingsSection({ draft, setDraft }: SectionProps) {
         <select
           value={provider}
           onChange={(e) => saveProvider(e.target.value)}
-          className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+          className="w-full rounded border border-slate-600 px-3 py-2 text-sm"
         >
           <option value="">Auto-detect from key</option>
           <option value="openai">OpenAI (gpt-5.4-mini)</option>
@@ -105,13 +105,13 @@ export function SettingsSection({ draft, setDraft }: SectionProps) {
         />
       </Field>
 
-      <h3 className="pt-2 text-sm font-semibold text-gray-700">Learning engine</h3>
-      <p className="text-xs text-gray-400">
+      <h3 className="pt-2 text-sm font-semibold text-slate-300">Learning engine</h3>
+      <p className="text-xs text-slate-500">
         When you fill or correct a field the engine didn’t know, it remembers it (by the field’s
         label + type) and auto-fills that field on future forms. Stored locally only.
       </p>
       <div className="flex items-center gap-3">
-        <span className="text-sm text-gray-600">{learnedCount} fields remembered</span>
+        <span className="text-sm text-slate-400">{learnedCount} fields remembered</span>
         <Button
           variant="danger"
           onClick={async () => {

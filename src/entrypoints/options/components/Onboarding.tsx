@@ -59,7 +59,7 @@ export function Onboarding({ onComplete, onNavigate }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
+      <div className="mx-4 w-full max-w-md rounded-2xl bg-slate-800 p-8 shadow-2xl border border-slate-700">
         {/* Progress dots */}
         <div className="mb-6 flex justify-center gap-1.5">
           {STEPS.map((_, i) => (
@@ -70,7 +70,7 @@ export function Onboarding({ onComplete, onNavigate }: Props) {
                   ? 'w-6 bg-indigo-600'
                   : i < step
                     ? 'w-2 bg-indigo-300'
-                    : 'w-2 bg-gray-200'
+                    : 'w-2 bg-slate-700'
               }`}
             />
           ))}
@@ -80,8 +80,8 @@ export function Onboarding({ onComplete, onNavigate }: Props) {
         <div className="mb-4 text-center text-5xl">{current.icon}</div>
 
         {/* Content */}
-        <h2 className="mb-2 text-center text-xl font-bold text-gray-900">{current.title}</h2>
-        <p className="mb-6 text-center text-sm text-gray-600">{current.description}</p>
+        <h2 className="mb-2 text-center text-xl font-bold text-slate-100">{current.title}</h2>
+        <p className="mb-6 text-center text-sm text-slate-400">{current.description}</p>
         {current.action && (
           <p className="mb-4 text-center text-xs text-indigo-600">{current.action}</p>
         )}
@@ -104,7 +104,7 @@ export function Onboarding({ onComplete, onNavigate }: Props) {
           {step > 0 && (
             <button
               onClick={() => setStep(step - 1)}
-              className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              className="flex-1 rounded-xl border border-slate-600 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-700"
             >
               Back
             </button>
@@ -121,7 +121,7 @@ export function Onboarding({ onComplete, onNavigate }: Props) {
         {!isLast && (
           <button
             onClick={onComplete}
-            className="mt-3 w-full text-center text-xs text-gray-400 hover:text-gray-600"
+            className="mt-3 w-full text-center text-xs text-slate-500 hover:text-slate-300"
           >
             Skip setup
           </button>

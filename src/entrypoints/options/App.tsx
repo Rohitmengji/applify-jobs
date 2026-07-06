@@ -206,7 +206,7 @@ export function App() {
     setSaved(false);
   }, [draft]);
 
-  if (!draft) return <div className="p-8 text-gray-500">Loading…</div>;
+  if (!draft) return <div className="p-8 text-slate-400">Loading…</div>;
 
   const activeTab = TABS.find((t) => t.id === active);
   const ActiveSection = activeTab?.C ?? PersonalSection;
@@ -224,7 +224,7 @@ export function App() {
       )}
       <div className="mx-auto flex min-h-screen max-w-5xl gap-6 p-6">
         <nav className="w-44 shrink-0 space-y-1">
-          <h1 className="mb-3 text-base font-bold text-indigo-700">OneClick Apply</h1>
+          <h1 className="mb-3 text-base font-bold text-indigo-400">OneClick Apply</h1>
 
           {/* Profile variant switcher */}
           <div className="mb-3 space-y-1">
@@ -241,7 +241,7 @@ export function App() {
                     setSaved(true);
                   }
                 }}
-                className="flex-1 rounded border border-gray-200 px-1.5 py-1 text-[11px]"
+                className="flex-1 rounded border border-slate-600 bg-slate-800 px-1.5 py-1 text-[11px] text-slate-200"
               >
                 <option value="">Default profile</option>
                 {variants.map((v) => (
@@ -258,7 +258,7 @@ export function App() {
                   setVariants((prev) => [...prev, v]);
                   setActiveVariant(v.id);
                 }}
-                className="shrink-0 rounded bg-gray-100 px-1.5 py-1 text-[11px] hover:bg-gray-200"
+                className="shrink-0 rounded bg-slate-700 px-1.5 py-1 text-[11px] text-slate-200 hover:bg-slate-600"
                 title="Save current profile as a new variant"
               >
                 +
@@ -302,8 +302,8 @@ export function App() {
               onClick={() => setActive(t.id)}
               className={`block w-full rounded-md px-3 py-2 text-left text-sm ${
                 active === t.id
-                  ? 'bg-indigo-100 font-medium text-indigo-700'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  ? 'bg-indigo-900/50 font-medium text-indigo-300'
+                  : 'text-slate-400 hover:bg-slate-800'
               }`}
             >
               {t.label}
@@ -323,19 +323,19 @@ export function App() {
           )}
 
           {errors.length > 0 && (
-            <ul className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+            <ul className="rounded-md border border-red-700/50 bg-red-900/30 p-3 text-xs text-red-300">
               {errors.map((e, i) => (
                 <li key={i}>{e}</li>
               ))}
             </ul>
           )}
 
-          <div className="sticky bottom-0 flex items-center gap-3 border-t border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 py-3 backdrop-blur">
+          <div className="sticky bottom-0 flex items-center gap-3 border-t border-slate-700 bg-slate-900/90 py-3 backdrop-blur">
             <Button onClick={save}>Save profile</Button>
             <Button variant="ghost" onClick={exportJson}>
               Export JSON
             </Button>
-            <label className="cursor-pointer rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            <label className="cursor-pointer rounded-md border border-slate-600 px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-slate-700">
               Import JSON
               <input
                 type="file"

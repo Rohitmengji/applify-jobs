@@ -23,7 +23,7 @@ const STATUS_COLORS: Record<ApplicationStatus, string> = {
   interview: 'bg-purple-100 text-purple-800',
   offer: 'bg-green-100 text-green-800',
   rejected: 'bg-red-100 text-red-800',
-  withdrawn: 'bg-gray-100 text-gray-800',
+  withdrawn: 'bg-slate-800 text-slate-200',
 };
 
 export function ApplicationsSection() {
@@ -70,7 +70,7 @@ export function ApplicationsSection() {
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value as ApplicationStatus | '')}
-          className="rounded border border-gray-300 px-2 py-1 text-sm"
+          className="rounded border border-slate-600 px-2 py-1 text-sm"
         >
           <option value="">All statuses</option>
           {STATUS_OPTIONS.map((s) => (
@@ -79,7 +79,7 @@ export function ApplicationsSection() {
             </option>
           ))}
         </select>
-        <span className="text-xs text-gray-500">{filtered.length} shown</span>
+        <span className="text-xs text-slate-400">{filtered.length} shown</span>
         <div className="flex-1" />
         <Button variant="ghost" onClick={exportCSV}>
           Export CSV
@@ -87,7 +87,7 @@ export function ApplicationsSection() {
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-sm text-gray-400 py-8 text-center">
+        <p className="text-sm text-slate-500 py-8 text-center">
           No applications yet. Fill a job form and it'll be logged here automatically.
         </p>
       ) : (
@@ -96,8 +96,8 @@ export function ApplicationsSection() {
             <div key={app.id} className="rounded border p-3 flex items-start gap-3">
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-sm truncate">{app.role}</div>
-                <div className="text-xs text-gray-600 truncate">{app.company}</div>
-                <div className="text-[11px] text-gray-400 mt-1">
+                <div className="text-xs text-slate-400 truncate">{app.company}</div>
+                <div className="text-[11px] text-slate-500 mt-1">
                   {new Date(app.appliedAt).toLocaleDateString()} · {app.atsType}
                 </div>
               </div>

@@ -64,11 +64,13 @@ export function WorkAuthSection({ draft, setDraft }: SectionProps) {
           </span>
         ))}
         {w.authorizedCountries.length === 0 && (
-          <span className="text-xs text-gray-400">None added — defaults to your home country.</span>
+          <span className="text-xs text-slate-500">
+            None added — defaults to your home country.
+          </span>
         )}
       </div>
 
-      <h3 className="pt-3 text-sm font-semibold text-gray-700">
+      <h3 className="pt-3 text-sm font-semibold text-slate-300">
         Defaults (used only when a question doesn’t name a country)
       </h3>
       <Toggle

@@ -354,22 +354,22 @@ export function TrainingSection({ draft }: SectionProps) {
         <Button onClick={saveAll} disabled={saving}>
           {saving ? 'Saving...' : saved ? 'Saved ✓' : 'Save All Answers'}
         </Button>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-slate-400">
           {answeredCount} of {COMMON_QUESTIONS.length} answered
         </span>
       </div>
 
       <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-2">
         {COMMON_QUESTIONS.map((q) => (
-          <div key={q.id} className="rounded-lg border border-gray-200 p-3">
-            <label className="block text-xs font-medium text-gray-800 mb-1">{q.question}</label>
-            <p className="text-[10px] text-gray-400 mb-1.5">{q.hint}</p>
+          <div key={q.id} className="rounded-lg border border-slate-600 p-3">
+            <label className="block text-xs font-medium text-slate-200 mb-1">{q.question}</label>
+            <p className="text-[10px] text-slate-500 mb-1.5">{q.hint}</p>
             {q.kind === 'textarea' ? (
               <textarea
                 value={answers[q.id] ?? ''}
                 onChange={(e) => updateAnswer(q.id, e.target.value)}
                 rows={3}
-                className="w-full rounded border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 focus:border-indigo-300 focus:outline-none"
+                className="w-full rounded border border-slate-600 px-2.5 py-1.5 text-xs text-slate-300 focus:border-indigo-300 focus:outline-none"
                 placeholder="Your answer..."
               />
             ) : (
@@ -377,7 +377,7 @@ export function TrainingSection({ draft }: SectionProps) {
                 type="text"
                 value={answers[q.id] ?? ''}
                 onChange={(e) => updateAnswer(q.id, e.target.value)}
-                className="w-full rounded border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 focus:border-indigo-300 focus:outline-none"
+                className="w-full rounded border border-slate-600 px-2.5 py-1.5 text-xs text-slate-300 focus:border-indigo-300 focus:outline-none"
                 placeholder="Your answer..."
               />
             )}
@@ -386,9 +386,9 @@ export function TrainingSection({ draft }: SectionProps) {
       </div>
 
       {/* Export/Import learned data */}
-      <div className="mt-6 rounded-lg border border-dashed border-gray-300 p-4">
-        <h3 className="mb-1 text-sm font-semibold text-gray-700">Learned Data</h3>
-        <p className="mb-3 text-xs text-gray-400">
+      <div className="mt-6 rounded-lg border border-dashed border-slate-600 p-4">
+        <h3 className="mb-1 text-sm font-semibold text-slate-300">Learned Data</h3>
+        <p className="mb-3 text-xs text-slate-500">
           Export your learned answers to transfer to another device, or import a backup.
         </p>
         <div className="flex flex-wrap gap-2">
@@ -407,7 +407,7 @@ export function TrainingSection({ draft }: SectionProps) {
           >
             Export learned data
           </Button>
-          <label className="cursor-pointer rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50">
+          <label className="cursor-pointer rounded-md border border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-400 transition hover:bg-slate-800">
             Import learned data
             <input
               type="file"

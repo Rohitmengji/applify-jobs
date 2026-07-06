@@ -34,7 +34,7 @@ export function PersonalSection({ draft, setDraft }: SectionProps) {
         </Field>
       </div>
 
-      <h3 className="pt-2 text-sm font-semibold text-gray-700">Address</h3>
+      <h3 className="pt-2 text-sm font-semibold text-slate-300">Address</h3>
       <Field label="Street address">
         <TextInput value={p.address.line1 ?? ''} onChange={(v) => setAddr({ line1: v })} />
       </Field>

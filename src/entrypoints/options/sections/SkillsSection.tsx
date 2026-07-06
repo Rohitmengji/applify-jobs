@@ -55,7 +55,9 @@ export function SkillsSection({ draft, setDraft }: SectionProps) {
             </button>
           </span>
         ))}
-        {draft.skills.length === 0 && <span className="text-xs text-gray-400">No skills yet.</span>}
+        {draft.skills.length === 0 && (
+          <span className="text-xs text-slate-500">No skills yet.</span>
+        )}
       </div>
     </Section>
   );
