@@ -73,6 +73,15 @@ export function BugReportsSection() {
     navigator.clipboard.writeText(md);
   };
 
+  const createGitHubIssue = (report: BugReport) => {
+    const md = reportToGitHubIssue(report);
+    const title = encodeURIComponent(`[Bug] ${report.title}`);
+    const body = encodeURIComponent(md);
+    const labels = encodeURIComponent('bug');
+    const url = `https://github.com/Rohitmengji/applify-jobs/issues/new?title=${title}&body=${body}&labels=${labels}`;
+    window.open(url, '_blank');
+  };
+
   const exportAll = () => {
     const approved = reports.filter((r) => r.status === 'approved');
     const blob = new Blob([JSON.stringify(approved, null, 2)], { type: 'application/json' });
@@ -160,6 +169,7 @@ export function BugReportsSection() {
                 onDismiss={dismiss}
                 onDelete={remove}
                 onCopy={copyAsIssue}
+                onCreateIssue={createGitHubIssue}
               />
             ))}
           </div>
@@ -187,6 +197,7 @@ export function BugReportsSection() {
                 onDismiss={dismiss}
                 onDelete={remove}
                 onCopy={copyAsIssue}
+                onCreateIssue={createGitHubIssue}
               />
             ))}
           </div>
@@ -208,6 +219,7 @@ export function BugReportsSection() {
                 onDismiss={dismiss}
                 onDelete={remove}
                 onCopy={copyAsIssue}
+                onCreateIssue={createGitHubIssue}
               />
             ))}
           </div>
@@ -223,12 +235,14 @@ function ReportCard({
   onDismiss,
   onDelete,
   onCopy,
+  onCreateIssue,
 }: {
   report: BugReport;
   onApprove: (id: string) => void;
   onDismiss: (id: string) => void;
   onDelete: (id: string) => void;
   onCopy: (r: BugReport) => void;
+  onCreateIssue: (r: BugReport) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -309,12 +323,20 @@ function ReportCard({
           </>
         )}
         {report.status === 'approved' && (
-          <button
-            onClick={() => onCopy(report)}
-            className="text-[10px] text-indigo-400 hover:text-indigo-300"
-          >
-            📋 Copy as GitHub issue
-          </button>
+          <>
+            <button
+              onClick={() => onCreateIssue(report)}
+              className="text-[10px] text-green-400 hover:text-green-300 font-medium"
+            >
+              🚀 Create GitHub Issue
+            </button>
+            <button
+              onClick={() => onCopy(report)}
+              className="text-[10px] text-indigo-400 hover:text-indigo-300"
+            >
+              📋 Copy
+            </button>
+          </>
         )}
         <button
           onClick={() => onDelete(report.id)}
