@@ -235,26 +235,32 @@ export function App() {
         return perFrame.filter((x): x is NonNullable<typeof x> => x !== null);
       };
 
+      // Helper: check if we got actual fields (not just a successful injection with 0 fields)
+      const hasFields = (frames: typeof got) => frames.some((fr) => fr.fields.length > 0);
+
       let got = await detectFrames();
       // Generic / self-hosted career site: the content script isn't auto-injected there
       // (we narrowed `matches` to known ATS domains for store review). Inject on demand via
-      // activeTab, then retry. SPA career pages may render forms late, so we retry with
-      // increasing delays to catch lazy-loaded forms.
+      // activeTab, then retry.
       if (got.length === 0 && (await injectContentScript(tabId))) {
         await new Promise((r) => setTimeout(r, 400));
         got = await detectFrames();
       }
-      // Second attempt with longer delay for SPAs that render forms after initial load
-      if (got.length === 0) {
-        await new Promise((r) => setTimeout(r, 1500));
+      // SPA/Typeform-style sites: the content script is injected and responds, but the form
+      // hasn't rendered yet (0 fields). Retry with increasing delays to catch lazy forms.
+      if (!hasFields(got)) {
+        await new Promise((r) => setTimeout(r, 1000));
         got = await detectFrames();
       }
-      // Third attempt — some internal career sites take 3-5s to render after navigation
-      if (got.length === 0) {
-        await new Promise((r) => setTimeout(r, 2500));
+      if (!hasFields(got)) {
+        await new Promise((r) => setTimeout(r, 2000));
         got = await detectFrames();
       }
-      if (got.length === 0) {
+      if (!hasFields(got)) {
+        await new Promise((r) => setTimeout(r, 3000));
+        got = await detectFrames();
+      }
+      if (got.length === 0 || !hasFields(got)) {
         noContent();
         return;
       }

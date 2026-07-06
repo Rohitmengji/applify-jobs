@@ -141,7 +141,18 @@ export function getLabelText(el: Element): string {
     if (t) return t;
   }
 
-  // 5) bounded ancestor field-group climb (Workday's formField-* layout). Stop at a
+  // 5) Typeform-style: heading (h1-h6) as a previous sibling or in the same container
+  //    is a strong label signal for single-question-per-page forms.
+  let sibling = el.previousElementSibling;
+  for (let s = 0; s < 3 && sibling; s++) {
+    if (/^H[1-6]$/.test(sibling.tagName)) {
+      const t = textOf(sibling);
+      if (t) return t;
+    }
+    sibling = sibling.previousElementSibling;
+  }
+
+  // 6) bounded ancestor field-group climb (Workday's formField-* layout). Stop at a
   //    boundary or a multi-field region so we never steal a sibling/group label.
   let node: Element | null = el.parentElement;
   for (let depth = 0; node && depth < 6; depth++) {
