@@ -183,7 +183,7 @@ export function App() {
 
     const noContent = () => {
       setNotice(
-        'No form fields found. If this is an internal career site: make sure the form is visible, wait for it to fully load, then click Detect again. If the form is inside a popup, open it first.',
+        'No form fields found. Try: 1) Click the OneClick Apply icon in the toolbar (re-grants access), then click Detect again. 2) Make sure the form is visible on the page. 3) If prompted for permission, click Allow.',
       );
 
       setAdapterId(null);
