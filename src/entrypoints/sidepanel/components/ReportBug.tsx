@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { saveBugReport } from '@/core/storage/bugReports';
 import type { FromBackground } from '@/core/messages';
 
@@ -23,6 +23,14 @@ export function ReportBug({
   const [submitted, setSubmitted] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [captureError, setCaptureError] = useState('');
+  const [pageUrl, setPageUrl] = useState('');
+
+  // Capture the active tab URL immediately when the report form opens
+  useEffect(() => {
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => {
+      if (tab?.url) setPageUrl(tab.url);
+    });
+  }, []);
 
   const captureScreenshot = async () => {
     setCapturing(true);
@@ -54,7 +62,6 @@ export function ReportBug({
 
   const submit = async () => {
     if (!title.trim()) return;
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const ua = navigator.userAgent;
     const os = /Mac/.test(ua)
       ? 'macOS'
@@ -74,7 +81,7 @@ export function ReportBug({
       title: title.trim(),
       description: description.trim(),
       screenshotDataUrl: screenshot,
-      url: tab?.url ?? '',
+      url: pageUrl,
       adapterId,
       fieldsDetected,
       fieldsFilled,
@@ -181,7 +188,12 @@ export function ReportBug({
 
       {/* Auto-collected info preview */}
       <div className="text-[9px] text-slate-500 space-y-0.5">
-        <div>Auto-attached: URL, ATS type, field count, browser, OS, extension version</div>
+        {pageUrl && (
+          <div className="truncate text-slate-400" title={pageUrl}>
+            📍 {pageUrl}
+          </div>
+        )}
+        <div>Auto-attached: ATS type, field count, browser, OS, extension version</div>
         {failedFields && failedFields.length > 0 && (
           <div className="text-amber-500">
             {failedFields.length} failed field(s) will be included
