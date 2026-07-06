@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { saveBugReport } from '@/core/storage/bugReports';
+import type { FromBackground } from '@/core/messages';
 
 interface Props {
   adapterId: string | null;
@@ -25,15 +26,26 @@ export function ReportBug({
   const captureScreenshot = async () => {
     setCapturing(true);
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tab?.id) {
-        const dataUrl = await chrome.tabs.captureVisibleTab({ format: 'png', quality: 80 });
-        setScreenshot(dataUrl);
+      // Use background worker to capture (side panel doesn't have direct tab capture permission)
+      const res = (await chrome.runtime.sendMessage({
+        type: 'CAPTURE_TAB',
+      })) as FromBackground;
+      if (res?.type === 'CAPTURE_TAB_RESULT' && res.dataUrl) {
+        setScreenshot(res.dataUrl);
       }
     } catch {
-      // captureVisibleTab may fail on chrome:// pages
+      // Capture failed — user can still upload manually
     }
     setCapturing(false);
+  };
+
+  const handleFileUpload = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') setScreenshot(reader.result);
+    };
+    reader.readAsDataURL(file);
   };
 
   const submit = async () => {
@@ -107,23 +119,39 @@ export function ReportBug({
         className="w-full rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-200 placeholder:text-slate-500 resize-none focus:border-indigo-500 focus:outline-none"
       />
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={captureScreenshot}
           disabled={capturing}
           className="rounded border border-slate-600 px-2 py-1 text-[10px] text-slate-300 hover:bg-slate-700 disabled:opacity-50"
         >
-          {screenshot ? '✓ Screenshot taken' : capturing ? '📸...' : '📸 Capture screenshot'}
+          {screenshot ? '✓ Screenshot taken' : capturing ? '📸...' : '📸 Auto-capture'}
         </button>
+        <label className="cursor-pointer rounded border border-slate-600 px-2 py-1 text-[10px] text-slate-300 hover:bg-slate-700">
+          📎 Upload image
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => handleFileUpload(e.target.files?.[0])}
+          />
+        </label>
         {screenshot && (
           <button
             onClick={() => setScreenshot(undefined)}
             className="text-[9px] text-slate-500 hover:text-red-400"
           >
-            Remove
+            ✕ Remove
           </button>
         )}
       </div>
+      {screenshot && (
+        <img
+          src={screenshot}
+          alt="Bug screenshot"
+          className="rounded border border-slate-600 max-h-24 object-contain"
+        />
+      )}
 
       {/* Auto-collected info preview */}
       <div className="text-[9px] text-slate-500 space-y-0.5">

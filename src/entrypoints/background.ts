@@ -32,6 +32,7 @@ const HANDLED = new Set<ToBackground['type']>([
   'LLM_EXTRACT_RESUME',
   'LLM_COVER_LETTER',
   'LLM_TAILOR_RESUME',
+  'CAPTURE_TAB',
 ]);
 
 export default defineBackground(() => {
@@ -162,6 +163,16 @@ export default defineBackground(() => {
         case 'GET_PROFILE': {
           const profile = await getProfile();
           sendResponse({ type: 'PROFILE', profile } satisfies FromBackground);
+          break;
+        }
+        case 'CAPTURE_TAB': {
+          let dataUrl: string | null = null;
+          try {
+            dataUrl = await chrome.tabs.captureVisibleTab({ format: 'png', quality: 80 });
+          } catch {
+            // Fails on chrome:// pages or if no active tab
+          }
+          sendResponse({ type: 'CAPTURE_TAB_RESULT', dataUrl } satisfies FromBackground);
           break;
         }
         case 'LLM_MAP_FIELDS': {

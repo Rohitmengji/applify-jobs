@@ -47,7 +47,8 @@ export type ToBackground =
       jobInfo: { company: string; role: string; description?: string };
       baseText?: string; // extracted text of the user's existing résumé (PDF), if available
     }
-  | { type: 'GET_PROFILE' };
+  | { type: 'GET_PROFILE' }
+  | { type: 'CAPTURE_TAB' }; // capture visible tab screenshot from background (has permission)
 
 export type FromBackground =
   | {
@@ -58,7 +59,8 @@ export type FromBackground =
   | { type: 'LLM_EXTRACT_RESULT'; data: unknown; error?: string } // raw JSON; validated at merge time
   | { type: 'LLM_COVER_LETTER_RESULT'; text: string; error?: string }
   | { type: 'LLM_TAILOR_RESULT'; data: unknown; error?: string } // raw JSON; validated at render time
-  | { type: 'PROFILE'; profile: unknown };
+  | { type: 'PROFILE'; profile: unknown }
+  | { type: 'CAPTURE_TAB_RESULT'; dataUrl: string | null };
 
 // Typed helpers -----------------------------------------------------------
 
