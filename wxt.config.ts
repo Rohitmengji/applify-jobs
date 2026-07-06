@@ -33,11 +33,11 @@ export default defineConfig({
     // hosted career pages are handled on demand via activeTab + chrome.scripting when the
     // user opens the panel there. Power users can opt into "run everywhere" by granting the
     // optional broad permission below.
-    host_permissions: [...ATS_MATCH_PATTERNS],
-    // Allow requesting host access for any site on demand (user grants per-site when
-    // clicking Detect on a non-ATS page). This does NOT show an install-time warning —
-    // the permission is only requested when actually needed, via chrome.permissions.request.
-    optional_host_permissions: ['https://*/*', 'http://*/*'],
+    host_permissions: ['https://*/*', 'http://*/*'],
+    // Broad host access is required for form detection on ANY career site (internal pages,
+    // Typeform, custom ATS, etc.). Justified: the extension reads form fields to fill them.
+    // All data stays local — no external transmission. This is the same approach used by
+    // LastPass, Grammarly, Simplify Jobs, and every other form-fill extension.
     action: { default_title: 'OneClick Apply' },
     commands: {
       'fill-page': {

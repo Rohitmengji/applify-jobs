@@ -63,24 +63,6 @@ export async function injectContentScript(tabId: number): Promise<boolean> {
     });
     return true;
   } catch {
-    // activeTab may have expired (user navigated after opening panel).
-    // Try requesting host permission for this specific tab's URL.
-    try {
-      const tab = await chrome.tabs.get(tabId);
-      if (tab?.url) {
-        const origin = new URL(tab.url).origin + '/*';
-        const granted = await chrome.permissions.request({ origins: [origin] });
-        if (granted) {
-          await chrome.scripting.executeScript({
-            target: { tabId, allFrames: true },
-            files: ['content-scripts/content.js'],
-          });
-          return true;
-        }
-      }
-    } catch {
-      // Truly failed — no permission granted
-    }
     return false;
   }
 }
