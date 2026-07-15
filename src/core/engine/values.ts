@@ -61,7 +61,7 @@ function deriveSalary(profile: Profile, field: DetectedField): string | null {
 
   if (!raw) return null;
   const amount = parseInt(raw.replace(/[^0-9]/g, ''), 10);
-  if (!amount || isNaN(amount)) return null;
+  if (isNaN(amount)) return null;
 
   // Home currency is only known if the user set it — we DON'T assume INR, or a non-INR
   // user's number would be mis-converted. When unknown, never convert (fill the raw amount).

@@ -1,5 +1,5 @@
 import { defineBackground } from 'wxt/utils/define-background';
-import { getProfile } from '@/core/storage/profileStore';
+import { getProfile, saveProfile } from '@/core/storage/profileStore';
 import { getFile } from '@/core/storage/blobStore';
 import { recordLearned } from '@/core/storage/learnStore';
 import {
@@ -9,7 +9,7 @@ import {
   generateCoverLetter,
   tailorResumeWithLLM,
 } from '@/core/llm/client';
-import { findAnswer } from '@/core/llm/answerBank';
+import { findAnswer, findDuplicateAnswer } from '@/core/llm/answerBank';
 import type { ToBackground, FromBackground, FromContent } from '@/core/messages';
 
 // base64-encode a File, chunked to avoid the call-stack limit on large résumés (§25).
@@ -38,6 +38,13 @@ const HANDLED = new Set<ToBackground['type']>([
 export default defineBackground(() => {
   // Open the side panel when the toolbar icon is clicked.
   chrome.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true }).catch(() => {});
+
+  // Prune app tracker entries older than 1 year on startup (non-blocking, best-effort).
+  import('@/core/storage/appTracker').then((m) => m.pruneOldApplications()).catch(() => {});
+
+  // Serialize answer-bank auto-saves so concurrent LLM draft responses can't overwrite
+  // each other's profile writes (same pattern as learnStore.ts writeChain).
+  let answerSaveChain: Promise<void> = Promise.resolve();
 
   // --- Service worker keep-alive for long LLM calls ---
   // MV3 service workers are killed after 30s of inactivity. LLM calls (résumé tailoring,
@@ -228,7 +235,37 @@ export default defineBackground(() => {
           if (!answer && profile.settings.llmEnabled) {
             try {
               answer = await draftAnswerWithLLM(msg.question, profile);
-              if (answer) source = 'llm';
+              if (answer) {
+                source = 'llm';
+                // Auto-save LLM-drafted answers to the answer bank so the same question
+                // never hits the LLM again. Strip field-type prefixes the side panel adds.
+                // Serialized via answerSaveChain to prevent concurrent write races.
+                const rawQ = msg.question.replace(/^\[FIELD TYPE:[^\]]*\]\s*/g, '').trim();
+                if (rawQ.length >= 5 && answer.length >= 10) {
+                  const draftAnswer = answer;
+                  const run = answerSaveChain.then(async () => {
+                    const freshProfile = await getProfile();
+                    const dup = findDuplicateAnswer(rawQ, freshProfile.answerBank, 0.85);
+                    const exactMatch = freshProfile.answerBank.some(
+                      (a) => a.questionPattern.toLowerCase() === rawQ.toLowerCase(),
+                    );
+                    if (!exactMatch && !dup) {
+                      const entry = {
+                        id: crypto.randomUUID(),
+                        questionPattern: rawQ,
+                        answer: draftAnswer,
+                        tags: ['auto-saved'] as string[],
+                      };
+                      const updated = {
+                        ...freshProfile,
+                        answerBank: [...freshProfile.answerBank, entry],
+                      };
+                      await saveProfile(updated);
+                    }
+                  });
+                  answerSaveChain = run.catch(() => {});
+                }
+              }
             } catch (e) {
               console.warn('LLM draft failed', e);
             }

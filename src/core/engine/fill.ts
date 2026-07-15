@@ -386,8 +386,9 @@ export async function setPhoneValue(el: HTMLInputElement, value: string): Promis
   setReactInputValue(el, digits);
   await sleep(50);
 
-  // Check if the value stuck — if the input has a mask, it may have rejected it
-  if (el.value.replace(/[^\d]/g, '').length >= digits.replace(/[^\d]/g, '').length - 1) return;
+  // Check if the value stuck — if the input has a mask, it may have rejected it.
+  // Use exact digit count comparison (not off-by-one) so we don't accept truncated numbers.
+  if (el.value.replace(/[^\d]/g, '').length >= digits.replace(/[^\d]/g, '').length) return;
 
   // Fallback: clear and type character by character (for masked inputs)
   el.focus();
@@ -656,12 +657,5 @@ export function applyConfidenceOverlay(field: DetectedField): void {
     const color = c >= 0.95 ? '#16a34a' : c >= 0.7 ? '#ca8a04' : '#dc2626';
     el.style.boxShadow = `0 0 0 2px ${color}40, inset 0 0 0 1px ${color}`;
     el.setAttribute('title', `OneClick Apply: ${field.source} (${Math.round(c * 100)}%)`);
-  });
-}
-
-/** Remove all confidence overlays from the page. */
-export function clearOverlays(): void {
-  document.querySelectorAll<HTMLElement>('[data-oca-uid]').forEach((el) => {
-    el.style.boxShadow = '';
   });
 }

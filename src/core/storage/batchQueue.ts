@@ -3,6 +3,7 @@
 // Stored in chrome.storage.session (cleared on browser close).
 
 const KEY = 'batchQueue';
+const MAX_BATCH_ITEMS = 100;
 
 export interface BatchItem {
   id: string;
@@ -27,7 +28,7 @@ export async function addToQueue(urls: string[]): Promise<BatchItem[]> {
       status: 'queued' as const,
       addedAt: Date.now(),
     }));
-  const updated = [...queue, ...newItems];
+  const updated = [...queue, ...newItems].slice(-MAX_BATCH_ITEMS);
   await chrome.storage.session.set({ [KEY]: updated });
   return updated;
 }

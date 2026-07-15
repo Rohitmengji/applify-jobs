@@ -170,3 +170,12 @@ export function applicationsToCSV(apps: TrackedApplication[]): string {
   const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
   return [headers.join(','), ...rows.map((r) => r.map(escape).join(','))].join('\n');
 }
+
+/** Prune application entries older than `maxAgeDays` (default 365). Returns count deleted. */
+export async function pruneOldApplications(maxAgeDays = 365): Promise<number> {
+  const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+  const old = await db.applications.where('appliedAt').below(cutoff).toArray();
+  if (old.length === 0) return 0;
+  await db.applications.bulkDelete(old.map((a) => a.id));
+  return old.length;
+}

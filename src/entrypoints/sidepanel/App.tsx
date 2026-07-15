@@ -6,6 +6,8 @@ import { getProfile, saveProfile } from '@/core/storage/profileStore';
 import { getFile, putBlob } from '@/core/storage/blobStore';
 import { recordLearned, countLearned } from '@/core/storage/learnStore';
 import { logApplication, findDuplicate } from '@/core/storage/appTracker';
+import { recordFillStats } from '@/core/storage/fillStats';
+import { logActivity } from '@/core/storage/activityLog';
 import { saveFillProgress, loadFillProgress, clearFillProgress } from '@/core/storage/fillProgress';
 import {
   getVariants,
@@ -280,6 +282,15 @@ export function App() {
       setMultiStep(best?.multiStep ?? false);
       setFields(merged);
       setDuplicate(null);
+
+      // Log detection activity
+      void logActivity(
+        'detect',
+        location.href,
+        best?.adapterId ?? 'generic',
+        `Detected ${merged.length} fields (${merged.filter((f) => f.mappedKey).length} mapped)`,
+        merged.length,
+      ).catch(() => {});
 
       // Fetch page info (company/role/description/url) ONCE and reuse it for progress
       // restore, duplicate detection, the job-match pre-check, and cover-letter drafting.
@@ -712,6 +723,29 @@ export function App() {
             url: info.url,
             atsType: adapterId ?? 'generic',
           });
+          // Record field success rates for this fill session
+          const totalFields = fields.filter((f) => f.kind !== 'file').length;
+          const mapped = fields.filter((f) => f.mappedKey != null).length;
+          const filled = Object.values(filledMap).filter((f) => f.ok).length;
+          const failed = Object.values(filledMap).filter((f) => !f.ok).length;
+          await recordFillStats({
+            ats: adapterId ?? 'generic',
+            url: info.url,
+            ts: Date.now(),
+            totalFields,
+            mapped,
+            filled,
+            failed,
+            unmapped: totalFields - mapped,
+          });
+          // Log fill activity
+          void logActivity(
+            'fill',
+            info.url,
+            adapterId ?? 'generic',
+            `Filled ${filled}/${totalFields} fields at ${info.company} — ${info.role}${failed > 0 ? ` (${failed} failed)` : ''}`,
+            filled,
+          ).catch(() => {});
         } else {
           await clearFillProgress(); // no URL available — best-effort clear
         }
@@ -1403,6 +1437,12 @@ export function App() {
       <BatchQueue
         onNavigate={(url) => {
           chrome.tabs.update({ url });
+        }}
+        onBatchFill={async () => {
+          await detect();
+          // Small delay for LLM enrichment to finish before filling
+          await new Promise((r) => setTimeout(r, 2000));
+          await fillAll();
         }}
       />
 

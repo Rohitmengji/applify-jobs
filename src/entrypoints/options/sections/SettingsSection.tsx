@@ -79,7 +79,7 @@ export function SettingsSection({ draft, setDraft }: SectionProps) {
         >
           <option value="">Auto-detect from key</option>
           <option value="openai">OpenAI (gpt-5.4-mini)</option>
-          <option value="anthropic">Anthropic (Claude)</option>
+          <option value="anthropic">Anthropic (Haiku for mapping, Opus for drafts)</option>
         </select>
       </Field>
       <Field label="API key">

@@ -8,6 +8,7 @@ import { getProfile, saveProfile } from './profileStore';
 
 const KEY = 'profileVariants';
 const ACTIVE_KEY = 'activeVariant';
+const MAX_VARIANTS = 20;
 
 export interface ProfileVariant {
   id: string;
@@ -31,8 +32,12 @@ export async function saveVariant(name: string): Promise<ProfileVariant> {
   const id = crypto.randomUUID();
   const variant: ProfileVariant = { id, name, createdAt: Date.now() };
 
-  // Store the variant metadata
+  // Store the variant metadata (cap at MAX_VARIANTS, evict oldest if over)
   const variants = await getVariants();
+  if (variants.length >= MAX_VARIANTS) {
+    const oldest = variants.shift();
+    if (oldest) await chrome.storage.local.remove(`profile_${oldest.id}`);
+  }
   variants.push(variant);
   await chrome.storage.local.set({ [KEY]: variants });
 

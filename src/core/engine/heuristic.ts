@@ -23,12 +23,7 @@ type MatchResult = { key: ProfileKey | null; confidence: number; reason?: string
 // detection pass. Entries are GC'd when the DetectedField is released.
 const matchCache = new WeakMap<object, MatchResult>();
 
-/** Clear the cache (useful between detection runs or in tests). */
-export function clearMatchCache(): void {
-  // WeakMap has no .clear(); we just create a conceptual new cache by re-assigning.
-  // Since it's module-scoped, we need a different approach: just let GC handle it.
-  // In practice entries are cleared when the signals objects are released between detects.
-}
+// WeakMap has no .clear(); entries are GC'd when the signals objects are released between detects.
 
 export function matchField(field: DetectedField): MatchResult {
   const s = field.signals;

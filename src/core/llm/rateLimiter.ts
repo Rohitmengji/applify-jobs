@@ -42,3 +42,46 @@ export class RateLimiter {
 
 // Singleton for the background worker's LLM calls
 export const llmLimiter = new RateLimiter();
+
+// --- Daily call budget (persists across service worker restarts via chrome.storage.session) ---
+// MV3 kills the service worker after 30s of inactivity, resetting the in-memory limiter.
+// This daily counter survives restarts (session storage lives until browser close) and caps
+// total LLM calls per browser session to prevent runaway cost.
+const DAILY_KEY = 'llmDailyUsage';
+const DAILY_CAP = 500; // generous but bounded
+
+interface DailyUsage {
+  date: string; // YYYY-MM-DD
+  count: number;
+}
+
+async function getDailyUsage(): Promise<DailyUsage> {
+  try {
+    const raw = await chrome.storage.session.get(DAILY_KEY);
+    return (raw[DAILY_KEY] as DailyUsage | undefined) ?? { date: '', count: 0 };
+  } catch {
+    return { date: '', count: 0 };
+  }
+}
+
+/** Check the daily budget. Returns true if allowed, false if capped. */
+export async function checkDailyBudget(): Promise<boolean> {
+  const today = new Date().toISOString().slice(0, 10);
+  const usage = await getDailyUsage();
+  // New day → reset
+  if (usage.date !== today) return true;
+  return usage.count < DAILY_CAP;
+}
+
+/** Increment the daily call counter. Call after each successful LLM request. */
+export async function recordDailyCall(): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  const usage = await getDailyUsage();
+  const updated: DailyUsage =
+    usage.date === today ? { date: today, count: usage.count + 1 } : { date: today, count: 1 };
+  try {
+    await chrome.storage.session.set({ [DAILY_KEY]: updated });
+  } catch {
+    /* session storage unavailable — skip */
+  }
+}

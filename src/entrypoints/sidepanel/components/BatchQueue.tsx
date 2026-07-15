@@ -1,20 +1,24 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getBatchQueue,
   addToQueue,
   removeFromQueue,
   clearQueue,
+  updateBatchItem,
   type BatchItem,
 } from '@/core/storage/batchQueue';
 
 interface Props {
   onNavigate: (url: string) => void;
+  onBatchFill?: () => Promise<void>; // triggers detect+fill on the current page
 }
 
-export function BatchQueue({ onNavigate }: Props) {
+export function BatchQueue({ onNavigate, onBatchFill }: Props) {
   const [queue, setQueue] = useState<BatchItem[]>([]);
   const [input, setInput] = useState('');
   const [expanded, setExpanded] = useState(false);
+  const [running, setRunning] = useState(false);
+  const stopRef = useRef(false);
 
   useEffect(() => {
     void getBatchQueue().then(setQueue);
@@ -39,6 +43,54 @@ export function BatchQueue({ onNavigate }: Props) {
   const handleClear = useCallback(async () => {
     await clearQueue();
     setQueue([]);
+  }, []);
+
+  const runBatch = useCallback(async () => {
+    if (!onBatchFill) return;
+    setRunning(true);
+    stopRef.current = false;
+
+    const items = await getBatchQueue();
+    const queued = items.filter((q) => q.status === 'queued');
+
+    for (const item of queued) {
+      if (stopRef.current) break;
+
+      // Mark in-progress
+      await updateBatchItem(item.id, { status: 'in-progress' });
+      setQueue((prev) => prev.map((q) => (q.id === item.id ? { ...q, status: 'in-progress' } : q)));
+
+      try {
+        // Navigate to the job URL
+        onNavigate(item.url);
+
+        // Wait for page load (5s) then trigger detect+fill
+        await new Promise((r) => setTimeout(r, 5000));
+        if (stopRef.current) break;
+
+        await onBatchFill();
+
+        // Wait for fill to settle (3s)
+        await new Promise((r) => setTimeout(r, 3000));
+
+        // Mark filled
+        await updateBatchItem(item.id, { status: 'filled' });
+        setQueue((prev) => prev.map((q) => (q.id === item.id ? { ...q, status: 'filled' } : q)));
+      } catch {
+        await updateBatchItem(item.id, { status: 'error' });
+        setQueue((prev) => prev.map((q) => (q.id === item.id ? { ...q, status: 'error' } : q)));
+      }
+
+      // Brief pause between jobs to avoid rate limiting
+      if (!stopRef.current) await new Promise((r) => setTimeout(r, 2000));
+    }
+
+    setRunning(false);
+  }, [onBatchFill, onNavigate]);
+
+  const stopBatch = useCallback(() => {
+    stopRef.current = true;
+    setRunning(false);
   }, []);
 
   const queued = queue.filter((q) => q.status === 'queued');
@@ -83,7 +135,23 @@ export function BatchQueue({ onNavigate }: Props) {
         >
           Add to queue
         </button>
-        {queue.length > 0 && (
+        {queued.length > 0 && !running && onBatchFill && (
+          <button
+            onClick={runBatch}
+            className="rounded bg-green-600 px-2 py-1 text-[10px] font-medium text-white transition hover:bg-green-700"
+          >
+            {'\u25B6'} Start ({queued.length})
+          </button>
+        )}
+        {running && (
+          <button
+            onClick={stopBatch}
+            className="rounded bg-red-600 px-2 py-1 text-[10px] font-medium text-white transition hover:bg-red-700"
+          >
+            {'\u23F9'} Stop
+          </button>
+        )}
+        {queue.length > 0 && !running && (
           <button
             onClick={handleClear}
             className="rounded border border-slate-600 px-2 py-1 text-[10px] text-slate-400 transition hover:bg-slate-700"

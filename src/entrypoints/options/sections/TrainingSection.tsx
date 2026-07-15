@@ -270,6 +270,502 @@ const COMMON_QUESTIONS: { id: string; question: string; hint: string; kind: stri
     hint: 'Yes/No',
     kind: 'text',
   },
+
+  // --- Additional questions (expanded set) ---
+
+  // Work authorization (extended)
+  {
+    id: 'auth_country',
+    question: 'Which countries are you authorized to work in?',
+    hint: 'e.g. USA, UK, Canada, India',
+    kind: 'text',
+  },
+  {
+    id: 'visa_expiry',
+    question: 'When does your current work authorization expire?',
+    hint: 'e.g. N/A, Dec 2027',
+    kind: 'text',
+  },
+  {
+    id: 'clearance',
+    question: 'Do you have or can you obtain a security clearance?',
+    hint: 'Yes/No/Not applicable',
+    kind: 'text',
+  },
+
+  // Availability (extended)
+  {
+    id: 'available_date',
+    question: 'What date are you available to start?',
+    hint: 'e.g. August 1, 2026',
+    kind: 'text',
+  },
+  {
+    id: 'part_time',
+    question: 'Are you open to part-time work?',
+    hint: 'Yes/No/Prefer full-time',
+    kind: 'text',
+  },
+  {
+    id: 'contract',
+    question: 'Are you open to contract/freelance positions?',
+    hint: 'Yes/No/Prefer full-time',
+    kind: 'text',
+  },
+  {
+    id: 'work_hours',
+    question: 'What are your preferred working hours?',
+    hint: 'e.g. Standard 9-5, Flexible, Any',
+    kind: 'text',
+  },
+  {
+    id: 'timezone',
+    question: 'What timezone are you in?',
+    hint: 'e.g. IST (UTC+5:30), EST, PST',
+    kind: 'text',
+  },
+  {
+    id: 'commute',
+    question: 'How far are you willing to commute?',
+    hint: 'e.g. Up to 30 min, Remote only',
+    kind: 'text',
+  },
+  {
+    id: 'night_shift',
+    question: 'Are you available to work night shifts?',
+    hint: 'Yes/No',
+    kind: 'text',
+  },
+  {
+    id: 'weekend_work',
+    question: 'Are you available to work weekends?',
+    hint: 'Yes/No/Occasionally',
+    kind: 'text',
+  },
+
+  // Experience (extended)
+  {
+    id: 'years_management',
+    question: 'How many years of management/leadership experience do you have?',
+    hint: 'e.g. 0, 2, 5+',
+    kind: 'text',
+  },
+  {
+    id: 'team_size',
+    question: 'What is the largest team you have managed?',
+    hint: 'e.g. 0 (IC), 5, 15',
+    kind: 'text',
+  },
+  {
+    id: 'current_title',
+    question: 'What is your current job title?',
+    hint: 'e.g. Senior Software Engineer',
+    kind: 'text',
+  },
+  {
+    id: 'current_company',
+    question: 'What is your current company?',
+    hint: 'e.g. Google, Startup, Self-employed',
+    kind: 'text',
+  },
+  {
+    id: 'reason_leaving',
+    question: 'Why are you looking to leave your current position?',
+    hint: 'Growth, challenge, relocation, layoff, etc.',
+    kind: 'textarea',
+  },
+  {
+    id: 'employment_gap',
+    question: 'Can you explain any gaps in your employment?',
+    hint: 'Education, travel, caregiving, etc.',
+    kind: 'textarea',
+  },
+  {
+    id: 'career_goals',
+    question: 'What are your short-term and long-term career goals?',
+    hint: '1-3 sentences',
+    kind: 'textarea',
+  },
+  {
+    id: 'work_style',
+    question: 'How would you describe your work style?',
+    hint: 'Collaborative, independent, detail-oriented, etc.',
+    kind: 'textarea',
+  },
+
+  // Technical (extended)
+  {
+    id: 'tech_stack',
+    question: 'What is your primary tech stack?',
+    hint: 'e.g. React, Node.js, PostgreSQL, AWS',
+    kind: 'text',
+  },
+  {
+    id: 'frameworks',
+    question: 'What frameworks/libraries are you experienced with?',
+    hint: 'e.g. React, Next.js, Django, Spring Boot',
+    kind: 'text',
+  },
+  {
+    id: 'cloud',
+    question: 'What cloud platforms have you worked with?',
+    hint: 'e.g. AWS, GCP, Azure, None',
+    kind: 'text',
+  },
+  {
+    id: 'databases',
+    question: 'What databases are you experienced with?',
+    hint: 'e.g. PostgreSQL, MongoDB, Redis',
+    kind: 'text',
+  },
+  {
+    id: 'devops',
+    question: 'What DevOps/CI-CD tools have you used?',
+    hint: 'e.g. Docker, Kubernetes, GitHub Actions, Jenkins',
+    kind: 'text',
+  },
+  {
+    id: 'agile',
+    question: 'Are you experienced with Agile/Scrum methodologies?',
+    hint: 'Yes — X years / familiar',
+    kind: 'text',
+  },
+  {
+    id: 'open_source',
+    question: 'Have you contributed to open source projects?',
+    hint: 'Yes (links) / No',
+    kind: 'text',
+  },
+  {
+    id: 'certifications',
+    question: 'Do you have any relevant certifications?',
+    hint: 'e.g. AWS Solutions Architect, PMP, None',
+    kind: 'text',
+  },
+  {
+    id: 'system_design',
+    question: 'Describe your experience with system design',
+    hint: 'Scale, complexity, examples',
+    kind: 'textarea',
+  },
+
+  // Behavioral (extended)
+  {
+    id: 'deadline_miss',
+    question: 'Describe a time you missed a deadline. What happened?',
+    hint: 'STAR format: situation, action, result',
+    kind: 'textarea',
+  },
+  {
+    id: 'feedback',
+    question: 'How do you handle constructive criticism or negative feedback?',
+    hint: 'Your approach + example',
+    kind: 'textarea',
+  },
+  {
+    id: 'multitask',
+    question: 'How do you prioritize when you have multiple urgent tasks?',
+    hint: 'Framework/approach + example',
+    kind: 'textarea',
+  },
+  {
+    id: 'learn_fast',
+    question: 'Describe a time you had to learn something quickly',
+    hint: 'Context, approach, outcome',
+    kind: 'textarea',
+  },
+  {
+    id: 'disagree_manager',
+    question: 'Describe a time you disagreed with your manager',
+    hint: 'How you handled it, outcome',
+    kind: 'textarea',
+  },
+  {
+    id: 'failed_project',
+    question: 'Tell me about a project that failed. What did you learn?',
+    hint: 'What went wrong, lessons, what you changed',
+    kind: 'textarea',
+  },
+  {
+    id: 'initiative',
+    question: 'Give an example of when you took initiative beyond your role',
+    hint: 'What you did, impact',
+    kind: 'textarea',
+  },
+  {
+    id: 'customer_focus',
+    question: 'Describe a time you went above and beyond for a customer/user',
+    hint: 'Context, action, impact',
+    kind: 'textarea',
+  },
+  {
+    id: 'ambiguity',
+    question: 'How do you handle ambiguity or unclear requirements?',
+    hint: 'Your approach, example',
+    kind: 'textarea',
+  },
+  {
+    id: 'mentor',
+    question: 'Have you mentored or coached junior team members?',
+    hint: 'Yes — approach + example',
+    kind: 'textarea',
+  },
+  {
+    id: 'innovation',
+    question: 'Describe a time you introduced a new idea or process improvement',
+    hint: 'What, why, result',
+    kind: 'textarea',
+  },
+  {
+    id: 'pressure',
+    question: 'How do you perform under pressure?',
+    hint: 'Approach + example of high-pressure delivery',
+    kind: 'textarea',
+  },
+
+  // Culture & motivation
+  {
+    id: 'ideal_culture',
+    question: 'What kind of work culture do you thrive in?',
+    hint: 'Collaborative, fast-paced, structured, startup, etc.',
+    kind: 'textarea',
+  },
+  {
+    id: 'motivates',
+    question: 'What motivates you at work?',
+    hint: 'Impact, learning, autonomy, team, etc.',
+    kind: 'textarea',
+  },
+  {
+    id: 'values',
+    question: 'What values are important to you in a workplace?',
+    hint: 'Transparency, diversity, innovation, etc.',
+    kind: 'textarea',
+  },
+  {
+    id: 'proud_of',
+    question: 'What professional accomplishment are you most proud of?',
+    hint: '2-3 sentences about the impact',
+    kind: 'textarea',
+  },
+  {
+    id: 'five_years',
+    question: 'Where do you see yourself in 5 years?',
+    hint: 'Career progression, skills, impact',
+    kind: 'textarea',
+  },
+  {
+    id: 'passion_project',
+    question: 'Do you have any side projects or passion projects?',
+    hint: 'Brief description + what you learned',
+    kind: 'textarea',
+  },
+
+  // Salary & compensation (extended)
+  {
+    id: 'benefits_priority',
+    question: 'What benefits are most important to you?',
+    hint: 'Health, equity, PTO, remote, learning budget',
+    kind: 'text',
+  },
+  {
+    id: 'equity',
+    question: 'Are you open to equity-based compensation?',
+    hint: 'Yes/Prefer cash/Open to discuss',
+    kind: 'text',
+  },
+  {
+    id: 'salary_flexible',
+    question: 'Is your salary expectation flexible?',
+    hint: 'Yes, depending on total package / Fixed',
+    kind: 'text',
+  },
+
+  // Diversity & inclusion
+  {
+    id: 'pronouns',
+    question: 'What are your preferred pronouns?',
+    hint: 'e.g. He/Him, She/Her, They/Them',
+    kind: 'text',
+  },
+  {
+    id: 'dei_contribution',
+    question: 'How have you contributed to diversity and inclusion?',
+    hint: 'Initiatives, mentoring, ERGs, etc.',
+    kind: 'textarea',
+  },
+
+  // Communication & collaboration
+  {
+    id: 'communication_style',
+    question: 'How would you describe your communication style?',
+    hint: 'Direct, collaborative, written-first, etc.',
+    kind: 'text',
+  },
+  {
+    id: 'remote_experience',
+    question: 'Do you have experience working remotely/distributed teams?',
+    hint: 'Yes — X years / tools used',
+    kind: 'text',
+  },
+  {
+    id: 'cross_functional',
+    question: 'Describe your experience working with cross-functional teams',
+    hint: 'Teams involved, your role, outcome',
+    kind: 'textarea',
+  },
+
+  // Industry & domain
+  {
+    id: 'industry_exp',
+    question: 'What industries have you worked in?',
+    hint: 'e.g. Fintech, Healthcare, E-commerce, SaaS',
+    kind: 'text',
+  },
+  {
+    id: 'domain_knowledge',
+    question: 'Do you have domain expertise relevant to this role?',
+    hint: 'Specific domain knowledge/experience',
+    kind: 'textarea',
+  },
+  {
+    id: 'startup_exp',
+    question: 'Do you have startup experience?',
+    hint: 'Yes — stage, role, outcome / No',
+    kind: 'text',
+  },
+  {
+    id: 'enterprise_exp',
+    question: 'Do you have enterprise/large company experience?',
+    hint: 'Yes — company, role / No',
+    kind: 'text',
+  },
+
+  // Logistics
+  {
+    id: 'current_location',
+    question: 'What is your current location/city?',
+    hint: 'e.g. Bangalore, San Francisco, London',
+    kind: 'text',
+  },
+  {
+    id: 'willing_relocate_city',
+    question: 'Which cities are you willing to relocate to?',
+    hint: 'e.g. NYC, SF, Seattle, Any',
+    kind: 'text',
+  },
+  { id: 'passport', question: 'Do you have a valid passport?', hint: 'Yes/No', kind: 'text' },
+  {
+    id: 'drivers_license',
+    question: "Do you have a valid driver's license?",
+    hint: 'Yes/No',
+    kind: 'text',
+  },
+
+  // Education (extended)
+  { id: 'gpa', question: 'What was your GPA/percentage?', hint: 'e.g. 3.8/4.0, 85%', kind: 'text' },
+  { id: 'grad_year', question: 'What year did you graduate?', hint: 'e.g. 2020', kind: 'text' },
+  {
+    id: 'relevant_coursework',
+    question: 'What relevant coursework have you completed?',
+    hint: 'Key courses, bootcamps, certifications',
+    kind: 'textarea',
+  },
+  {
+    id: 'continuing_edu',
+    question: 'Are you currently pursuing any further education?',
+    hint: 'No / Yes (what and when)',
+    kind: 'text',
+  },
+
+  // Specific scenario questions
+  {
+    id: 'tell_about_yourself',
+    question: 'Tell me about yourself',
+    hint: 'Professional summary: background → current → future',
+    kind: 'textarea',
+  },
+  {
+    id: 'unique_value',
+    question: 'What unique value do you bring to this role?',
+    hint: 'Your differentiator — skills + experience + perspective',
+    kind: 'textarea',
+  },
+  {
+    id: 'difficult_coworker',
+    question: 'How do you deal with a difficult coworker?',
+    hint: 'Approach: empathy, communication, boundaries',
+    kind: 'textarea',
+  },
+  {
+    id: 'mistake',
+    question: 'Tell me about a mistake you made and how you handled it',
+    hint: 'Ownership, fix, prevention',
+    kind: 'textarea',
+  },
+  {
+    id: 'adapt_change',
+    question: 'Describe a time you had to adapt to a major change at work',
+    hint: 'Change, your response, outcome',
+    kind: 'textarea',
+  },
+  {
+    id: 'competing_priorities',
+    question: 'How do you handle competing priorities from different stakeholders?',
+    hint: 'Alignment, trade-offs, communication',
+    kind: 'textarea',
+  },
+  {
+    id: 'data_driven',
+    question: 'Give an example of a data-driven decision you made',
+    hint: 'Data used, analysis, decision, outcome',
+    kind: 'textarea',
+  },
+  {
+    id: 'tight_deadline',
+    question: 'Tell me about a time you delivered under a tight deadline',
+    hint: "Context, approach, what you sacrificed/didn't",
+    kind: 'textarea',
+  },
+  {
+    id: 'influence',
+    question: 'Describe a time you had to influence others without authority',
+    hint: 'Context, approach, outcome',
+    kind: 'textarea',
+  },
+
+  // Additional logistics/legal
+  { id: 'nda', question: 'Are you willing to sign an NDA?', hint: 'Yes', kind: 'text' },
+  {
+    id: 'ip_assignment',
+    question: 'Are you comfortable with IP assignment clauses?',
+    hint: 'Yes/Need to review terms',
+    kind: 'text',
+  },
+  {
+    id: 'employment_type',
+    question: 'What employment type are you seeking?',
+    hint: 'Full-time/Part-time/Contract/Any',
+    kind: 'text',
+  },
+  {
+    id: 'availability_interview',
+    question: 'What is your availability for interviews?',
+    hint: 'e.g. Weekdays 9-5, Flexible, Mornings only',
+    kind: 'text',
+  },
+  {
+    id: 'other_offers',
+    question: 'Are you currently considering other offers?',
+    hint: 'Yes/No/In process with other companies',
+    kind: 'text',
+  },
+  {
+    id: 'questions_for_us',
+    question: 'Do you have any questions for us?',
+    hint: 'Team structure, growth path, tech decisions, culture',
+    kind: 'textarea',
+  },
 ];
 
 export function TrainingSection({ draft }: SectionProps) {
