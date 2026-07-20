@@ -8,7 +8,8 @@ import {
 import { llmLimiter, checkDailyBudget, recordDailyCall } from './rateLimiter';
 import { getCachedMappings, setCachedMappings, deduplicateBatch } from './cache';
 import { recordLlmCall } from '../storage/llmUsage';
-import { consumeCredit, hasCreditsRemaining } from '../storage/credits';
+import { consumeCredit, hasCreditsRemaining, getUserId } from '../storage/credits';
+import { recordUserUsage } from '../storage/adminConfig';
 
 // IMPLEMENTATION.md §19 — called ONLY from the background worker, so API keys never
 // enter a web page. Supports OpenAI or Anthropic (auto-detected from key prefix or
@@ -192,6 +193,7 @@ export async function mapFieldsWithLLM(
 
     // Track usage: estimate ~150 tokens per field in the batch
     void recordLlmCall('mapping', unique.length * 150, false);
+    void getUserId().then((uid) => recordUserUsage(uid, 'mapping'));
 
     return results;
   } catch {
@@ -206,6 +208,7 @@ export async function extractResumeWithLLM(text: string): Promise<unknown> {
   const out = await callLLM(resumeExtractSystemPrompt(), text, 4096);
   // Estimate tokens: system prompt ~200 + input text chars/4 + output ~1000
   void recordLlmCall('extract', Math.round(200 + text.length / 4 + 1000), false);
+  void getUserId().then((uid) => recordUserUsage(uid, 'extract'));
   const clean = out.replace(/```json|```/g, '').trim();
   try {
     return JSON.parse(clean);
@@ -238,6 +241,7 @@ export async function draftAnswerWithLLM(question: string, profile: Profile): Pr
   const answer = await callLLM(draftSystemPrompt(), userMsg);
   // Estimate: system ~100 + question + profile context + answer ~200
   void recordLlmCall('draft', Math.round(100 + userMsg.length / 4 + 200), false);
+  void getUserId().then((uid) => recordUserUsage(uid, 'draft'));
   return answer;
 }
 
@@ -282,6 +286,7 @@ export async function tailorResumeWithLLM(
   const out = await callLLM(resumeTailorSystemPrompt(), user, 3000);
   // Estimate: system ~300 + user prompt + output ~2000
   void recordLlmCall('tailor', Math.round(300 + user.length / 4 + 2000), false);
+  void getUserId().then((uid) => recordUserUsage(uid, 'tailor'));
   const clean = out.replace(/```json|```/g, '').trim();
   try {
     return JSON.parse(clean);
@@ -318,5 +323,6 @@ export async function generateCoverLetter(
   const result = await callLLM(coverLetterSystemPrompt(), userMsg, 1500);
   // Estimate: system ~200 + user + output ~1200
   void recordLlmCall('coverLetter', Math.round(200 + userMsg.length / 4 + 1200), false);
+  void getUserId().then((uid) => recordUserUsage(uid, 'coverLetter'));
   return result;
 }

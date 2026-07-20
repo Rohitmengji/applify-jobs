@@ -16,6 +16,8 @@ export interface UserRecord {
   ownKeyMasked?: string; // last 4 chars only, for admin display
   registeredAt: string; // ISO timestamp
   isActive: boolean;
+  /** Daily usage log: { "2026-07-20": { calls: 5, types: { mapping: 2, draft: 3 } } } */
+  usageLog?: Record<string, { calls: number; types: Record<string, number> }>;
 }
 
 export interface AdminConfig {
@@ -155,4 +157,38 @@ export async function resetAllMonthlyUsage(): Promise<void> {
     user.creditsUsed = 0;
   }
   await saveAdminConfig(config);
+}
+
+/** Record a credit usage event for a specific user (call type + timestamp). */
+export async function recordUserUsage(userId: string, callType: string): Promise<void> {
+  const config = await getAdminConfig();
+  const user = config.users.find((u) => u.id === userId);
+  if (!user) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  user.creditsUsed += 1;
+  user.lastActive = new Date().toISOString();
+
+  if (!user.usageLog) user.usageLog = {};
+  if (!user.usageLog[today]) user.usageLog[today] = { calls: 0, types: {} };
+  user.usageLog[today].calls += 1;
+  user.usageLog[today].types[callType] = (user.usageLog[today].types[callType] ?? 0) + 1;
+
+  await saveAdminConfig(config);
+}
+
+/** Get usage summary for a user over the last N days. */
+export function getUserUsageSummary(
+  user: UserRecord,
+  days = 30,
+): { date: string; calls: number; types: Record<string, number> }[] {
+  if (!user.usageLog) return [];
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+  return Object.entries(user.usageLog)
+    .filter(([date]) => date >= cutoffStr)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, data]) => ({ date, ...data }));
 }

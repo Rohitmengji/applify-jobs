@@ -8,6 +8,7 @@ import {
   setUserCredits,
   deactivateUser,
   resetAllMonthlyUsage,
+  getUserUsageSummary,
   type AdminConfig,
 } from '@/core/storage/adminConfig';
 
@@ -82,7 +83,7 @@ export function App() {
 
 function AdminDashboard() {
   const [config, setConfig] = useState<AdminConfig | null>(null);
-  const [tab, setTab] = useState<'users' | 'settings' | 'keys' | 'guide'>('users');
+  const [tab, setTab] = useState<'users' | 'usage' | 'settings' | 'keys' | 'guide'>('users');
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -116,7 +117,7 @@ function AdminDashboard() {
         </div>
         {/* Tabs */}
         <nav className="mt-4 flex gap-1">
-          {(['users', 'settings', 'keys', 'guide'] as const).map((t) => (
+          {(['users', 'usage', 'settings', 'keys', 'guide'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -127,6 +128,7 @@ function AdminDashboard() {
               }`}
             >
               {t === 'users' && '👥 Users'}
+              {t === 'usage' && '📊 Usage'}
               {t === 'settings' && '⚙️ Settings'}
               {t === 'keys' && '🔑 API Keys'}
               {t === 'guide' && '📖 Guide'}
@@ -138,6 +140,7 @@ function AdminDashboard() {
       {/* Content */}
       <main className="mx-auto max-w-6xl p-6">
         {tab === 'users' && <UsersTab config={config} onSave={save} />}
+        {tab === 'usage' && <UsageTab config={config} />}
         {tab === 'settings' && <SettingsTab config={config} onSave={save} />}
         {tab === 'keys' && <KeysTab config={config} onSave={save} />}
         {tab === 'guide' && <GuideTab />}
@@ -333,6 +336,214 @@ function UsersTab({ config, onSave }: { config: AdminConfig; onSave: (c: AdminCo
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Usage Tab ─────────────────────────────────────────────────────────
+function UsageTab({ config }: { config: AdminConfig }) {
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [days, setDays] = useState(30);
+
+  // Aggregate usage across all users for the overview
+  const allUsage: Record<string, { calls: number; types: Record<string, number> }> = {};
+  for (const user of config.users) {
+    if (!user.usageLog) continue;
+    for (const [date, data] of Object.entries(user.usageLog)) {
+      if (!allUsage[date]) allUsage[date] = { calls: 0, types: {} };
+      allUsage[date].calls += data.calls;
+      for (const [type, count] of Object.entries(data.types)) {
+        allUsage[date].types[type] = (allUsage[date].types[type] ?? 0) + count;
+      }
+    }
+  }
+
+  const selectedUserRecord = config.users.find((u) => u.id === selectedUser);
+  const userUsage = selectedUserRecord ? getUserUsageSummary(selectedUserRecord, days) : [];
+
+  // Top users by usage this month
+  const sortedUsers = [...config.users].sort((a, b) => b.creditsUsed - a.creditsUsed);
+
+  // Total calls today / this week / this month
+  const today = new Date().toISOString().slice(0, 10);
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const todayCalls = Object.entries(allUsage)
+    .filter(([d]) => d === today)
+    .reduce((s, [, v]) => s + v.calls, 0);
+  const weekCalls = Object.entries(allUsage)
+    .filter(([d]) => d >= weekAgo)
+    .reduce((s, [, v]) => s + v.calls, 0);
+  const monthCalls = config.users.reduce((s, u) => s + u.creditsUsed, 0);
+
+  return (
+    <div className="space-y-6">
+      {/* Overview stats */}
+      <div className="grid grid-cols-4 gap-4">
+        <StatCard label="Today" value={todayCalls} />
+        <StatCard label="This Week" value={weekCalls} />
+        <StatCard label="This Month" value={monthCalls} />
+        <StatCard
+          label="Avg/User/Day"
+          value={
+            config.users.filter((u) => u.isActive).length > 0
+              ? Math.round(monthCalls / Math.max(1, config.users.filter((u) => u.isActive).length))
+              : 0
+          }
+        />
+      </div>
+
+      {/* Top Users Leaderboard */}
+      <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
+        <h2 className="mb-4 text-lg font-semibold text-white">Top Users by Credits Used</h2>
+        <div className="space-y-3">
+          {sortedUsers.slice(0, 10).map((user, i) => (
+            <div
+              key={user.id}
+              className="flex items-center gap-4 cursor-pointer hover:bg-slate-700/50 rounded-lg px-3 py-2 transition"
+              onClick={() => setSelectedUser(user.id === selectedUser ? null : user.id)}
+            >
+              <span className="w-6 text-center text-sm font-bold text-slate-500">#{i + 1}</span>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-white">
+                    {user.name || user.email || user.id.slice(0, 8)}
+                  </span>
+                  <span className="text-sm text-slate-400">
+                    {user.creditsUsed} / {user.monthlyCredits}
+                  </span>
+                </div>
+                <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-700">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      user.creditsUsed / user.monthlyCredits > 0.9
+                        ? 'bg-red-500'
+                        : user.creditsUsed / user.monthlyCredits > 0.7
+                          ? 'bg-amber-500'
+                          : 'bg-blue-500'
+                    }`}
+                    style={{
+                      width: `${Math.min(100, (user.creditsUsed / user.monthlyCredits) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+          {sortedUsers.length === 0 && <p className="text-sm text-slate-500">No usage data yet.</p>}
+        </div>
+      </div>
+
+      {/* Selected User Detail */}
+      {selectedUserRecord && (
+        <div className="rounded-xl border border-blue-700/50 bg-slate-800 p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-white">
+              {selectedUserRecord.name ||
+                selectedUserRecord.email ||
+                selectedUserRecord.id.slice(0, 8)}{' '}
+              — Daily Breakdown
+            </h2>
+            <select
+              value={days}
+              onChange={(e) => setDays(Number(e.target.value))}
+              className="rounded border border-slate-600 bg-slate-700 px-3 py-1 text-sm text-white"
+            >
+              <option value={7}>Last 7 days</option>
+              <option value={14}>Last 14 days</option>
+              <option value={30}>Last 30 days</option>
+              <option value={90}>Last 90 days</option>
+            </select>
+          </div>
+
+          {userUsage.length === 0 ? (
+            <p className="text-sm text-slate-500">No usage recorded for this period.</p>
+          ) : (
+            <div className="space-y-1">
+              {/* Header */}
+              <div className="grid grid-cols-7 gap-2 text-xs text-slate-500 font-medium px-2 pb-1 border-b border-slate-700">
+                <span>Date</span>
+                <span>Total</span>
+                <span>Mapping</span>
+                <span>Draft</span>
+                <span>Extract</span>
+                <span>Tailor</span>
+                <span>Cover Letter</span>
+              </div>
+              {/* Rows */}
+              {userUsage.map((day) => (
+                <div
+                  key={day.date}
+                  className="grid grid-cols-7 gap-2 text-sm px-2 py-1.5 rounded hover:bg-slate-700/30"
+                >
+                  <span className="text-slate-400">{day.date.slice(5)}</span>
+                  <span className="font-medium text-white">{day.calls}</span>
+                  <span className="text-blue-400">{day.types.mapping ?? 0}</span>
+                  <span className="text-green-400">{day.types.draft ?? 0}</span>
+                  <span className="text-purple-400">{day.types.extract ?? 0}</span>
+                  <span className="text-amber-400">{day.types.tailor ?? 0}</span>
+                  <span className="text-pink-400">{day.types.coverLetter ?? 0}</span>
+                </div>
+              ))}
+              {/* Totals */}
+              <div className="grid grid-cols-7 gap-2 text-sm px-2 py-2 border-t border-slate-700 font-medium">
+                <span className="text-slate-300">Total</span>
+                <span className="text-white">{userUsage.reduce((s, d) => s + d.calls, 0)}</span>
+                <span className="text-blue-400">
+                  {userUsage.reduce((s, d) => s + (d.types.mapping ?? 0), 0)}
+                </span>
+                <span className="text-green-400">
+                  {userUsage.reduce((s, d) => s + (d.types.draft ?? 0), 0)}
+                </span>
+                <span className="text-purple-400">
+                  {userUsage.reduce((s, d) => s + (d.types.extract ?? 0), 0)}
+                </span>
+                <span className="text-amber-400">
+                  {userUsage.reduce((s, d) => s + (d.types.tailor ?? 0), 0)}
+                </span>
+                <span className="text-pink-400">
+                  {userUsage.reduce((s, d) => s + (d.types.coverLetter ?? 0), 0)}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Usage by Type (global) */}
+      <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
+        <h2 className="mb-4 text-lg font-semibold text-white">Usage by Call Type (All Users)</h2>
+        <div className="grid grid-cols-5 gap-4">
+          {(['mapping', 'draft', 'extract', 'tailor', 'coverLetter'] as const).map((type) => {
+            const total = config.users.reduce((sum, u) => {
+              if (!u.usageLog) return sum;
+              return sum + Object.values(u.usageLog).reduce((s, d) => s + (d.types[type] ?? 0), 0);
+            }, 0);
+            const colors = {
+              mapping: 'text-blue-400 border-blue-700/50',
+              draft: 'text-green-400 border-green-700/50',
+              extract: 'text-purple-400 border-purple-700/50',
+              tailor: 'text-amber-400 border-amber-700/50',
+              coverLetter: 'text-pink-400 border-pink-700/50',
+            };
+            const labels = {
+              mapping: 'Field Mapping',
+              draft: 'Answer Draft',
+              extract: 'Resume Extract',
+              tailor: 'Resume Tailor',
+              coverLetter: 'Cover Letter',
+            };
+            return (
+              <div
+                key={type}
+                className={`rounded-lg border ${colors[type]} bg-slate-900/50 p-4 text-center`}
+              >
+                <div className={`text-2xl font-bold ${colors[type].split(' ')[0]}`}>{total}</div>
+                <div className="text-xs text-slate-400 mt-1">{labels[type]}</div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
