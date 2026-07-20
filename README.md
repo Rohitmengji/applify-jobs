@@ -59,6 +59,18 @@ Load unpacked: `chrome://extensions` → enable _Developer mode_ → _Load unpac
 
 Your profile and résumé never leave the browser except: (a) résumé bytes go to the active job page when you click Fill; (b) field labels + profile context go to the LLM/proxy **only when LLM assist is enabled**. No analytics, no third-party servers beyond the optional LLM proxy you configure. The LLM key lives in `chrome.storage.local` only — never synced, never committed. See `IMPLEMENTATION.md` §21.
 
+## AI Credits & Admin
+
+The extension includes a built-in **credit system** and an **admin panel** for managing shared AI usage:
+
+- **Monthly credits** — Each user gets a configurable number of AI calls per month (default: 100). 1 credit = 1 AI action (field mapping, answer drafting, résumé tailoring, cover letter).
+- **Admin panel** — Access at `chrome-extension://<id>/admin.html` (password-protected, not linked in UI). Manage users, set per-user credit limits, view usage, toggle the global AI kill switch.
+- **Cost protection** — Triple layer: credit limits + rate limiter (20/min) + daily budget (500/day). Admin can also set spending caps on the provider side.
+- **User-provided keys** — When credits run out, users are guided to add their own OpenAI/Anthropic API key. The extension tracks which users have their own key (visible in admin).
+- **Key security** — All keys stored in Chrome's encrypted `chrome.storage.local`. Keys only travel over HTTPS directly to OpenAI/Anthropic. Never exposed to web pages or other extensions.
+
+See [`docs/SETUP_GUIDE.md`](docs/SETUP_GUIDE.md) for the full installation guide and [`docs/API_KEY_GUIDE.md`](docs/API_KEY_GUIDE.md) for the step-by-step API key setup instructions.
+
 ## Status / roadmap
 
 Milestones (see `IMPLEMENTATION.md` §22):
@@ -85,3 +97,14 @@ total, all confirmed-real ones fixed).
 ## Contributing
 
 Run `pnpm compile && pnpm test && pnpm lint && pnpm build` before pushing. See `push.sh` for the gated push-to-PR flow.
+
+## Documentation
+
+| Document                                         | Purpose                                                     |
+| ------------------------------------------------ | ----------------------------------------------------------- |
+| [`docs/SETUP_GUIDE.md`](docs/SETUP_GUIDE.md)     | Installation & first-time setup guide for users             |
+| [`docs/API_KEY_GUIDE.md`](docs/API_KEY_GUIDE.md) | Step-by-step guide to get your own OpenAI/Anthropic API key |
+| [`docs/PERMISSIONS.md`](docs/PERMISSIONS.md)     | Extension permissions explained                             |
+| [`docs/PRIVACY.md`](docs/PRIVACY.md)             | Privacy policy                                              |
+| [`IMPLEMENTATION.md`](IMPLEMENTATION.md)         | Full technical specification (single source of truth)       |
+| [`CLAUDE.md`](CLAUDE.md)                         | Agent orientation / codebase map                            |

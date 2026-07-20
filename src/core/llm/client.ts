@@ -8,6 +8,7 @@ import {
 import { llmLimiter, checkDailyBudget, recordDailyCall } from './rateLimiter';
 import { getCachedMappings, setCachedMappings, deduplicateBatch } from './cache';
 import { recordLlmCall } from '../storage/llmUsage';
+import { consumeCredit, hasCreditsRemaining } from '../storage/credits';
 
 // IMPLEMENTATION.md §19 — called ONLY from the background worker, so API keys never
 // enter a web page. Supports OpenAI or Anthropic (auto-detected from key prefix or
@@ -71,6 +72,12 @@ async function callLLM(
   if (!(await checkDailyBudget())) {
     throw new Error('Daily AI call budget reached. Restart your browser to reset.');
   }
+  // Credit system: check if user has credits remaining (or their own key)
+  if (!(await hasCreditsRemaining())) {
+    throw new Error(
+      "Monthly AI credits exhausted. Add your own API key in Settings to continue, or wait for next month's reset.",
+    );
+  }
   const { key, base, provider } = await getConfig();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
@@ -126,6 +133,7 @@ async function callLLM(
   } finally {
     clearTimeout(timer);
     void recordDailyCall();
+    void consumeCredit(); // Deduct one credit for this AI call
   }
 }
 
